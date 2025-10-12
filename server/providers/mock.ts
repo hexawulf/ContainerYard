@@ -312,21 +312,70 @@ export class MockProvider implements IProvider {
     };
   }
 
-  async createExecSession(id: string, cmd?: string[]): Promise<string> {
+  async createExecSession(id: string, cmd?: string[], outputCallback?: (data: string) => void): Promise<string> {
     const sessionId = `exec-${id}-${Date.now()}`;
     this.execSessions.set(sessionId, {
       containerId: id,
       cmd: cmd || ['/bin/sh'],
       active: true,
+      outputCallback,
+      buffer: '',
     });
     return sessionId;
   }
 
   writeToExec(sessionId: string, data: string): void {
-    const session = this.execSessions.get(sessionId);
-    if (session && session.active) {
-      console.log(`[${sessionId}] Received input:`, data);
+    const session: any = this.execSessions.get(sessionId);
+    if (!session || !session.active) return;
+
+    console.log(`[${sessionId}] Received input:`, data);
+
+    // Accumulate input in buffer
+    if (!session.buffer) session.buffer = '';
+    session.buffer += data;
+
+    // Check if command is complete (ends with \r or \n)
+    if (data === '\r' || data === '\n') {
+      const command = session.buffer.trim();
+      session.buffer = '';
+
+      if (command && session.outputCallback) {
+        // Simulate command execution
+        setTimeout(() => {
+          const output = this.simulateCommand(command);
+          if (session.outputCallback) {
+            // Send command output followed by new prompt
+            session.outputCallback(output + '$ ');
+          }
+        }, 50);
+      } else if (session.outputCallback) {
+        // Empty command - just send new prompt
+        session.outputCallback('\r\n$ ');
+      }
     }
+  }
+
+  private simulateCommand(command: string): string {
+    const responses: Record<string, string> = {
+      'ls': '\r\nbin\r\ndev\r\netc\r\nhome\r\nlib\r\nopt\r\nproc\r\nsbin\r\ntmp\r\nusr\r\nvar\r\n',
+      'ls -la': '\r\ntotal 64\r\ndrwxr-xr-x 1 root root 4096 Oct 12 14:50 .\r\ndrwxr-xr-x 1 root root 4096 Oct 12 14:50 ..\r\ndrwxr-xr-x 2 root root 4096 Oct  1 00:00 bin\r\ndrwxr-xr-x 2 root root 4096 Oct  1 00:00 etc\r\ndrwxr-xr-x 3 root root 4096 Oct  1 00:00 home\r\n',
+      'pwd': '\r\n/app\r\n',
+      'whoami': '\r\nroot\r\n',
+      'date': `\r\n${new Date().toString()}\r\n`,
+      'uname': '\r\nLinux\r\n',
+      'uname -a': '\r\nLinux container 5.15.0-1 #1 SMP x86_64 GNU/Linux\r\n',
+    };
+
+    if (command.startsWith('echo ')) {
+      const text = command.substring(5);
+      return `\r\n${text}\r\n`;
+    }
+
+    if (command.startsWith('cat ')) {
+      return '\r\nFile contents would appear here\r\n';
+    }
+
+    return responses[command] || `\r\nbash: ${command}: command not found\r\n`;
   }
 
   resizeExec(sessionId: string, cols: number, rows: number): void {

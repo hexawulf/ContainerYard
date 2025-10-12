@@ -17,7 +17,7 @@ export interface IProvider {
   streamStats(id: string, callback: (stats: StatsDataPoint) => void): () => void;
   
   // Terminal/exec operations
-  createExecSession(id: string, cmd?: string[]): Promise<string>;
+  createExecSession(id: string, cmd?: string[], outputCallback?: (data: string) => void): Promise<string>;
   writeToExec(sessionId: string, data: string): void;
   resizeExec(sessionId: string, cols: number, rows: number): void;
   closeExec(sessionId: string): void;

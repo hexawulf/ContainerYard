@@ -270,21 +270,81 @@ export class SimulationProvider implements IProvider {
     };
   }
 
-  async createExecSession(id: string, cmd?: string[]): Promise<string> {
+  async createExecSession(id: string, cmd?: string[], outputCallback?: (data: string) => void): Promise<string> {
     const sessionId = `sim-exec-${id}-${Date.now()}`;
     this.execSessions.set(sessionId, {
       containerId: id,
       cmd: cmd || ['/bin/sh'],
       active: true,
+      outputCallback,
+      buffer: '',
     });
     return sessionId;
   }
 
   writeToExec(sessionId: string, data: string): void {
-    const session = this.execSessions.get(sessionId);
-    if (session && session.active) {
-      console.log(`[SIM ${sessionId}] Input:`, data);
+    const session: any = this.execSessions.get(sessionId);
+    if (!session || !session.active) return;
+
+    console.log(`[SIM ${sessionId}] Input:`, data);
+
+    // Accumulate input in buffer
+    if (!session.buffer) session.buffer = '';
+    session.buffer += data;
+
+    // Check if command is complete (ends with \r or \n)
+    if (data === '\r' || data === '\n') {
+      const command = session.buffer.trim();
+      session.buffer = '';
+
+      if (command && session.outputCallback) {
+        // Simulate command execution with slight delay for realism
+        setTimeout(() => {
+          const output = this.simulateCommandExecution(command, session.containerId);
+          if (session.outputCallback) {
+            // Send command output followed by new prompt
+            session.outputCallback(output + '$ ');
+          }
+        }, 80);
+      } else if (session.outputCallback) {
+        // Empty command - just send new prompt
+        session.outputCallback('\r\n$ ');
+      }
     }
+  }
+
+  private simulateCommandExecution(command: string, containerId: string): string {
+    const baseResponses: Record<string, string> = {
+      'ls': '\r\nDockerfile\r\nnode_modules\r\npackage.json\r\nsrc\r\ndist\r\n.env\r\n',
+      'ls -la': '\r\ntotal 92\r\ndrwxr-xr-x 8 node node 4096 Oct 12 14:51 .\r\ndrwxr-xr-x 3 root root 4096 Oct 12 14:50 ..\r\n-rw-r--r-- 1 node node  512 Oct 12 14:50 Dockerfile\r\ndrwxr-xr-x 400 node node 16384 Oct 12 14:51 node_modules\r\n-rw-r--r-- 1 node node 1024 Oct 12 14:50 package.json\r\ndrwxr-xr-x 3 node node 4096 Oct 12 14:50 src\r\n',
+      'pwd': '\r\n/app\r\n',
+      'whoami': '\r\nnode\r\n',
+      'ps aux': '\r\nUSER       PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND\r\nnode         1  0.5  2.1 982440 87264 ?        Ssl  14:50   0:12 node server.js\r\nnode        42  0.0  0.1  11648  3248 pts/0    Rs+  15:02   0:00 ps aux\r\n',
+      'df -h': '\r\nFilesystem      Size  Used Avail Use% Mounted on\r\noverlay          59G   24G   35G  41% /\r\ntmpfs            64M     0   64M   0% /dev\r\n',
+      'free -h': '\r\n              total        used        free      shared  buff/cache   available\r\nMem:           3.8Gi       1.2Gi       1.8Gi        16Mi       820Mi       2.3Gi\r\nSwap:          2.0Gi          0B       2.0Gi\r\n',
+      'uptime': '\r\n 15:02:14 up 1 day, 12:34,  0 users,  load average: 0.45, 0.38, 0.41\r\n',
+      'env': '\r\nNODE_ENV=production\r\nPORT=8080\r\nPATH=/usr/local/bin:/usr/bin:/bin\r\nHOME=/home/node\r\n',
+    };
+
+    if (command.startsWith('echo ')) {
+      const text = command.substring(5);
+      return `\r\n${text}\r\n`;
+    }
+
+    if (command.startsWith('cat ')) {
+      const file = command.substring(4).trim();
+      return `\r\n# Contents of ${file}\r\n# This is simulated file content\r\n`;
+    }
+
+    if (command.startsWith('tail ')) {
+      return '\r\n[LOG] Application started\r\n[LOG] Server listening on port 8080\r\n[LOG] Request received\r\n';
+    }
+
+    if (command === 'help' || command === '--help') {
+      return '\r\nAvailable commands: ls, pwd, whoami, ps, df, free, uptime, env, echo, cat, tail\r\n';
+    }
+
+    return baseResponses[command] || `\r\nsh: ${command}: command not found\r\n`;
   }
 
   resizeExec(sessionId: string, cols: number, rows: number): void {

@@ -145,7 +145,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } else if (type === "exec" && containerId) {
       let execSessionId: string | null = null;
 
-      storage.provider.createExecSession(containerId).then((id) => {
+      // Create output callback that sends data to WebSocket
+      const outputCallback = (data: string) => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            type: "exec:data",
+            data,
+          }));
+        }
+      };
+
+      storage.provider.createExecSession(containerId, undefined, outputCallback).then((id) => {
         execSessionId = id;
         if (ws.readyState === WebSocket.OPEN) {
           ws.send(JSON.stringify({
@@ -167,18 +177,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (message.type === "exec:data" && execSessionId) {
             storage.provider.writeToExec(execSessionId, message.data);
             
+            // Echo input to terminal
             if (ws.readyState === WebSocket.OPEN) {
               ws.send(JSON.stringify({
                 type: "exec:data",
                 data: message.data,
               }));
-              
-              if (message.data === '\r') {
-                ws.send(JSON.stringify({
-                  type: "exec:data",
-                  data: '\r\n$ ',
-                }));
-              }
             }
           } else if (message.type === "exec:resize" && execSessionId) {
             storage.provider.resizeExec(execSessionId, message.cols, message.rows);
