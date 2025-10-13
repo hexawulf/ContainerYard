@@ -6,6 +6,7 @@ import { ContainerCard } from '@/components/ContainerCard';
 import { LogTail } from '@/components/LogTail';
 import { TimelineStrip } from '@/components/TimelineStrip';
 import { LogRateHeatmap } from '@/components/LogRateHeatmap';
+import { RestartComparison } from '@/components/RestartComparison';
 import { Terminal } from '@/components/Terminal';
 import { DarkModeToggle } from '@/components/DarkModeToggle';
 import { KeyboardShortcutsHelp } from '@/components/KeyboardShortcutsHelp';
@@ -14,7 +15,7 @@ import { EnvVarsPanel } from '@/components/EnvVarsPanel';
 import { SavedSearches } from '@/components/SavedSearches';
 import { LogBookmarks } from '@/components/LogBookmarks';
 import { useKeyboardShortcuts, defaultShortcuts } from '@/hooks/useKeyboardShortcuts';
-import { Database, HelpCircle, BookmarkPlus } from 'lucide-react';
+import { Database, HelpCircle, BookmarkPlus, Activity } from 'lucide-react';
 import { useLocation } from 'wouter';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
@@ -46,6 +47,8 @@ export default function Dashboard() {
   const [showSavedSearches, setShowSavedSearches] = useState(false);
   const [targetTimestamp, setTargetTimestamp] = useState<string | null>(null);
   const [scopeType, setScopeType] = useState<'spike' | 'bookmark' | null>(null);
+  const [restartComparison, setRestartComparison] = useState<string | null>(null);
+  const [restartTimestamps, setRestartTimestamps] = useState<Record<string, string>>({});
   const { toast } = useToast();
 
   // Handle deep-linking from URL parameters
@@ -84,6 +87,24 @@ export default function Dashboard() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['/api/containers'] });
+      
+      // Track restart timestamp per container for comparison feature
+      if (variables.action === 'restart') {
+        const restartTime = new Date().toISOString();
+        setRestartTimestamps(prev => ({
+          ...prev,
+          [variables.containerId]: restartTime
+        }));
+        
+        // Auto-show comparison after 2 seconds to allow logs to accumulate
+        setTimeout(() => {
+          toast({
+            title: 'Restart Analysis Available',
+            description: 'Click the Activity icon in the header to view before/after comparison',
+          });
+        }, 2000);
+      }
+      
       toast({
         title: 'Action completed',
         description: `Container ${variables.action} successfully`,
@@ -283,6 +304,39 @@ export default function Dashboard() {
     });
   };
 
+  const handleShowRestartComparison = () => {
+    if (!selectedContainerId) return;
+    
+    const containerRestartTime = restartTimestamps[selectedContainerId];
+    if (!containerRestartTime) {
+      toast({
+        title: 'No Restart Detected',
+        description: 'Perform a container restart to enable comparison analysis',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    // Validate log availability for comparison window
+    const restartTime = new Date(containerRestartTime).getTime();
+    const windowMs = 60 * 1000; // 1 minute
+    const logsInWindow = logs.filter(log => {
+      const logTime = new Date(log.ts).getTime();
+      return Math.abs(logTime - restartTime) <= windowMs;
+    });
+    
+    if (logsInWindow.length < 10) {
+      toast({
+        title: 'Insufficient Log Data',
+        description: 'Not enough logs available around restart time for meaningful comparison',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    setRestartComparison(containerRestartTime);
+  };
+
   const selectedContainer = containers.find(c => c.id === selectedContainerId);
 
   const shortcuts: KeyboardShortcut[] = [
@@ -371,6 +425,18 @@ export default function Dashboard() {
           >
             <BookmarkPlus className="h-4 w-4" />
           </Button>
+          {selectedContainer && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleShowRestartComparison}
+              data-testid="button-restart-comparison"
+              className="h-9 w-9"
+              title="Restart Analysis"
+            >
+              <Activity className="h-4 w-4" />
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="icon"
@@ -521,6 +587,15 @@ export default function Dashboard() {
         onApplySearch={(query) => setSearchQuery(query)}
         currentQuery={searchQuery}
       />
+
+      {/* Restart Comparison Modal */}
+      {restartComparison && (
+        <RestartComparison
+          logs={logs}
+          restartTimestamp={restartComparison}
+          onClose={() => setRestartComparison(null)}
+        />
+      )}
     </div>
   );
 }
