@@ -44,6 +44,7 @@ export default function Dashboard() {
   const [showEnvVars, setShowEnvVars] = useState(false);
   const [showSavedSearches, setShowSavedSearches] = useState(false);
   const [targetTimestamp, setTargetTimestamp] = useState<string | null>(null);
+  const [scopeType, setScopeType] = useState<'spike' | 'bookmark' | null>(null);
   const { toast } = useToast();
 
   // Handle deep-linking from URL parameters
@@ -193,6 +194,7 @@ export default function Dashboard() {
   const handleJumpToBookmark = (containerId: string, timestamp: string, filters?: string) => {
     setSelectedContainerId(containerId);
     setTargetTimestamp(timestamp);
+    setScopeType('bookmark');
     
     // Clear or set search query based on bookmark filters
     setSearchQuery(filters || '');
@@ -215,6 +217,40 @@ export default function Dashboard() {
       title: 'Jumped to bookmark',
       description: `Viewing logs at ${new Date(timestamp).toLocaleString()}`,
     });
+  };
+
+  const handleSpikeClick = (timestamp: string, metric: 'cpu' | 'mem' | 'net') => {
+    // Scope logs to T-10s to T+20s window around spike
+    setTargetTimestamp(timestamp);
+    setScopeType('spike');
+    
+    // Pre-fill filters based on spike metric context
+    const metricFilters: Record<string, string> = {
+      cpu: 'level:warn..error',
+      mem: 'level:warn..error',
+      net: 'level:info..error',
+    };
+    setSearchQuery(metricFilters[metric] || '');
+    
+    setActiveTab('logs');
+    setIsLogsPaused(true);
+    
+    toast({
+      title: `${metric.toUpperCase()} Spike Detected`,
+      description: `Viewing logs around ${new Date(timestamp).toLocaleString()}`,
+    });
+  };
+
+  // Clear scope when toggling pause (resuming live mode)
+  const handleTogglePause = () => {
+    const newPausedState = !isLogsPaused;
+    setIsLogsPaused(newPausedState);
+    
+    // Clear scoping when resuming live mode
+    if (!newPausedState) {
+      setTargetTimestamp(null);
+      setScopeType(null);
+    }
   };
 
   const handleAction = (containerId: string, action: ContainerAction) => {
@@ -365,7 +401,7 @@ export default function Dashboard() {
         <main className="flex-1 flex flex-col overflow-hidden">
           {selectedContainer ? (
             <>
-              <TimelineStrip stats={stats} />
+              <TimelineStrip stats={stats} onSpikeClick={handleSpikeClick} />
               
               <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="flex-1 flex flex-col overflow-hidden">
                 <div className="border-b px-3 bg-card/30">
@@ -382,13 +418,14 @@ export default function Dashboard() {
                   <LogTail
                     logs={logs}
                     isLive={!isLogsPaused}
-                    onTogglePause={() => setIsLogsPaused(prev => !prev)}
+                    onTogglePause={handleTogglePause}
                     onDownload={handleDownloadLogs}
                     searchQuery={searchQuery}
                     onSearchChange={setSearchQuery}
                     containerId={selectedContainerId || undefined}
                     onJumpToBookmark={handleJumpToBookmark}
                     targetTimestamp={targetTimestamp}
+                    scopeType={scopeType}
                   />
                 </TabsContent>
 

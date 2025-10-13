@@ -6,12 +6,14 @@ import type { StatsDataPoint } from '@shared/schema';
 interface TimelineStripProps {
   stats: StatsDataPoint[];
   events?: Array<{ ts: string; type: 'start' | 'stop' | 'health' | 'restart'; label: string }>;
+  onSpikeClick?: (timestamp: string, metric: 'cpu' | 'mem' | 'net') => void;
 }
 
-export function TimelineStrip({ stats, events = [] }: TimelineStripProps) {
+export function TimelineStrip({ stats, events = [], onSpikeClick }: TimelineStripProps) {
   const chartData = useMemo(() => {
-    return stats.map(stat => ({
+    return stats.map((stat, idx) => ({
       ts: new Date(stat.ts).getTime(),
+      tsISO: stat.ts,
       cpu: stat.cpuPct,
       mem: stat.memPct,
       net: ((stat.netRx + stat.netTx) / 1024) || 0,
@@ -21,8 +23,49 @@ export function TimelineStrip({ stats, events = [] }: TimelineStripProps) {
         minute: '2-digit', 
         second: '2-digit' 
       }),
+      idx,
     }));
   }, [stats]);
+
+  // Detect spikes: data points significantly higher than local average
+  const spikes = useMemo(() => {
+    const detected: Array<{ idx: number; metric: 'cpu' | 'mem' | 'net'; value: number; ts: string }> = [];
+    const window = 5; // Look at 5 neighbors on each side
+    const threshold = 1.5; // 50% higher than local average
+
+    chartData.forEach((point, idx) => {
+      if (idx < window || idx >= chartData.length - window) return;
+
+      // Check CPU spike
+      const cpuLocalAvg = chartData
+        .slice(idx - window, idx + window + 1)
+        .filter((_, i) => i !== window)
+        .reduce((sum, p) => sum + p.cpu, 0) / (window * 2);
+      if (point.cpu > cpuLocalAvg * threshold && point.cpu > 30) {
+        detected.push({ idx, metric: 'cpu', value: point.cpu, ts: point.tsISO });
+      }
+
+      // Check Memory spike
+      const memLocalAvg = chartData
+        .slice(idx - window, idx + window + 1)
+        .filter((_, i) => i !== window)
+        .reduce((sum, p) => sum + p.mem, 0) / (window * 2);
+      if (point.mem > memLocalAvg * threshold && point.mem > 30) {
+        detected.push({ idx, metric: 'mem', value: point.mem, ts: point.tsISO });
+      }
+
+      // Check Network spike
+      const netLocalAvg = chartData
+        .slice(idx - window, idx + window + 1)
+        .filter((_, i) => i !== window)
+        .reduce((sum, p) => sum + p.net, 0) / (window * 2);
+      if (point.net > netLocalAvg * threshold && point.net > 10) {
+        detected.push({ idx, metric: 'net', value: point.net, ts: point.tsISO });
+      }
+    });
+
+    return detected;
+  }, [chartData]);
 
   const eventMarkers = useMemo(() => {
     return events.map(event => ({
@@ -166,6 +209,58 @@ export function TimelineStrip({ stats, events = [] }: TimelineStripProps) {
                 <div className="absolute top-1 left-1/2 -translate-x-1/2">
                   {getEventIcon(event.type)}
                 </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Spike Indicators */}
+      {spikes.length > 0 && onSpikeClick && (
+        <div className="absolute top-0 left-0 right-0 h-full pointer-events-none">
+          {spikes.map((spike, idx) => {
+            const spikeData = chartData[spike.idx];
+            if (!spikeData) return null;
+
+            const percentage = chartData.length > 0 
+              ? ((spikeData.ts - chartData[0].ts) / (chartData[chartData.length - 1].ts - chartData[0].ts)) * 100
+              : 0;
+            
+            const getColor = (metric: string) => {
+              switch (metric) {
+                case 'cpu': return 'hsl(217,91%,60%)';
+                case 'mem': return 'hsl(142,76%,45%)';
+                case 'net': return 'hsl(199,89%,48%)';
+                default: return 'hsl(var(--primary))';
+              }
+            };
+
+            const getYPosition = (metric: string) => {
+              switch (metric) {
+                case 'cpu': return '15%';
+                case 'mem': return '48%';
+                case 'net': return '82%';
+                default: return '50%';
+              }
+            };
+
+            return (
+              <div
+                key={`${spike.metric}-${idx}`}
+                className="absolute pointer-events-auto cursor-pointer hover-elevate active-elevate-2 transition-all"
+                style={{ 
+                  left: `${percentage}%`,
+                  top: getYPosition(spike.metric),
+                  transform: 'translate(-50%, -50%)',
+                }}
+                onClick={() => onSpikeClick(spike.ts, spike.metric)}
+                title={`${spike.metric.toUpperCase()} spike: ${spike.value.toFixed(1)}${spike.metric === 'net' ? ' KB/s' : '%'}\nClick to view logs`}
+                data-testid={`spike-${spike.metric}-${spike.idx}`}
+              >
+                <div 
+                  className="w-3 h-3 rounded-full border-2 bg-background"
+                  style={{ borderColor: getColor(spike.metric) }}
+                />
               </div>
             );
           })}

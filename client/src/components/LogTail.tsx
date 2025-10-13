@@ -22,6 +22,7 @@ interface LogTailProps {
   containerId?: string;
   onJumpToBookmark?: (containerId: string, timestamp: string, filters?: string) => void;
   targetTimestamp?: string | null;
+  scopeType?: 'spike' | 'bookmark' | null;
 }
 
 export function LogTail({
@@ -34,6 +35,7 @@ export function LogTail({
   containerId,
   onJumpToBookmark,
   targetTimestamp,
+  scopeType = null,
 }: LogTailProps) {
   const parentRef = useRef<HTMLDivElement>(null);
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
@@ -53,16 +55,19 @@ export function LogTail({
 
   // Filter logs based on advanced query and target timestamp
   const filteredIndices = useMemo(() => {
-    // If target timestamp is set, filter logs within +/- 5 minutes of that time
+    // If target timestamp is set, apply time window based on scope type
     let timeFilteredLogs = logs;
     if (targetTimestamp) {
       const targetTime = new Date(targetTimestamp).getTime();
-      const timeWindow = 5 * 60 * 1000; // 5 minutes in milliseconds
+      
+      // Different time windows for spike vs bookmark
+      const beforeWindow = scopeType === 'spike' ? 10 * 1000 : 5 * 60 * 1000; // 10s or 5min
+      const afterWindow = scopeType === 'spike' ? 20 * 1000 : 5 * 60 * 1000; // 20s or 5min
       
       timeFilteredLogs = logs.filter((log) => {
         try {
           const logTime = new Date(log.ts).getTime();
-          return Math.abs(logTime - targetTime) <= timeWindow;
+          return logTime >= targetTime - beforeWindow && logTime <= targetTime + afterWindow;
         } catch {
           return false;
         }
@@ -87,7 +92,7 @@ export function LogTail({
     });
 
     return indices;
-  }, [logs, parsedLogs, searchQuery, parsedQuery, targetTimestamp]);
+  }, [logs, parsedLogs, searchQuery, parsedQuery, targetTimestamp, scopeType]);
 
   const rowVirtualizer = useVirtualizer({
     count: filteredIndices.length,
@@ -189,15 +194,18 @@ export function LogTail({
       {/* Query Syntax Helper */}
       <QuerySyntaxHelper query={searchQuery} />
 
-      {/* Bookmarked Moment Indicator */}
+      {/* Scoped Time Window Indicator */}
       {targetTimestamp && (
         <div className="px-3 py-2 bg-primary/10 border-b flex items-center gap-2">
           <Badge variant="default" className="h-5">
             <Search className="h-3 w-3 mr-1" />
-            Bookmarked Moment
+            {scopeType === 'spike' ? 'Spike Analysis' : 'Bookmarked Moment'}
           </Badge>
           <span className="text-xs text-muted-foreground">
-            {new Date(targetTimestamp).toLocaleString()}
+            {scopeType === 'spike' 
+              ? `Viewing T-10s to T+20s around ${new Date(targetTimestamp).toLocaleString()}`
+              : `Viewing ±5min around ${new Date(targetTimestamp).toLocaleString()}`
+            }
           </span>
         </div>
       )}
