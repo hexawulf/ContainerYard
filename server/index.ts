@@ -6,6 +6,35 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
+// CORS enforcement for REMOTE provider
+const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',').map(o => o.trim()) || [];
+if (process.env.PROVIDER === 'REMOTE') {
+  if (allowedOrigins.length === 0) {
+    console.error('FATAL: REMOTE provider requires ALLOWED_ORIGINS to be set for CORS security');
+    console.error('Example: ALLOWED_ORIGINS=http://localhost:3000,https://yourdomain.com');
+    process.exit(1);
+  }
+  
+  app.use((req, res, next) => {
+    const origin = req.get('origin');
+    
+    if (origin && allowedOrigins.includes(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+    }
+    
+    if (req.method === 'OPTIONS') {
+      return res.sendStatus(200);
+    }
+    
+    next();
+  });
+  
+  log(`CORS enabled for origins: ${allowedOrigins.join(', ')}`);
+}
+
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;

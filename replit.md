@@ -63,12 +63,22 @@ The application uses a pluggable provider architecture to abstract container dat
 - **IProvider Interface**: Defines contract for container operations (list, get, actions, logs, stats, exec)
 - **MockProvider**: Static mock data for development/demo without Docker
 - **SimulationProvider**: Dynamic simulation with generated logs/stats for realistic testing
+- **RemoteProvider**: Production Docker API connection with bearer token authentication
 - **Environment-based Selection**: `PROVIDER` env var switches between implementations
+
+**Provider Configuration:**
+- `PROVIDER=MOCK` (default): Uses static mock data
+- `PROVIDER=SIMULATION`: Uses dynamic simulation
+- `PROVIDER=REMOTE`: Connects to real Docker API
+  - `DOCKER_HOST`: Docker API endpoint (default: http://localhost:2375)
+  - `DOCKER_AUTH_TOKEN`: Bearer token for authentication (optional)
+  - `ALLOWED_ORIGINS`: Comma-separated list of allowed CORS origins (required for REMOTE)
 
 **Benefits:**
 - Develop and demo anywhere without Docker daemon access
 - Easy testing with predictable mock data or realistic simulations
-- Future extensibility to remote Docker APIs or other container runtimes
+- Production-ready remote Docker API integration with authentication
+- CORS security enforcement for production deployments
 
 **WebSocket Communication:**
 - `/ws/logs/:containerId` - Real-time log streaming
