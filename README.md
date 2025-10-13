@@ -8,7 +8,7 @@
 ContainerYard is a powerful, developer-focused observability tool inspired by Dozzle, designed for real-time Docker container monitoring, log analysis, and debugging. Built with React 18 and Express, it provides a sleek interface for managing containers, analyzing logs, and troubleshooting issues—all optimized for modern developer workflows.
 
 ![ContainerYard Dashboard](screenshot.png)
-*Screenshot placeholder - add your own screenshot here*
+*Screenshot placeholder"
 
 ## ✨ Features
 
