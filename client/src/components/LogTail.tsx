@@ -1,12 +1,15 @@
 import { useRef, useEffect, useState, useMemo } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Search, X, Play, Pause, Download } from 'lucide-react';
 import type { LogLine } from '@shared/schema';
 import { formatDistanceToNow } from 'date-fns';
 import { parseLogLine, buildFieldFilter, type ParsedLog } from '@/lib/logParser';
+import { parseQuery, matchesQuery } from '@/lib/queryParser';
+import { QuerySyntaxHelper } from './QuerySyntaxHelper';
+import { QuerySyntaxReference } from './QuerySyntaxReference';
+import { SyntaxHighlightedInput } from './SyntaxHighlightedInput';
 
 interface LogTailProps {
   logs: LogLine[];
@@ -33,44 +36,27 @@ export function LogTail({
     return logs.map(log => parseLogLine(log.raw));
   }, [logs]);
 
-  // Filter logs based on search query
+  // Parse query once
+  const parsedQuery = useMemo(() => parseQuery(searchQuery), [searchQuery]);
+
+  // Filter logs based on advanced query
   const filteredIndices = useMemo(() => {
     if (!searchQuery.trim()) {
       return logs.map((_, index) => index);
     }
 
-    const query = searchQuery.trim();
     const indices: number[] = [];
-
-    // Check if query is a field filter (key:value format)
-    const fieldMatch = query.match(/^(\w+):(.+)$/);
     
     logs.forEach((log, index) => {
       const parsed = parsedLogs[index];
       
-      if (fieldMatch) {
-        // Field-specific search
-        const [, key, value] = fieldMatch;
-        const matchingField = parsed.fields.find(
-          f => f.key === key && f.value.toLowerCase().includes(value.toLowerCase())
-        );
-        if (matchingField) {
-          indices.push(index);
-        }
-      } else {
-        // Text search in message and raw log
-        const searchLower = query.toLowerCase();
-        if (
-          log.raw.toLowerCase().includes(searchLower) ||
-          parsed.message.toLowerCase().includes(searchLower)
-        ) {
-          indices.push(index);
-        }
+      if (matchesQuery(log.raw, log.level, parsed.fields, parsedQuery)) {
+        indices.push(index);
       }
     });
 
     return indices;
-  }, [logs, parsedLogs, searchQuery]);
+  }, [logs, parsedLogs, searchQuery, parsedQuery]);
 
   const rowVirtualizer = useVirtualizer({
     count: filteredIndices.length,
@@ -117,11 +103,11 @@ export function LogTail({
       {/* Search Bar */}
       <div className="p-3 border-b bg-card flex items-center gap-2">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search logs (text, regex, or level:error)..."
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
+          <SyntaxHighlightedInput
+            placeholder="Search: text, /regex/, field:value, level:warn..error, -exclude..."
             value={searchQuery}
-            onChange={(e) => onSearchChange?.(e.target.value)}
+            onChange={(value) => onSearchChange?.(value)}
             className="pl-9 pr-9"
             data-testid="input-log-search"
           />
@@ -129,7 +115,7 @@ export function LogTail({
             <Button
               variant="ghost"
               size="icon"
-              className="absolute right-1 top-1/2 transform -translate-y-1/2 h-6 w-6"
+              className="absolute right-1 top-1/2 transform -translate-y-1/2 h-6 w-6 z-10"
               onClick={() => onSearchChange?.('')}
               data-testid="button-clear-search"
             >
@@ -158,7 +144,12 @@ export function LogTail({
           <Download className="h-3 w-3 mr-2" />
           Download
         </Button>
+
+        <QuerySyntaxReference />
       </div>
+
+      {/* Query Syntax Helper */}
+      <QuerySyntaxHelper query={searchQuery} />
 
       {/* Log Lines */}
       <div
