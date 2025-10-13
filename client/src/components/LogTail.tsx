@@ -10,6 +10,7 @@ import { parseQuery, matchesQuery } from '@/lib/queryParser';
 import { QuerySyntaxHelper } from './QuerySyntaxHelper';
 import { QuerySyntaxReference } from './QuerySyntaxReference';
 import { SyntaxHighlightedInput } from './SyntaxHighlightedInput';
+import { LogBookmarks } from './LogBookmarks';
 
 interface LogTailProps {
   logs: LogLine[];
@@ -18,6 +19,9 @@ interface LogTailProps {
   onDownload?: () => void;
   searchQuery?: string;
   onSearchChange?: (query: string) => void;
+  containerId?: string;
+  onJumpToBookmark?: (containerId: string, timestamp: string, filters?: string) => void;
+  targetTimestamp?: string | null;
 }
 
 export function LogTail({
@@ -27,6 +31,9 @@ export function LogTail({
   onDownload,
   searchQuery = '',
   onSearchChange,
+  containerId,
+  onJumpToBookmark,
+  targetTimestamp,
 }: LogTailProps) {
   const parentRef = useRef<HTMLDivElement>(null);
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
@@ -36,27 +43,51 @@ export function LogTail({
     return logs.map(log => parseLogLine(log.raw));
   }, [logs]);
 
+  // Get current timestamp from most recent log
+  const currentTimestamp = useMemo(() => {
+    return logs.length > 0 ? logs[logs.length - 1].ts : undefined;
+  }, [logs]);
+
   // Parse query once
   const parsedQuery = useMemo(() => parseQuery(searchQuery), [searchQuery]);
 
-  // Filter logs based on advanced query
+  // Filter logs based on advanced query and target timestamp
   const filteredIndices = useMemo(() => {
-    if (!searchQuery.trim()) {
-      return logs.map((_, index) => index);
+    // If target timestamp is set, filter logs within +/- 5 minutes of that time
+    let timeFilteredLogs = logs;
+    if (targetTimestamp) {
+      const targetTime = new Date(targetTimestamp).getTime();
+      const timeWindow = 5 * 60 * 1000; // 5 minutes in milliseconds
+      
+      timeFilteredLogs = logs.filter((log) => {
+        try {
+          const logTime = new Date(log.ts).getTime();
+          return Math.abs(logTime - targetTime) <= timeWindow;
+        } catch {
+          return false;
+        }
+      });
     }
 
+    // If no search query, return all time-filtered logs
+    if (!searchQuery.trim()) {
+      return timeFilteredLogs.map((log) => logs.indexOf(log));
+    }
+
+    // Apply query filter on time-filtered logs
     const indices: number[] = [];
     
-    logs.forEach((log, index) => {
-      const parsed = parsedLogs[index];
+    timeFilteredLogs.forEach((log) => {
+      const logIndex = logs.indexOf(log);
+      const parsed = parsedLogs[logIndex];
       
       if (matchesQuery(log.raw, log.level, parsed.fields, parsedQuery)) {
-        indices.push(index);
+        indices.push(logIndex);
       }
     });
 
     return indices;
-  }, [logs, parsedLogs, searchQuery, parsedQuery]);
+  }, [logs, parsedLogs, searchQuery, parsedQuery, targetTimestamp]);
 
   const rowVirtualizer = useVirtualizer({
     count: filteredIndices.length,
@@ -145,11 +176,31 @@ export function LogTail({
           Download
         </Button>
 
+        <LogBookmarks
+          containerId={containerId}
+          currentTimestamp={currentTimestamp}
+          currentFilters={searchQuery}
+          onJumpTo={onJumpToBookmark}
+        />
+
         <QuerySyntaxReference />
       </div>
 
       {/* Query Syntax Helper */}
       <QuerySyntaxHelper query={searchQuery} />
+
+      {/* Bookmarked Moment Indicator */}
+      {targetTimestamp && (
+        <div className="px-3 py-2 bg-primary/10 border-b flex items-center gap-2">
+          <Badge variant="default" className="h-5">
+            <Search className="h-3 w-3 mr-1" />
+            Bookmarked Moment
+          </Badge>
+          <span className="text-xs text-muted-foreground">
+            {new Date(targetTimestamp).toLocaleString()}
+          </span>
+        </div>
+      )}
 
       {/* Log Lines */}
       <div

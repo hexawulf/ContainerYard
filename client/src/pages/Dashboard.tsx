@@ -11,8 +11,10 @@ import { KeyboardShortcutsHelp } from '@/components/KeyboardShortcutsHelp';
 import { ActionConfirmDialog } from '@/components/ActionConfirmDialog';
 import { EnvVarsPanel } from '@/components/EnvVarsPanel';
 import { SavedSearches } from '@/components/SavedSearches';
+import { LogBookmarks } from '@/components/LogBookmarks';
 import { useKeyboardShortcuts, defaultShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { Database, HelpCircle, BookmarkPlus } from 'lucide-react';
+import { useLocation } from 'wouter';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import type { 
@@ -25,6 +27,7 @@ import type {
 } from '@shared/schema';
 
 export default function Dashboard() {
+  const [location, setLocation] = useLocation();
   const [selectedContainerId, setSelectedContainerId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'logs' | 'terminal' | 'env'>('logs');
   const [logs, setLogs] = useState<LogLine[]>([]);
@@ -40,7 +43,26 @@ export default function Dashboard() {
   } | null>(null);
   const [showEnvVars, setShowEnvVars] = useState(false);
   const [showSavedSearches, setShowSavedSearches] = useState(false);
+  const [targetTimestamp, setTargetTimestamp] = useState<string | null>(null);
   const { toast } = useToast();
+
+  // Handle deep-linking from URL parameters
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const container = params.get('container');
+    const timestamp = params.get('timestamp');
+    const filters = params.get('filters');
+
+    if (container) {
+      setSelectedContainerId(container);
+      if (timestamp) {
+        setTargetTimestamp(timestamp);
+      }
+      if (filters) {
+        setSearchQuery(filters);
+      }
+    }
+  }, []);
 
   const wsRef = useRef<WebSocket | null>(null);
   const terminalWsRef = useRef<WebSocket | null>(null);
@@ -166,6 +188,33 @@ export default function Dashboard() {
         description: 'Failed to download logs',
       });
     }
+  };
+
+  const handleJumpToBookmark = (containerId: string, timestamp: string, filters?: string) => {
+    setSelectedContainerId(containerId);
+    setTargetTimestamp(timestamp);
+    
+    // Clear or set search query based on bookmark filters
+    setSearchQuery(filters || '');
+    
+    setActiveTab('logs');
+    
+    // Update URL params for shareable deep-link
+    const params = new URLSearchParams();
+    params.set('container', containerId);
+    params.set('timestamp', timestamp);
+    if (filters) {
+      params.set('filters', filters);
+    }
+    window.history.pushState({}, '', `${window.location.pathname}?${params.toString()}`);
+    
+    // Pause live tailing to view historical moment
+    setIsLogsPaused(true);
+    
+    toast({
+      title: 'Jumped to bookmark',
+      description: `Viewing logs at ${new Date(timestamp).toLocaleString()}`,
+    });
   };
 
   const handleAction = (containerId: string, action: ContainerAction) => {
@@ -337,6 +386,9 @@ export default function Dashboard() {
                     onDownload={handleDownloadLogs}
                     searchQuery={searchQuery}
                     onSearchChange={setSearchQuery}
+                    containerId={selectedContainerId || undefined}
+                    onJumpToBookmark={handleJumpToBookmark}
+                    targetTimestamp={targetTimestamp}
                   />
                 </TabsContent>
 
