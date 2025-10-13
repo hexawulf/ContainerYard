@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Search, Copy, Check } from 'lucide-react';
+import { Search, Copy, Check, Download, FileText } from 'lucide-react';
 import type { EnvVar } from '@shared/schema';
 import { useToast } from '@/hooks/use-toast';
 
@@ -35,6 +35,39 @@ export function EnvVarsPanel({ isOpen, onClose, envVars, containerName }: EnvVar
     setTimeout(() => setCopiedKey(null), 2000);
   };
 
+  const handleBulkCopyClipboard = () => {
+    const envText = filteredVars
+      .map(v => `${v.key}=${v.value}`)
+      .join('\n');
+    
+    navigator.clipboard.writeText(envText);
+    toast({
+      title: 'Copied to clipboard',
+      description: `${filteredVars.length} environment variables copied`,
+    });
+  };
+
+  const handleBulkExportFile = () => {
+    const envText = filteredVars
+      .map(v => `${v.key}=${v.value}`)
+      .join('\n');
+    
+    const blob = new Blob([envText], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${containerName.replace(/[^a-zA-Z0-9-]/g, '_')}_env.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    toast({
+      title: 'Export complete',
+      description: `${filteredVars.length} variables exported to file`,
+    });
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-3xl max-h-[80vh]" data-testid="dialog-env-vars">
@@ -43,15 +76,39 @@ export function EnvVarsPanel({ isOpen, onClose, envVars, containerName }: EnvVar
         </DialogHeader>
 
         <div className="space-y-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search environment variables..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9"
-              data-testid="input-env-search"
-            />
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search environment variables..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+                data-testid="input-env-search"
+              />
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleBulkCopyClipboard}
+              disabled={filteredVars.length === 0}
+              data-testid="button-bulk-copy"
+              className="gap-2"
+            >
+              <FileText className="h-4 w-4" />
+              Copy All
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleBulkExportFile}
+              disabled={filteredVars.length === 0}
+              data-testid="button-bulk-export"
+              className="gap-2"
+            >
+              <Download className="h-4 w-4" />
+              Export
+            </Button>
           </div>
 
           <div className="border rounded-md max-h-96 overflow-auto">

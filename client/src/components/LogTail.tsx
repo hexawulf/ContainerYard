@@ -23,6 +23,8 @@ interface LogTailProps {
   onJumpToBookmark?: (containerId: string, timestamp: string, filters?: string) => void;
   targetTimestamp?: string | null;
   scopeType?: 'spike' | 'bookmark' | null;
+  multiContainerMode?: boolean;
+  containerNames?: Record<string, string>;
 }
 
 export function LogTail({
@@ -36,6 +38,8 @@ export function LogTail({
   onJumpToBookmark,
   targetTimestamp,
   scopeType = null,
+  multiContainerMode = false,
+  containerNames = {},
 }: LogTailProps) {
   const parentRef = useRef<HTMLDivElement>(null);
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
@@ -119,6 +123,16 @@ export function LogTail({
     } catch {
       return ts;
     }
+  };
+
+  const getContainerColor = (containerId: string) => {
+    const colors = [
+      'bg-blue-500/20 text-blue-400 border-blue-500/30',
+      'bg-green-500/20 text-green-400 border-green-500/30',
+      'bg-purple-500/20 text-purple-400 border-purple-500/30',
+    ];
+    const hash = containerId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    return colors[hash % colors.length];
   };
 
   useEffect(() => {
@@ -246,6 +260,15 @@ export function LogTail({
                 <span className="text-muted-foreground shrink-0 w-24">
                   {formatTimestamp(log.ts)}
                 </span>
+                {multiContainerMode && (log as any).containerId && (
+                  <Badge 
+                    variant="outline" 
+                    className={`shrink-0 h-5 text-xs ${getContainerColor((log as any).containerId)}`}
+                    title={containerNames[(log as any).containerId] || (log as any).containerId}
+                  >
+                    {(containerNames[(log as any).containerId] || (log as any).containerId).substring(0, 8)}
+                  </Badge>
+                )}
                 {log.level && (
                   <Badge variant="outline" className={`shrink-0 h-5 text-xs ${getLevelClass(log.level)}`}>
                     {log.level.substring(0, 3).toUpperCase()}

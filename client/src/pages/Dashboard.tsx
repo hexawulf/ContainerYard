@@ -49,6 +49,9 @@ export default function Dashboard() {
   const [scopeType, setScopeType] = useState<'spike' | 'bookmark' | null>(null);
   const [restartComparison, setRestartComparison] = useState<string | null>(null);
   const [restartTimestamps, setRestartTimestamps] = useState<Record<string, string>>({});
+  const [multiContainerMode, setMultiContainerMode] = useState(false);
+  const [selectedContainerIds, setSelectedContainerIds] = useState<string[]>([]);
+  const multiWsRefs = useRef<Map<string, WebSocket>>(new Map());
   const { toast } = useToast();
 
   // Handle deep-linking from URL parameters
@@ -120,8 +123,9 @@ export default function Dashboard() {
     },
   });
 
+  // Single container WebSocket connection
   useEffect(() => {
-    if (!selectedContainerId) return;
+    if (!selectedContainerId || multiContainerMode) return;
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}/ws`;
@@ -158,7 +162,75 @@ export default function Dashboard() {
     return () => {
       ws.close();
     };
-  }, [selectedContainerId, isLogsPaused]);
+  }, [selectedContainerId, isLogsPaused, multiContainerMode]);
+
+  // Multi-container WebSocket connections
+  useEffect(() => {
+    if (!multiContainerMode || selectedContainerIds.length === 0) {
+      // Clean up existing connections
+      multiWsRefs.current.forEach(ws => ws.close());
+      multiWsRefs.current.clear();
+      return;
+    }
+
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}/ws`;
+
+    // Close connections for removed containers
+    const currentIds = new Set(selectedContainerIds);
+    multiWsRefs.current.forEach((ws, id) => {
+      if (!currentIds.has(id)) {
+        ws.close();
+        multiWsRefs.current.delete(id);
+      }
+    });
+
+    // Create connections for new containers
+    selectedContainerIds.forEach(containerId => {
+      if (multiWsRefs.current.has(containerId)) return;
+
+      const ws = new WebSocket(`${wsUrl}?type=logs&containerId=${containerId}`);
+      
+      ws.onopen = () => {
+        console.log(`WebSocket connected for container ${containerId}`);
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'log' && !isLogsPaused) {
+            // Add container ID to log for identification
+            const logWithContainer = { ...data.log, containerId };
+            setLogs(prev => {
+              // Merge and sort by timestamp
+              const merged = [...prev, logWithContainer];
+              return merged.sort((a, b) => 
+                new Date(a.ts).getTime() - new Date(b.ts).getTime()
+              );
+            });
+          }
+        } catch (error) {
+          console.error('Failed to parse WebSocket message:', error);
+        }
+      };
+
+      ws.onerror = (error) => {
+        console.error(`WebSocket error for container ${containerId}:`, error);
+      };
+
+      ws.onclose = () => {
+        console.log(`WebSocket closed for container ${containerId}`);
+        multiWsRefs.current.delete(containerId);
+      };
+
+      multiWsRefs.current.set(containerId, ws);
+    });
+
+    return () => {
+      multiWsRefs.current.forEach(ws => ws.close());
+      multiWsRefs.current.clear();
+    };
+  }, [multiContainerMode, selectedContainerIds, isLogsPaused]);
 
   useEffect(() => {
     if (!selectedContainerId || activeTab !== 'terminal') return;
@@ -337,6 +409,69 @@ export default function Dashboard() {
     setRestartComparison(containerRestartTime);
   };
 
+  const handleToggleMultiContainer = () => {
+    const newMode = !multiContainerMode;
+    setMultiContainerMode(newMode);
+    
+    if (newMode) {
+      // Enter multi-container mode with current container selected
+      if (selectedContainerId) {
+        setSelectedContainerIds([selectedContainerId]);
+      }
+      setLogs([]); // Clear logs for fresh interleaved view
+      setActiveTab('logs'); // Force logs tab in multi-container mode
+      toast({
+        title: 'Multi-Container Mode',
+        description: 'Select up to 3 containers for side-by-side log streaming',
+      });
+    } else {
+      // Exit multi-container mode
+      setSelectedContainerIds([]);
+      setLogs([]);
+      toast({
+        title: 'Single Container Mode',
+        description: 'Viewing logs from one container',
+      });
+    }
+  };
+
+  const handleContainerSelectionToggle = (containerId: string) => {
+    if (!multiContainerMode) {
+      // Single mode - just switch container
+      setSelectedContainerId(containerId);
+      setLogs([]);
+      return;
+    }
+
+    // Multi-container mode
+    setSelectedContainerIds(prev => {
+      if (prev.includes(containerId)) {
+        // Deselect
+        const updated = prev.filter(id => id !== containerId);
+        if (updated.length === 0) {
+          toast({
+            title: 'No Containers Selected',
+            description: 'Please select at least one container',
+            variant: 'destructive',
+          });
+          return prev;
+        }
+        return updated;
+      } else {
+        // Select
+        if (prev.length >= 3) {
+          toast({
+            title: 'Maximum Containers',
+            description: 'You can select up to 3 containers for interleaving',
+            variant: 'destructive',
+          });
+          return prev;
+        }
+        return [...prev, containerId];
+      }
+    });
+  };
+
   const selectedContainer = containers.find(c => c.id === selectedContainerId);
 
   const shortcuts: KeyboardShortcut[] = [
@@ -453,10 +588,19 @@ export default function Dashboard() {
       <div className="flex-1 flex overflow-hidden">
         {/* Sidebar */}
         <aside className="w-80 border-r bg-card/30 flex flex-col overflow-hidden">
-          <div className="p-3 border-b">
+          <div className="p-3 border-b flex items-center justify-between">
             <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
               Containers
             </h2>
+            <Button
+              variant={multiContainerMode ? 'default' : 'outline'}
+              size="sm"
+              onClick={handleToggleMultiContainer}
+              data-testid="button-toggle-multi-container"
+              className="h-7 text-xs"
+            >
+              {multiContainerMode ? 'Multi' : 'Single'}
+            </Button>
           </div>
           <div className="flex-1 overflow-auto p-3 space-y-2">
             {isLoading ? (
@@ -472,8 +616,12 @@ export default function Dashboard() {
                 <ContainerCard
                   key={container.id}
                   container={container}
-                  isSelected={selectedContainerId === container.id}
-                  onClick={() => setSelectedContainerId(container.id)}
+                  isSelected={
+                    multiContainerMode 
+                      ? selectedContainerIds.includes(container.id)
+                      : selectedContainerId === container.id
+                  }
+                  onClick={() => handleContainerSelectionToggle(container.id)}
                   onAction={(action) => handleAction(container.id, action)}
                 />
               ))
@@ -483,19 +631,25 @@ export default function Dashboard() {
 
         {/* Main Content */}
         <main className="flex-1 flex flex-col overflow-hidden">
-          {selectedContainer ? (
+          {(selectedContainer || (multiContainerMode && selectedContainerIds.length > 0)) ? (
             <>
-              <TimelineStrip stats={stats} onSpikeClick={handleSpikeClick} />
-              <LogRateHeatmap logs={logs} onBurstClick={handleBurstClick} />
+              {!multiContainerMode && <TimelineStrip stats={stats} onSpikeClick={handleSpikeClick} />}
+              {!multiContainerMode && <LogRateHeatmap logs={logs} onBurstClick={handleBurstClick} />}
               
               <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="flex-1 flex flex-col overflow-hidden">
                 <div className="border-b px-3 bg-card/30">
                   <TabsList className="h-10">
-                    <TabsTrigger value="logs" data-testid="tab-logs">Logs</TabsTrigger>
-                    <TabsTrigger value="terminal" data-testid="tab-terminal">Terminal</TabsTrigger>
-                    <TabsTrigger value="env" data-testid="tab-env" onClick={() => setShowEnvVars(true)}>
-                      Environment ({envVars.length})
+                    <TabsTrigger value="logs" data-testid="tab-logs">
+                      Logs {multiContainerMode && `(${selectedContainerIds.length})`}
                     </TabsTrigger>
+                    {!multiContainerMode && (
+                      <>
+                        <TabsTrigger value="terminal" data-testid="tab-terminal">Terminal</TabsTrigger>
+                        <TabsTrigger value="env" data-testid="tab-env" onClick={() => setShowEnvVars(true)}>
+                          Environment ({envVars.length})
+                        </TabsTrigger>
+                      </>
+                    )}
                   </TabsList>
                 </div>
 
@@ -511,36 +665,44 @@ export default function Dashboard() {
                     onJumpToBookmark={handleJumpToBookmark}
                     targetTimestamp={targetTimestamp}
                     scopeType={scopeType}
+                    multiContainerMode={multiContainerMode}
+                    containerNames={Object.fromEntries(
+                      containers.map(c => [c.id, c.name])
+                    )}
                   />
                 </TabsContent>
 
-                <TabsContent value="terminal" className="flex-1 m-0 overflow-hidden">
-                  <Terminal
-                    containerId={selectedContainerId}
-                    onData={(data) => {
-                      if (terminalWsRef.current?.readyState === WebSocket.OPEN) {
-                        terminalWsRef.current.send(JSON.stringify({
-                          type: 'exec:data',
-                          data,
-                        }));
-                      }
-                    }}
-                    onResize={(cols, rows) => {
-                      if (terminalWsRef.current?.readyState === WebSocket.OPEN) {
-                        terminalWsRef.current.send(JSON.stringify({
-                          type: 'exec:resize',
-                          cols,
-                          rows,
-                        }));
-                      }
-                    }}
-                    isConnected={terminalWsRef.current?.readyState === WebSocket.OPEN}
-                  />
-                </TabsContent>
+                {!multiContainerMode && (
+                  <>
+                    <TabsContent value="terminal" className="flex-1 m-0 overflow-hidden">
+                      <Terminal
+                        containerId={selectedContainerId}
+                        onData={(data) => {
+                          if (terminalWsRef.current?.readyState === WebSocket.OPEN) {
+                            terminalWsRef.current.send(JSON.stringify({
+                              type: 'exec:data',
+                              data,
+                            }));
+                          }
+                        }}
+                        onResize={(cols, rows) => {
+                          if (terminalWsRef.current?.readyState === WebSocket.OPEN) {
+                            terminalWsRef.current.send(JSON.stringify({
+                              type: 'exec:resize',
+                              cols,
+                              rows,
+                            }));
+                          }
+                        }}
+                        isConnected={terminalWsRef.current?.readyState === WebSocket.OPEN}
+                      />
+                    </TabsContent>
 
-                <TabsContent value="env" className="flex-1 m-0">
-                  {/* Placeholder - actual panel shown in dialog */}
-                </TabsContent>
+                    <TabsContent value="env" className="flex-1 m-0">
+                      {/* Placeholder - actual panel shown in dialog */}
+                    </TabsContent>
+                  </>
+                )}
               </Tabs>
             </>
           ) : (
