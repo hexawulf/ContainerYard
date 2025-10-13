@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { ContainerCard } from '@/components/ContainerCard';
 import { LogTail } from '@/components/LogTail';
 import { TimelineStrip } from '@/components/TimelineStrip';
+import { LogRateHeatmap } from '@/components/LogRateHeatmap';
 import { Terminal } from '@/components/Terminal';
 import { DarkModeToggle } from '@/components/DarkModeToggle';
 import { KeyboardShortcutsHelp } from '@/components/KeyboardShortcutsHelp';
@@ -241,6 +242,23 @@ export default function Dashboard() {
     });
   };
 
+  const handleBurstClick = (timestamp: string) => {
+    // Scope logs to T-10s to T+20s window around burst
+    setTargetTimestamp(timestamp);
+    setScopeType('spike');
+    
+    // Default filter for log bursts (all severity levels)
+    setSearchQuery('level:debug..error');
+    
+    setActiveTab('logs');
+    setIsLogsPaused(true);
+    
+    toast({
+      title: 'Log Burst Detected',
+      description: `Viewing logs around ${new Date(timestamp).toLocaleString()}`,
+    });
+  };
+
   // Clear scope when toggling pause (resuming live mode)
   const handleTogglePause = () => {
     const newPausedState = !isLogsPaused;
@@ -402,6 +420,7 @@ export default function Dashboard() {
           {selectedContainer ? (
             <>
               <TimelineStrip stats={stats} onSpikeClick={handleSpikeClick} />
+              <LogRateHeatmap logs={logs} onBurstClick={handleBurstClick} />
               
               <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="flex-1 flex flex-col overflow-hidden">
                 <div className="border-b px-3 bg-card/30">
