@@ -252,9 +252,48 @@ export class MockProvider implements IProvider {
       const level = logLevels[Math.floor(Math.random() * logLevels.length)];
       const message = logMessages[Math.floor(Math.random() * logMessages.length)];
       
+      // 60% chance of JSON structured log
+      const isJson = Math.random() < 0.6;
+      let raw = '';
+      
+      if (isJson) {
+        const traceId = `trace-${Math.random().toString(36).substr(2, 9)}`;
+        const reqId = `req-${Math.random().toString(36).substr(2, 9)}`;
+        const service = id.split('-')[0]; // Extract service from container id
+        const userId = `user-${Math.floor(Math.random() * 1000)}`;
+        const duration = Math.floor(Math.random() * 500) + 10;
+        
+        const jsonLog: any = {
+          message,
+          service,
+          traceId,
+          requestId: reqId,
+        };
+        
+        if (Math.random() < 0.7) {
+          jsonLog.userId = userId;
+        }
+        
+        if (level === 'info' && Math.random() < 0.6) {
+          jsonLog.duration = duration;
+          jsonLog.method = ['GET', 'POST', 'PUT', 'DELETE'][Math.floor(Math.random() * 4)];
+          jsonLog.path = ['/api/users', '/api/orders', '/api/products', '/health'][Math.floor(Math.random() * 4)];
+          jsonLog.status = [200, 201, 204][Math.floor(Math.random() * 3)];
+        }
+        
+        if (level === 'error') {
+          jsonLog.errorCode = ['ERR_TIMEOUT', 'ERR_VALIDATION', 'ERR_DB', 'ERR_AUTH'][Math.floor(Math.random() * 4)];
+          jsonLog.errorMessage = 'Operation failed';
+        }
+        
+        raw = `${new Date().toISOString()} ${level.toUpperCase()} ${JSON.stringify(jsonLog)}`;
+      } else {
+        raw = message;
+      }
+      
       const log: LogLine = {
         ts: new Date().toISOString(),
-        raw: message,
+        raw,
         level,
       };
 

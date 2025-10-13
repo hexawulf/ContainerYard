@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useMemo } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Search, X, Play, Pause, Download } from 'lucide-react';
 import type { LogLine } from '@shared/schema';
 import { formatDistanceToNow } from 'date-fns';
+import { parseLogLine, buildFieldFilter, type ParsedLog } from '@/lib/logParser';
 
 interface LogTailProps {
   logs: LogLine[];
@@ -27,10 +28,54 @@ export function LogTail({
   const parentRef = useRef<HTMLDivElement>(null);
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
 
+  // Parse all logs once
+  const parsedLogs = useMemo(() => {
+    return logs.map(log => parseLogLine(log.raw));
+  }, [logs]);
+
+  // Filter logs based on search query
+  const filteredIndices = useMemo(() => {
+    if (!searchQuery.trim()) {
+      return logs.map((_, index) => index);
+    }
+
+    const query = searchQuery.trim();
+    const indices: number[] = [];
+
+    // Check if query is a field filter (key:value format)
+    const fieldMatch = query.match(/^(\w+):(.+)$/);
+    
+    logs.forEach((log, index) => {
+      const parsed = parsedLogs[index];
+      
+      if (fieldMatch) {
+        // Field-specific search
+        const [, key, value] = fieldMatch;
+        const matchingField = parsed.fields.find(
+          f => f.key === key && f.value.toLowerCase().includes(value.toLowerCase())
+        );
+        if (matchingField) {
+          indices.push(index);
+        }
+      } else {
+        // Text search in message and raw log
+        const searchLower = query.toLowerCase();
+        if (
+          log.raw.toLowerCase().includes(searchLower) ||
+          parsed.message.toLowerCase().includes(searchLower)
+        ) {
+          indices.push(index);
+        }
+      }
+    });
+
+    return indices;
+  }, [logs, parsedLogs, searchQuery]);
+
   const rowVirtualizer = useVirtualizer({
-    count: logs.length,
+    count: filteredIndices.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 28,
+    estimateSize: () => 40, // Increased to accommodate fields
     overscan: 10,
   });
 
@@ -55,10 +100,10 @@ export function LogTail({
   };
 
   useEffect(() => {
-    if (shouldAutoScroll && isLive && logs.length > 0) {
-      rowVirtualizer.scrollToIndex(logs.length - 1, { align: 'end' });
+    if (shouldAutoScroll && isLive && filteredIndices.length > 0) {
+      rowVirtualizer.scrollToIndex(filteredIndices.length - 1, { align: 'end' });
     }
-  }, [logs.length, shouldAutoScroll, isLive, rowVirtualizer]);
+  }, [filteredIndices.length, shouldAutoScroll, isLive, rowVirtualizer]);
 
   const handleScroll = () => {
     if (!parentRef.current) return;
@@ -130,20 +175,23 @@ export function LogTail({
           }}
         >
           {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-            const log = logs[virtualRow.index];
+            const actualIndex = filteredIndices[virtualRow.index];
+            const log = logs[actualIndex];
+            const parsed = parsedLogs[actualIndex];
+            
             return (
               <div
-                key={virtualRow.index}
+                key={actualIndex}
                 style={{
                   position: 'absolute',
                   top: 0,
                   left: 0,
                   width: '100%',
-                  height: `${virtualRow.size}px`,
+                  minHeight: `${virtualRow.size}px`,
                   transform: `translateY(${virtualRow.start}px)`,
                 }}
                 className="flex items-start gap-3 px-3 py-1 hover:bg-accent/30 border-b border-border/50"
-                data-testid={`log-line-${virtualRow.index}`}
+                data-testid={`log-line-${actualIndex}`}
               >
                 <span className="text-muted-foreground shrink-0 w-24">
                   {formatTimestamp(log.ts)}
@@ -153,9 +201,31 @@ export function LogTail({
                     {log.level.substring(0, 3).toUpperCase()}
                   </Badge>
                 )}
-                <span className={`flex-1 break-all ${getLevelClass(log.level)}`}>
-                  {log.raw}
-                </span>
+                <div className={`flex-1 ${getLevelClass(log.level)}`}>
+                  <div className="break-all pointer-events-none">
+                    {log.raw}
+                  </div>
+                  {parsed.fields.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {parsed.fields.map((field) => (
+                        <Badge
+                          key={field.key}
+                          variant="secondary"
+                          className="cursor-pointer hover-elevate text-xs h-5 no-default-active-elevate pointer-events-auto"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const filter = buildFieldFilter(field.key, field.value);
+                            onSearchChange?.(filter);
+                          }}
+                          data-testid={`field-chip-${field.key}`}
+                        >
+                          <span className="text-muted-foreground">{field.key}:</span>
+                          <span className="ml-1">{field.value}</span>
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             );
           })}
@@ -163,14 +233,14 @@ export function LogTail({
       </div>
 
       {/* Auto-scroll Indicator */}
-      {!shouldAutoScroll && isLive && (
+      {!shouldAutoScroll && isLive && filteredIndices.length > 0 && (
         <div className="absolute bottom-4 right-4">
           <Button
             variant="default"
             size="sm"
             onClick={() => {
               setShouldAutoScroll(true);
-              rowVirtualizer.scrollToIndex(logs.length - 1, { align: 'end' });
+              rowVirtualizer.scrollToIndex(filteredIndices.length - 1, { align: 'end' });
             }}
             data-testid="button-scroll-to-bottom"
             className="shadow-lg"

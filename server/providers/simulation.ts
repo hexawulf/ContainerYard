@@ -190,9 +190,48 @@ export class SimulationProvider implements IProvider {
         cumulative += scenario.weight;
         if (rand < cumulative) {
           const message = scenario.messages[Math.floor(Math.random() * scenario.messages.length)];
+          
+          // 50% chance of JSON structured log
+          const isJson = Math.random() < 0.5;
+          let raw = '';
+          
+          if (isJson) {
+            const traceId = `trace-${Math.random().toString(36).substr(2, 9)}`;
+            const reqId = `req-${Math.random().toString(36).substr(2, 9)}`;
+            const service = id === 'web-app-sim' ? 'web-api' : 'worker-service';
+            const userId = `user-${Math.floor(Math.random() * 1000)}`;
+            const duration = Math.floor(Math.random() * 500) + 10;
+            
+            const jsonLog: any = {
+              message,
+              service,
+              traceId,
+              requestId: reqId,
+            };
+            
+            if (Math.random() < 0.7) {
+              jsonLog.userId = userId;
+            }
+            
+            if (scenario.level === 'info' && Math.random() < 0.6) {
+              jsonLog.duration = duration;
+              jsonLog.method = ['GET', 'POST', 'PUT', 'DELETE'][Math.floor(Math.random() * 4)];
+              jsonLog.path = ['/api/users', '/api/orders', '/api/products'][Math.floor(Math.random() * 3)];
+              jsonLog.status = [200, 201, 204][Math.floor(Math.random() * 3)];
+            }
+            
+            if (scenario.level === 'error') {
+              jsonLog.errorCode = ['ERR_TIMEOUT', 'ERR_VALIDATION', 'ERR_DB'][Math.floor(Math.random() * 3)];
+            }
+            
+            raw = `${new Date().toISOString()} ${scenario.level.toUpperCase()} ${JSON.stringify(jsonLog)}`;
+          } else {
+            raw = `${message} [seq:${this.logSequence++}]`;
+          }
+          
           return {
             ts: new Date().toISOString(),
-            raw: `${message} [seq:${this.logSequence++}]`,
+            raw,
             level: scenario.level as any,
           };
         }
