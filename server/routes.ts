@@ -3,7 +3,9 @@ import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { storage } from "./storage";
 import { z } from "zod";
-import { containerActionSchema } from "@shared/schema";
+import { containerActionSchema, insertSavedSearchSchema, insertLogBookmarkSchema, savedSearches, logBookmarks } from "@shared/schema";
+import { db } from "./db";
+import { eq, desc } from "drizzle-orm";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
@@ -75,6 +77,72 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.setHeader('Content-Type', 'text/plain');
       res.setHeader('Content-Disposition', `attachment; filename="${container.name}-logs-${Date.now()}.log"`);
       res.send(logContent);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Saved Searches API
+  app.get("/api/saved-searches", async (req, res) => {
+    try {
+      const searches = await db.select().from(savedSearches).orderBy(desc(savedSearches.createdAt));
+      res.json(searches);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/saved-searches", async (req, res) => {
+    try {
+      const result = insertSavedSearchSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json({ error: "Invalid search data", details: result.error });
+      }
+      
+      const [search] = await db.insert(savedSearches).values(result.data).returning();
+      res.json(search);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/saved-searches/:id", async (req, res) => {
+    try {
+      await db.delete(savedSearches).where(eq(savedSearches.id, parseInt(req.params.id)));
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Log Bookmarks API
+  app.get("/api/bookmarks", async (req, res) => {
+    try {
+      const bookmarks = await db.select().from(logBookmarks).orderBy(desc(logBookmarks.createdAt));
+      res.json(bookmarks);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/bookmarks", async (req, res) => {
+    try {
+      const result = insertLogBookmarkSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json({ error: "Invalid bookmark data", details: result.error });
+      }
+      
+      const [bookmark] = await db.insert(logBookmarks).values(result.data).returning();
+      res.json(bookmark);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/bookmarks/:id", async (req, res) => {
+    try {
+      await db.delete(logBookmarks).where(eq(logBookmarks.id, parseInt(req.params.id)));
+      res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

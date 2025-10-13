@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { pgTable, varchar, text, timestamp, serial } from "drizzle-orm/pg-core";
+import { createInsertSchema } from "drizzle-zod";
 
 // Container State & Health
 export const containerStateSchema = z.enum(['running', 'exited', 'restarting', 'paused']);
@@ -138,3 +140,32 @@ export interface KeyboardShortcut {
   category: 'navigation' | 'logs' | 'actions' | 'general';
   action: () => void;
 }
+
+// Database Tables
+
+// Saved Searches Table
+export const savedSearches = pgTable("saved_searches", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  query: text("query").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertSavedSearchSchema = createInsertSchema(savedSearches).omit({ id: true, createdAt: true });
+export type InsertSavedSearch = z.infer<typeof insertSavedSearchSchema>;
+export type SavedSearch = typeof savedSearches.$inferSelect;
+
+// Log Bookmarks Table  
+export const logBookmarks = pgTable("log_bookmarks", {
+  id: serial("id").primaryKey(),
+  containerId: varchar("container_id", { length: 255 }).notNull(),
+  timestamp: varchar("timestamp", { length: 255 }).notNull(),
+  note: text("note"),
+  filters: text("filters"), // JSON string of applied filters
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertLogBookmarkSchema = createInsertSchema(logBookmarks).omit({ id: true, createdAt: true });
+export type InsertLogBookmark = z.infer<typeof insertLogBookmarkSchema>;
+export type LogBookmark = typeof logBookmarks.$inferSelect;

@@ -10,8 +10,9 @@ import { DarkModeToggle } from '@/components/DarkModeToggle';
 import { KeyboardShortcutsHelp } from '@/components/KeyboardShortcutsHelp';
 import { ActionConfirmDialog } from '@/components/ActionConfirmDialog';
 import { EnvVarsPanel } from '@/components/EnvVarsPanel';
+import { SavedSearches } from '@/components/SavedSearches';
 import { useKeyboardShortcuts, defaultShortcuts } from '@/hooks/useKeyboardShortcuts';
-import { Database, HelpCircle } from 'lucide-react';
+import { Database, HelpCircle, BookmarkPlus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import type { 
@@ -38,6 +39,7 @@ export default function Dashboard() {
     containerName: string;
   } | null>(null);
   const [showEnvVars, setShowEnvVars] = useState(false);
+  const [showSavedSearches, setShowSavedSearches] = useState(false);
   const { toast } = useToast();
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -260,6 +262,15 @@ export default function Dashboard() {
           <Button
             variant="ghost"
             size="icon"
+            onClick={() => setShowSavedSearches(true)}
+            data-testid="button-saved-searches"
+            className="h-9 w-9"
+          >
+            <BookmarkPlus className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={() => setShowShortcutsHelp(true)}
             data-testid="button-show-shortcuts"
             className="h-9 w-9"
@@ -395,6 +406,13 @@ export default function Dashboard() {
           containerName={selectedContainer.name}
         />
       )}
+
+      <SavedSearches
+        isOpen={showSavedSearches}
+        onClose={() => setShowSavedSearches(false)}
+        onApplySearch={(query) => setSearchQuery(query)}
+        currentQuery={searchQuery}
+      />
     </div>
   );
 }
