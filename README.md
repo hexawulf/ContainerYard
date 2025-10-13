@@ -1,3 +1,6 @@
+[![Website](https://img.shields.io/badge/website-containeryard.org-blue)](https://containeryard.org)
+[![GitHub](https://img.shields.io/github/stars/hexawulf/ContainerYard?style=social)](https://github.com/hexawulf/ContainerYard)
+
 # ContainerYard 🐳
 
 > A modern, log-first Docker container observability and debugging dashboard
