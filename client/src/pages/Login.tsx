@@ -25,7 +25,7 @@ export default function Login() {
 
   useEffect(() => {
     if (!isLoading && me?.user) {
-      setLocation("/");
+      setLocation("/dashboard");
     }
   }, [me, isLoading, setLocation]);
 
@@ -46,7 +46,7 @@ export default function Login() {
       clearCsrfToken();
       await prefetchCsrfToken();
       queryClient.setQueryData(["/api/auth/me"], data);
-      setLocation("/");
+      setLocation("/dashboard");
     } catch (err: any) {
       setError(err.message ?? "Login failed");
     } finally {
@@ -55,12 +55,12 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <div className="flex items-center justify-center py-12">
       <Card className="w-full max-w-md">
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <BrandLogo variant="mark" size={32} className="text-brand-700 dark:text-white" />
-            <BrandLogo variant="wordmark" size={120} className="text-foreground" />
+        <CardHeader className="text-center">
+          <div className="flex items-center justify-center gap-2">
+            <BrandLogo variant="mark" size={32} />
+            <BrandLogo variant="wordmark" size={120} />
           </div>
           <CardTitle>Sign in to ContainerYard</CardTitle>
           <CardDescription>Use your administrator-provided credentials.</CardDescription>
