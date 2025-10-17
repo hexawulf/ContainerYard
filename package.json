@@ -96,6 +96,7 @@
     "@replit/vite-plugin-cartographer": "^0.3.1",
     "@replit/vite-plugin-dev-banner": "^0.1.1",
     "@replit/vite-plugin-runtime-error-modal": "^0.0.3",
+    "@svgr/rollup": "^8.1.0",
     "@tailwindcss/typography": "^0.5.15",
     "@tailwindcss/vite": "^4.1.3",
     "@types/bcrypt": "^6.0.0",
