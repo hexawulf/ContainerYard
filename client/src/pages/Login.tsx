@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { BrandLogo } from "@/components/BrandLogo";
 import { getQueryFn, apiRequest, prefetchCsrfToken, queryClient, clearCsrfToken } from "@/lib/queryClient";
 import type { SessionUser } from "@shared/monitoring";
 
@@ -57,6 +58,10 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader>
+          <div className="flex items-center gap-2">
+            <BrandLogo variant="mark" size={32} className="text-brand-700 dark:text-white" />
+            <BrandLogo variant="wordmark" size={120} className="text-foreground" />
+          </div>
           <CardTitle>Sign in to ContainerYard</CardTitle>
           <CardDescription>Use your administrator-provided credentials.</CardDescription>
         </CardHeader>
