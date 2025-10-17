@@ -5,6 +5,25 @@ export default {
   content: ["./client/index.html", "./client/src/**/*.{js,jsx,ts,tsx}"],
   theme: {
     extend: {
+      maxWidth: {
+        container: "1600px",
+      },
+      fontSize: {
+        display: ["32px", { lineHeight: "40px", fontWeight: "600" }],
+        heading: ["20px", { lineHeight: "28px", fontWeight: "600" }],
+        body: ["14px", { lineHeight: "20px", fontWeight: "400" }],
+        small: ["12px", { lineHeight: "16px", fontWeight: "500" }],
+        code: ["13px", { lineHeight: "18px", fontWeight: "400" }],
+      },
+      extend: {
+        fontSize: {
+          display: ["32px", { lineHeight: "40px", fontWeight: "600" }],
+          heading: ["20px", { lineHeight: "28px", fontWeight: "600" }],
+          body: ["14px", { lineHeight: "20px", fontWeight: "400" }],
+          small: ["12px", { lineHeight: "16px", fontWeight: "500" }],
+          code: ["13px", { lineHeight: "18px", fontWeight: "400" }],
+        },
+      },
       borderRadius: {
         lg: ".5625rem", /* 9px */
         md: ".375rem", /* 6px */

@@ -9,21 +9,30 @@ import NotFound from "@/pages/not-found";
 import { useTheme } from "@/hooks/useTheme";
 import { useEffect } from "react";
 import { AuthGate } from "@/components/AuthGate";
+import LandingPage from "@/pages/Landing";
+import Layout from "@/components/Layout";
+import StyleGuidePage from "@/pages/StyleGuide";
 
 function Router() {
-  const ProtectedApp = () => (
+  const ProtectedDashboard = () => (
     <AuthGate>
-      <Switch>
-        <Route path="/" component={Dashboard} />
-        <Route component={NotFound} />
-      </Switch>
+      <Layout>
+        <Dashboard />
+      </Layout>
     </AuthGate>
   );
 
   return (
     <Switch>
-      <Route path="/login" component={Login} />
-      <Route component={ProtectedApp} />
+      <Route path="/" component={LandingPage} />
+      <Route path="/login">
+        <Layout>
+          <Login />
+        </Layout>
+      </Route>
+      <Route path="/dashboard" component={ProtectedDashboard} />
+      <Route path="/styleguide" component={StyleGuidePage} />
+      <Route component={NotFound} />
     </Switch>
   );
 }

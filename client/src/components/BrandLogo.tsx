@@ -1,5 +1,5 @@
-import { ReactComponent as Mark } from "@assets/branding/logo-mark.svg";
-import { ReactComponent as Wordmark } from "@assets/branding/logo-wordmark.svg";
+import { ReactComponent as Mark } from "@/assets/branding/logo-mark.svg";
+import { ReactComponent as Wordmark } from "@/assets/branding/logo-wordmark.svg";
 
 export function BrandLogo({ variant="mark", size=32, className="" }:{
   variant?: "mark"|"wordmark"; size?: number; className?: string

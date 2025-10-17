@@ -4,7 +4,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { BrandLogo } from "@/components/BrandLogo";
 import { useAuth } from "@/components/AuthGate";
 import { getQueryFn, queryClient } from "@/lib/queryClient";
 import type {
@@ -136,15 +135,9 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
-      <header className="h-16 border-b flex items-center justify-between px-6 bg-card/40 backdrop-blur">
-        <div className="flex items-center gap-3">
-          <BrandLogo variant="mark" size={40} className="text-brand-700 dark:text-white" />
-          <div>
-            <BrandLogo variant="wordmark" size={120} className="text-foreground" />
-            <p className="text-sm text-muted-foreground">Secure multi-host observability</p>
-          </div>
-        </div>
+    <div className="container max-w-container py-6">
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-display">Dashboard</h1>
         <div className="flex items-center gap-3">
           <Badge variant="outline" className="uppercase tracking-wide">
             {user.role}
@@ -153,9 +146,8 @@ export default function Dashboard() {
             Logout
           </Button>
         </div>
-      </header>
-
-      <main className="flex-1 grid gap-6 p-6 md:grid-cols-[320px_1fr]">
+      </div>
+      <div className="grid gap-6 md:grid-cols-[320px_1fr]">
         <Card className="overflow-hidden">
           <CardHeader className="space-y-3">
             <CardTitle>Hosts</CardTitle>
@@ -193,7 +185,7 @@ export default function Dashboard() {
             <StatsPanel host={host} detail={containerDetail ?? null} statsHistory={history} />
           )}
         </div>
-      </main>
+      </div>
     </div>
   );
 }
