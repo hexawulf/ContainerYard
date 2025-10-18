@@ -2,7 +2,7 @@ import React from 'react';
 import Layout from '@/components/Layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { BrandLogo } from '@/components/BrandLogo';
+import Logo from '@/components/Logo';
 
 const StyleGuidePage: React.FC = () => {
   return (
@@ -56,15 +56,27 @@ const StyleGuidePage: React.FC = () => {
         </section>
 
         <section>
-          <h2 className="text-heading mb-4">Brand Logos</h2>
-          <div className="flex flex-wrap gap-8">
+          <h2 className="text-heading mb-4">Brand Logo</h2>
+          <div className="flex flex-wrap gap-8 items-end">
             <div>
-              <p className="text-body mb-2">Logotype</p>
-              <BrandLogo variant="wordmark" size={120} />
+              <p className="text-body mb-2">Extra Small (xs)</p>
+              <Logo size="xs" />
             </div>
             <div>
-              <p className="text-body mb-2">Logomark</p>
-              <BrandLogo variant="mark" size={32} />
+              <p className="text-body mb-2">Small (sm)</p>
+              <Logo size="sm" />
+            </div>
+            <div>
+              <p className="text-body mb-2">Medium (md)</p>
+              <Logo size="md" />
+            </div>
+            <div>
+              <p className="text-body mb-2">Large (lg)</p>
+              <Logo size="lg" />
+            </div>
+            <div>
+              <p className="text-body mb-2">Extra Large (xl)</p>
+              <Logo size="xl" />
             </div>
           </div>
         </section>

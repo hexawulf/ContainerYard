@@ -6,9 +6,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { BrandLogo } from "@/components/BrandLogo";
+import Logo from "@/components/Logo";
 import { getQueryFn, apiRequest, prefetchCsrfToken, queryClient, clearCsrfToken } from "@/lib/queryClient";
+import { ApiError } from "@/lib/api";
 import type { SessionUser } from "@shared/monitoring";
+
+const AUTH_DISABLED = import.meta.env.VITE_AUTH_DISABLED === 'true';
 
 export default function Login() {
   const [, setLocation] = useLocation();
@@ -17,10 +20,18 @@ export default function Login() {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // If auth is disabled, redirect to dashboard immediately
+  useEffect(() => {
+    if (AUTH_DISABLED) {
+      setLocation("/dashboard");
+    }
+  }, [setLocation]);
+
   const { data: me, isLoading } = useQuery<{ user: SessionUser } | null>({
     queryKey: ["/api/auth/me", "login"],
     queryFn: getQueryFn<{ user: SessionUser } | null>({ on401: "returnNull" }),
     staleTime: 0,
+    enabled: !AUTH_DISABLED,
   });
 
   useEffect(() => {
@@ -30,9 +41,11 @@ export default function Login() {
   }, [me, isLoading, setLocation]);
 
   useEffect(() => {
-    prefetchCsrfToken().catch(() => {
-      // ignore; subsequent submissions will retry
-    });
+    if (!AUTH_DISABLED) {
+      prefetchCsrfToken().catch(() => {
+        // ignore; subsequent submissions will retry
+      });
+    }
   }, []);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -48,20 +61,56 @@ export default function Login() {
       queryClient.setQueryData(["/api/auth/me"], data);
       setLocation("/dashboard");
     } catch (err: any) {
-      setError(err.message ?? "Login failed");
+      // Handle API errors gracefully - no raw HTML in UI
+      if (err instanceof ApiError) {
+        if (err.status === 'disabled') {
+          setError('Authentication is disabled in this environment');
+        } else if (err.status === 502 || err.status === 503) {
+          setError('API unavailable (502). Please try again later.');
+        } else {
+          setError(err.message || 'Login failed. Please check your credentials.');
+        }
+      } else {
+        setError(err.message ?? "Login failed");
+      }
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  // Show static mode message when auth is disabled
+  if (AUTH_DISABLED) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <Logo size="xl" className="mx-auto mb-8" />
+            <CardTitle>ContainerYard</CardTitle>
+            <CardDescription>Running in static mode</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Alert>
+              <AlertDescription>
+                Authentication is disabled. You will be redirected to the dashboard.
+              </AlertDescription>
+            </Alert>
+            <Button 
+              className="w-full" 
+              onClick={() => setLocation("/dashboard")}
+            >
+              Open Dashboard
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="flex items-center justify-center py-12">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <div className="flex items-center justify-center gap-2">
-            <BrandLogo variant="mark" size={32} />
-            <BrandLogo variant="wordmark" size={120} />
-          </div>
+          <Logo size="xl" className="mx-auto mb-8" />
           <CardTitle>Sign in to ContainerYard</CardTitle>
           <CardDescription>Use your administrator-provided credentials.</CardDescription>
         </CardHeader>
