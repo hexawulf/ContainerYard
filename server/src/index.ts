@@ -5,7 +5,7 @@ import { createServer } from "http";
 
 import { env, allowedOrigins } from "./config/env";
 import { sessionMiddleware, redisClient } from "./config/session";
-import { ensureBootstrapUser } from "./db/client";
+import { prisma } from "./db/client";
 import { authRouter } from "./routes/auth";
 import { hostsRouter } from "./routes/hosts";
 import { attachUserToResponse, globalRateLimiter, requireAuth } from "./middleware/auth";
@@ -79,7 +79,9 @@ export async function createApp() {
     res.status(status).json({ message });
   });
 
-  await ensureBootstrapUser();
+  if (prisma) {
+    await prisma.$connect();
+  }
 
   if (app.get("env") === "development") {
     await setupVite(app, httpServer);

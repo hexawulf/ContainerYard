@@ -19,6 +19,10 @@ router.post("/login", loginRateLimiter, async (req, res, next) => {
   try {
     const { email, password } = loginSchema.parse(req.body);
 
+    if (!prisma) {
+      return res.status(503).json({ message: "Authentication service temporarily unavailable" });
+    }
+
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
       return res.status(401).json({ message: "Invalid credentials" });

@@ -1,0 +1,11 @@
+ignoredBuiltDependencies:
+  - '@prisma/client'
+  - '@prisma/engines'
+  - '@tailwindcss/oxide'
+  - bcrypt
+  - bufferutil
+  - cpu-features
+  - es5-ext
+  - esbuild
+  - prisma
+  - ssh2
