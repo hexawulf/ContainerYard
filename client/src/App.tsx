@@ -41,6 +41,15 @@ function App() {
   const { effectiveTheme } = useTheme();
 
   useEffect(() => {
+    // Temporary debug log for env vars
+    console.log('[ContainerYard] Runtime config:', {
+      API_BASE: import.meta.env.VITE_API_BASE,
+      APP_NAME: import.meta.env.VITE_APP_NAME,
+      AUTH_DISABLED: import.meta.env.VITE_AUTH_DISABLED,
+    });
+  }, []);
+
+  useEffect(() => {
     if (effectiveTheme === 'dark') {
       document.documentElement.classList.add('dark');
     } else {

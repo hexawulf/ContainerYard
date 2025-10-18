@@ -4,8 +4,10 @@ import { useQuery } from "@tanstack/react-query";
 import { getQueryFn, queryClient, apiRequest, clearCsrfToken } from "@/lib/queryClient";
 import type { SessionUser } from "@shared/monitoring";
 
+const AUTH_DISABLED = import.meta.env.VITE_AUTH_DISABLED === 'true';
+
 interface AuthContextValue {
-  user: SessionUser;
+  user: SessionUser | null;
   refresh: () => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -22,6 +24,22 @@ export function useAuth() {
 
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const [, setLocation] = useLocation();
+  
+  // Bypass auth when disabled
+  if (AUTH_DISABLED) {
+    const value = useMemo<AuthContextValue>(() => {
+      return {
+        user: null,
+        refresh: async () => {},
+        logout: async () => {
+          setLocation("/login");
+        },
+      };
+    }, [setLocation]);
+
+    return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  }
+
   const { data, isLoading, refetch } = useQuery<{ user: SessionUser } | null>({
     queryKey: ["/api/auth/me"],
     queryFn: getQueryFn<{ user: SessionUser } | null>({ on401: "returnNull" }),

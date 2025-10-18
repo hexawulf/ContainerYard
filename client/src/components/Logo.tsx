@@ -1,4 +1,6 @@
 import clsx from "clsx";
+import markDark from "@/assets/branding/logo-mark.svg?url";
+import markLight from "@/assets/branding/logo-mark-white.svg?url";
 
 type Props = {
   size?: "xs" | "sm" | "md" | "lg" | "xl";
@@ -16,13 +18,15 @@ const sizeMap: Record<NonNullable<Props["size"]>, string> = {
 
 export default function Logo({ size = "lg", className, title = "ContainerYard" }: Props) {
   return (
-    <img
-      src="/assets/branding/logo-mark.svg"
-      alt="ContainerYard"
-      title={title}
-      className={clsx("block", sizeMap[size], className)}
-      loading="eager"
-      decoding="async"
-    />
+    <picture className={clsx("block", sizeMap[size], className)} title={title}>
+      <source srcSet={markLight} media="(prefers-color-scheme: dark)" />
+      <img
+        src={markDark}
+        alt="ContainerYard"
+        loading="eager"
+        decoding="async"
+        className="block w-full h-full"
+      />
+    </picture>
   );
 }

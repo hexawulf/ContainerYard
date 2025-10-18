@@ -1,6 +1,8 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import { apiFetch, ApiError, API_BASE } from "./api";
 
 const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+const AUTH_DISABLED = import.meta.env.VITE_AUTH_DISABLED === 'true';
 
 let csrfTokenCache: string | null = null;
 
@@ -9,8 +11,10 @@ export function clearCsrfToken() {
 }
 
 async function fetchCsrfToken(): Promise<string> {
-  const res = await fetch("/api/auth/csrf", { credentials: "include" });
-  await throwIfResNotOk(res);
+  if (AUTH_DISABLED) {
+    return "disabled";
+  }
+  const res = await apiFetch("/auth/csrf");
   const data = (await res.json()) as { token: string };
   csrfTokenCache = data.token;
   return csrfTokenCache;
@@ -24,12 +28,26 @@ async function ensureCsrfToken(): Promise<string> {
 }
 
 export async function prefetchCsrfToken() {
+  if (AUTH_DISABLED) {
+    return "disabled";
+  }
   return ensureCsrfToken();
 }
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
-    const text = (await res.text()) || res.statusText;
+    const contentType = res.headers.get('content-type') || '';
+    const text = await res.text();
+    
+    // If we got HTML instead of JSON, provide a cleaner error message
+    if (text.includes('<!DOCTYPE') || text.includes('<html')) {
+      throw new ApiError(
+        res.status,
+        text.slice(0, 500),
+        `API unavailable (${res.status}). The server may be offline.`
+      );
+    }
+    
     throw new Error(`${res.status}: ${text}`);
   }
 }
@@ -57,14 +75,14 @@ export async function apiRequest(
     headers["X-CSRF-Token"] = token;
   }
 
-  const res = await fetch(url, {
+  // Use apiFetch for consistent error handling
+  const res = await apiFetch(url.startsWith('/api') ? url.slice(4) : url, {
     method: upperMethod,
     headers,
     body: data ? JSON.stringify(data) : undefined,
     credentials: "include",
   });
 
-  await throwIfResNotOk(res);
   return res;
 }
 
@@ -74,16 +92,20 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    const res = await fetch(queryKey.join("/") as string, {
-      credentials: "include",
-    });
-
-    if (unauthorizedBehavior === "returnNull" && res.status === 401) {
-      return null;
+    const fullPath = queryKey.join("/") as string;
+    const path = fullPath.startsWith('/api') ? fullPath.slice(4) : fullPath;
+    
+    try {
+      const res = await apiFetch(path);
+      return await res.json();
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        if (unauthorizedBehavior === "returnNull") {
+          return null;
+        }
+      }
+      throw err;
     }
-
-    await throwIfResNotOk(res);
-    return await res.json();
   };
 
 export const queryClient = new QueryClient({
