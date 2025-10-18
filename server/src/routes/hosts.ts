@@ -1,7 +1,15 @@
 import { Router } from "express";
 import { getHost, getDozzleLink, listHosts } from "../config/hosts";
-import { listContainers as listDockerContainers, getContainerDetail as getDockerContainerDetail, getContainerLogs, getContainerStats as getDockerContainerStats } from "../services/docker";
+import { 
+  listContainers as listDockerContainers, 
+  getContainerDetail as getDockerContainerDetail, 
+  getContainerLogs, 
+  getContainerStats as getDockerContainerStats,
+  streamContainerLogs,
+  type LogOptions 
+} from "../services/docker";
 import { getCadvisorService } from "../services/cadvisor";
+import type { ContainerLogsResponse, NormalizedStats } from "@shared/monitoring";
 
 const router = Router();
 
@@ -49,14 +57,26 @@ router.get("/:hostId/containers/:containerId/stats", async (req, res, next) => {
     const host = getHost(req.params.hostId);
     const containerId = req.params.containerId;
 
+    let stats;
     if (host.provider === "DOCKER") {
-      const stats = await getDockerContainerStats(host, containerId);
-      return res.json(stats);
+      stats = await getDockerContainerStats(host, containerId);
+    } else {
+      const service = getCadvisorService(host);
+      stats = await service.getStats(host, containerId);
     }
 
-    const service = getCadvisorService(host);
-    const stats = await service.getStats(host, containerId);
-    return res.json(stats);
+    const normalized: NormalizedStats = {
+      cpuPct: stats.cpuPercent,
+      memPct: stats.memoryPercent,
+      memBytes: stats.memoryUsage,
+      blkRead: stats.blockRead,
+      blkWrite: stats.blockWrite,
+      netRx: stats.networkRx,
+      netTx: stats.networkTx,
+      ts: stats.timestamp,
+    };
+
+    return res.json(normalized);
   } catch (error) {
     next(error);
   }
@@ -65,20 +85,84 @@ router.get("/:hostId/containers/:containerId/stats", async (req, res, next) => {
 router.get("/:hostId/containers/:containerId/logs", async (req, res, next) => {
   try {
     const host = getHost(req.params.hostId);
-    const tail = req.query.tail ? parseInt(String(req.query.tail), 10) : 500;
+    const containerId = req.params.containerId;
 
     if (host.provider === "DOCKER") {
-      const logs = await getContainerLogs(req.params.containerId, Number.isNaN(tail) ? 500 : tail);
-      res.type("text/plain");
-      return res.send(logs);
+      const tail = req.query.tail ? parseInt(String(req.query.tail), 10) : 500;
+      const since = req.query.since ? String(req.query.since) : undefined;
+      const grep = req.query.grep ? String(req.query.grep) : undefined;
+      const stdout = req.query.stdout !== 'false';
+      const stderr = req.query.stderr !== 'false';
+
+      const options: LogOptions = {
+        tail: Number.isNaN(tail) ? 500 : Math.min(tail, 5000),
+        since: since && !isNaN(Number(since)) ? Number(since) : since,
+        grep,
+        stdout,
+        stderr,
+      };
+
+      const logs = await getContainerLogs(containerId, options);
+      const response: ContainerLogsResponse = {
+        content: logs,
+        truncated: options.tail === 5000,
+      };
+      return res.json(response);
     }
 
-    const link = getDozzleLink(host.id);
-    if (!link) {
+    const dozzleUrl = getDozzleLink(host.id);
+    if (!dozzleUrl) {
       return res.status(404).json({ message: "Logs not available for this host" });
     }
 
-    return res.json({ link });
+    const link = `${dozzleUrl}/#/container/${containerId}`;
+    return res.status(501).json({ link });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/:hostId/containers/:containerId/logs/stream", async (req, res, next) => {
+  try {
+    const host = getHost(req.params.hostId);
+    const containerId = req.params.containerId;
+
+    if (host.provider !== "DOCKER") {
+      return res.status(501).json({ message: "SSE streaming only supported for Docker hosts" });
+    }
+
+    const stdout = req.query.stdout !== 'false';
+    const stderr = req.query.stderr !== 'false';
+    const grep = req.query.grep ? String(req.query.grep) : undefined;
+
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    });
+
+    const heartbeat = setInterval(() => {
+      res.write(':heartbeat\n\n');
+    }, 15000);
+
+    const cleanup = await streamContainerLogs(
+      containerId,
+      { stdout, stderr, grep },
+      (line) => {
+        res.write(`event: line\ndata: ${line}\n\n`);
+      },
+      (err) => {
+        res.write(`event: error\ndata: ${err.message}\n\n`);
+        res.end();
+      }
+    );
+
+    req.on('close', () => {
+      clearInterval(heartbeat);
+      cleanup();
+      res.end();
+    });
   } catch (error) {
     next(error);
   }

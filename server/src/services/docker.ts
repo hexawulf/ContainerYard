@@ -239,18 +239,95 @@ function demuxDockerLogs(buffer: Buffer): string {
   return output.join("");
 }
 
-export async function getContainerLogs(containerId: string, tail: number = 500): Promise<string> {
+export interface LogOptions {
+  tail?: number;
+  since?: number | string;
+  stdout?: boolean;
+  stderr?: boolean;
+  grep?: string;
+}
+
+export async function getContainerLogs(containerId: string, options: LogOptions = {}): Promise<string> {
   try {
+    const { tail = 500, since, stdout = true, stderr = true } = options;
+    
     const container = docker.getContainer(containerId);
-    const raw = (await container.logs({
-      stdout: true,
-      stderr: true,
-      tail,
+    const logOpts: any = {
+      stdout,
+      stderr,
+      tail: Math.min(tail, 5000),
       timestamps: true,
       follow: false,
-    })) as Buffer;
+    };
 
-    return demuxDockerLogs(raw);
+    if (since) {
+      if (typeof since === 'number') {
+        logOpts.since = Math.floor(Date.now() / 1000) - since;
+      } else {
+        logOpts.since = Math.floor(new Date(since).getTime() / 1000);
+      }
+    }
+
+    const raw = (await container.logs(logOpts)) as Buffer;
+    let logs = demuxDockerLogs(raw);
+
+    if (options.grep) {
+      const pattern = options.grep.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(pattern, 'i');
+      logs = logs.split('\n').filter(line => regex.test(line)).join('\n');
+    }
+
+    return logs;
+  } catch (error: any) {
+    if (error.statusCode === 404) {
+      const notFound = new Error(`Container ${containerId} not found`);
+      (notFound as any).status = 404;
+      throw notFound;
+    }
+    throw error;
+  }
+}
+
+export async function streamContainerLogs(
+  containerId: string,
+  options: LogOptions,
+  onData: (line: string) => void,
+  onError: (err: Error) => void
+): Promise<() => void> {
+  try {
+    const { stdout = true, stderr = true, grep } = options;
+    
+    const container = docker.getContainer(containerId);
+    const stream = await container.logs({
+      stdout,
+      stderr,
+      follow: true,
+      tail: 100,
+      timestamps: true,
+    });
+
+    const pattern = grep ? new RegExp(grep.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') : null;
+    
+    let buffer = '';
+    stream.on('data', (chunk: Buffer) => {
+      const text = demuxDockerLogs(chunk);
+      buffer += text;
+      
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+      
+      for (const line of lines) {
+        if (line && (!pattern || pattern.test(line))) {
+          onData(line);
+        }
+      }
+    });
+
+    stream.on('error', onError);
+
+    return () => {
+      stream.destroy();
+    };
   } catch (error: any) {
     if (error.statusCode === 404) {
       const notFound = new Error(`Container ${containerId} not found`);

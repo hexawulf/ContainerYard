@@ -176,6 +176,88 @@ ContainerYard/
 - **PostgreSQL** - For saved searches and bookmarks
 - **Neon Serverless** - Serverless PostgreSQL driver
 
+## 📡 Monitoring API
+
+ContainerYard provides read-only monitoring APIs for container logs and stats.
+
+### Container Logs
+
+**GET** `/api/hosts/:hostId/containers/:containerId/logs`
+
+Query parameters:
+- `tail` - Number of lines (default: 500, max: 5000)
+- `since` - ISO8601 timestamp or seconds
+- `grep` - Search pattern (safely escaped)
+- `stdout` - Include stdout (default: true)
+- `stderr` - Include stderr (default: true)
+
+Response:
+```json
+{
+  "content": "log content",
+  "truncated": false
+}
+```
+
+For Synology/cAdvisor hosts without direct log access, returns:
+```json
+{
+  "link": "http://dozzle-url/#/container/:id"
+}
+```
+
+### Live Log Streaming (SSE)
+
+**GET** `/api/hosts/:hostId/containers/:containerId/logs/stream`
+
+Server-Sent Events endpoint for real-time log streaming (Docker only).
+
+Query parameters: `stdout`, `stderr`, `grep`
+
+Events:
+- `event: line` - Log line data
+- `:heartbeat` - Keep-alive every 15s
+
+### Container Stats
+
+**GET** `/api/hosts/:hostId/containers/:containerId/stats`
+
+Returns normalized metrics:
+```json
+{
+  "cpuPct": 12.5,
+  "memPct": 45.2,
+  "memBytes": 536870912,
+  "blkRead": 1024000,
+  "blkWrite": 512000,
+  "netRx": 2048000,
+  "netTx": 1024000,
+  "ts": "2024-01-01T12:00:00.000Z"
+}
+```
+
+### Prometheus Metrics
+
+**GET** `/metrics`
+
+Exports process metrics (CPU, memory, HTTP duration) in Prometheus format.
+
+Optional authentication via `x-metrics-token` header (set `METRICS_TOKEN` in .env).
+
+### Testing
+
+```bash
+# Manual cURL test
+curl -s -H "cookie: cy.sid=<session>" \
+  "https://your-app.dev/api/hosts/piapps/containers/<cid>/logs?tail=100" | jq .
+
+# SSE streaming test
+node scripts/test-sse.js https://your-app.dev piapps <cid> "cy.sid=<session>"
+
+# Run Jest tests (requires test container)
+TEST_CONTAINER_ID=<cid> npm test
+```
+
 ## 📚 Documentation
 
 - [Deployment Guide](DEPLOYMENT.md) - Production deployment instructions

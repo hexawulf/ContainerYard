@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { FileText, Info } from "lucide-react";
 import type { ContainerSummary, ContainerStats, HostSummary } from "@shared/monitoring";
 
 interface ContainerTableProps {
@@ -18,6 +19,8 @@ interface ContainerTableProps {
   onSelect: (containerId: string) => void;
   statsByContainer: Record<string, ContainerStats | undefined>;
   isLoading?: boolean;
+  onLogsClick?: (containerId: string) => void;
+  onInspectClick?: (containerId: string) => void;
 }
 
 function formatPercent(value?: number) {
@@ -32,6 +35,8 @@ export function ContainerTable({
   onSelect,
   statsByContainer,
   isLoading,
+  onLogsClick,
+  onInspectClick,
 }: ContainerTableProps) {
   return (
     <ScrollArea className="h-[520px]">
@@ -44,20 +49,20 @@ export function ContainerTable({
             <TableHead>Ports</TableHead>
             <TableHead className="text-right">CPU</TableHead>
             <TableHead className="text-right">Memory</TableHead>
-            {host?.provider === "CADVISOR_ONLY" && host.dozzleUrl ? <TableHead>Dozzle</TableHead> : null}
+            <TableHead className="text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {isLoading ? (
             <TableRow>
-              <TableCell colSpan={host?.provider === "CADVISOR_ONLY" && host.dozzleUrl ? 7 : 6} className="text-center text-sm text-muted-foreground py-8">
+              <TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-8">
                 Loading containers…
               </TableCell>
             </TableRow>
           ) : null}
           {!isLoading && containers.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={host?.provider === "CADVISOR_ONLY" && host.dozzleUrl ? 7 : 6} className="text-center text-sm text-muted-foreground py-8">
+              <TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-8">
                 No containers detected.
               </TableCell>
             </TableRow>
@@ -97,20 +102,36 @@ export function ContainerTable({
                 <TableCell className="text-sm text-muted-foreground">{ports}</TableCell>
                 <TableCell className="text-right text-sm">{formatPercent(stats?.cpuPercent)}</TableCell>
                 <TableCell className="text-right text-sm">{formatPercent(stats?.memoryPercent)}</TableCell>
-                {host?.provider === "CADVISOR_ONLY" && host.dozzleUrl ? (
-                  <TableCell className="text-right">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        window.open(host.dozzleUrl || "", "_blank", "noopener,noreferrer");
-                      }}
-                    >
-                      Open
-                    </Button>
-                  </TableCell>
-                ) : null}
+                <TableCell className="text-right">
+                  <div className="flex items-center justify-end gap-1">
+                    {onLogsClick && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onLogsClick(container.id);
+                        }}
+                        title="View logs"
+                      >
+                        <FileText className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {onInspectClick && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onInspectClick(container.id);
+                        }}
+                        title="Inspect"
+                      >
+                        <Info className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                </TableCell>
               </TableRow>
             );
           })}

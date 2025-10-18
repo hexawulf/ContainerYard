@@ -76,3 +76,23 @@ export interface SessionUser {
   email: string;
   role: "ADMIN" | "VIEWER";
 }
+
+export interface ContainerLogsResponse {
+  content: string;
+  truncated: boolean;
+}
+
+export interface DozzleLinkResponse {
+  link: string;
+}
+
+export interface NormalizedStats {
+  cpuPct: number;
+  memPct: number;
+  memBytes: number;
+  blkRead: number;
+  blkWrite: number;
+  netRx: number;
+  netTx: number;
+  ts: string;
+}

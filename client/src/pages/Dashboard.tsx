@@ -15,6 +15,10 @@ import type {
 import { HostSwitcher } from "@/features/monitoring/HostSwitcher";
 import { ContainerTable } from "@/features/monitoring/ContainerTable";
 import { StatsPanel } from "@/features/monitoring/StatsPanel";
+import { LogsDrawer } from "@/features/monitoring/LogsDrawer";
+import { InspectModal } from "@/features/monitoring/InspectModal";
+import { StatsChips } from "@/features/monitoring/StatsChips";
+import type { NormalizedStats } from "@shared/monitoring";
 
 const HOST_STORAGE_KEY = "cy.selectedHost";
 const HISTORY_POINTS = 30;
@@ -28,6 +32,9 @@ export default function Dashboard() {
   const [selectedHostId, setSelectedHostId] = useState<string | null>(() => localStorage.getItem(HOST_STORAGE_KEY));
   const [selectedContainerId, setSelectedContainerId] = useState<string | null>(null);
   const [statsHistory, setStatsHistory] = useState<Record<string, ContainerStats[]>>({});
+  const [normalizedStatsHistory, setNormalizedStatsHistory] = useState<Record<string, NormalizedStats[]>>({});
+  const [logsContainerId, setLogsContainerId] = useState<string | null>(null);
+  const [inspectContainerId, setInspectContainerId] = useState<string | null>(null);
 
   const { data: hostsData, isLoading: hostsLoading } = useQuery<HostSummary[]>({
     queryKey: ["/api/hosts"],
@@ -92,9 +99,9 @@ export default function Dashboard() {
     return ["/api/hosts", selectedHostId, "containers", selectedContainerId, "stats"] as const;
   }, [selectedHostId, selectedContainerId]);
 
-  const statsQuery = useQuery<ContainerStats>({
+  const statsQuery = useQuery<NormalizedStats>({
     queryKey: statsQueryKey ?? [],
-    queryFn: statsQueryKey ? getQueryFn<ContainerStats>({ on401: "throw" }) : undefined,
+    queryFn: statsQueryKey ? getQueryFn<NormalizedStats>({ on401: "throw" }) : undefined,
     enabled: Boolean(statsQueryKey),
     refetchInterval: 2000,
     refetchIntervalInBackground: true,
@@ -105,15 +112,42 @@ export default function Dashboard() {
     if (!stats || !selectedHostId || !selectedContainerId) return;
 
     const key = createHistoryKey(selectedHostId, selectedContainerId);
-    setStatsHistory((prev) => {
+    
+    // Store normalized stats for sparklines
+    setNormalizedStatsHistory((prev) => {
       const history = [...(prev[key] ?? []), stats];
       return { ...prev, [key]: history.slice(-HISTORY_POINTS) };
     });
-  }, [statsQuery.data, selectedHostId, selectedContainerId]);
+
+    // Convert to ContainerStats for backward compatibility
+    const legacyStats: ContainerStats = {
+      id: selectedContainerId,
+      hostId: selectedHostId,
+      provider: host?.provider || "DOCKER",
+      cpuPercent: stats.cpuPct,
+      memoryUsage: stats.memBytes,
+      memoryLimit: stats.memBytes, // TODO: get actual limit
+      memoryPercent: stats.memPct,
+      networkRx: stats.netRx,
+      networkTx: stats.netTx,
+      blockRead: stats.blkRead,
+      blockWrite: stats.blkWrite,
+      timestamp: stats.ts,
+    };
+
+    setStatsHistory((prev) => {
+      const history = [...(prev[key] ?? []), legacyStats];
+      return { ...prev, [key]: history.slice(-HISTORY_POINTS) };
+    });
+  }, [statsQuery.data, selectedHostId, selectedContainerId, host]);
 
   const host = hosts.find((item) => item.id === selectedHostId) ?? null;
   const statsKey = selectedHostId && selectedContainerId ? createHistoryKey(selectedHostId, selectedContainerId) : null;
   const history = statsKey ? statsHistory[statsKey] ?? [] : [];
+  const normalizedHistory = statsKey ? normalizedStatsHistory[statsKey] ?? [] : [];
+  
+  const logsContainer = containers.find((c) => c.id === logsContainerId);
+  const inspectContainer = containers.find((c) => c.id === inspectContainerId);
 
   const latestStatsByContainer = useMemo(() => {
     const map: Record<string, ContainerStats | undefined> = {};
@@ -169,11 +203,24 @@ export default function Dashboard() {
               onSelect={setSelectedContainerId}
               statsByContainer={latestStatsByContainer}
               isLoading={containersLoading}
+              onLogsClick={setLogsContainerId}
+              onInspectClick={setInspectContainerId}
             />
           </CardContent>
         </Card>
 
         <div className="space-y-6">
+          {normalizedHistory.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Real-time Metrics</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <StatsChips statsHistory={normalizedHistory} />
+              </CardContent>
+            </Card>
+          )}
+          
           {detailLoading ? (
             <Card>
               <CardHeader>
@@ -188,6 +235,24 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+
+      {logsContainerId && logsContainer && selectedHostId && (
+        <LogsDrawer
+          open={Boolean(logsContainerId)}
+          onOpenChange={(open) => !open && setLogsContainerId(null)}
+          hostId={selectedHostId}
+          containerId={logsContainerId}
+          containerName={logsContainer.name}
+        />
+      )}
+
+      {inspectContainerId && containerDetail && containerDetail.id === inspectContainerId && (
+        <InspectModal
+          open={Boolean(inspectContainerId)}
+          onOpenChange={(open) => !open && setInspectContainerId(null)}
+          container={containerDetail}
+        />
+      )}
     </div>
   );
 }
