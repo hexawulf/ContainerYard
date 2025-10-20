@@ -15,6 +15,7 @@
     "e2e:run": "start-server-and-test preview:e2e http://127.0.0.1:4173 \"pnpm e2e\"",
     "start": "NODE_ENV=production node -r dotenv/config dist/index.js",
     "check": "tsc",
+    "lint": "eslint . --ext .ts,.tsx",
     "db:push": "drizzle-kit push",
     "deploy:static": "scripts/deploy-static.sh",
     "postinstall": "prisma generate"
@@ -103,6 +104,7 @@
     "zod-validation-error": "^3.4.0"
   },
   "devDependencies": {
+    "@eslint/js": "^9.38.0",
     "@playwright/test": "^1.56.1",
     "@replit/vite-plugin-cartographer": "^0.3.1",
     "@replit/vite-plugin-dev-banner": "^0.1.1",
@@ -121,10 +123,15 @@
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.1",
     "@types/ws": "^8.5.13",
+    "@typescript-eslint/parser": "^8.46.1",
     "@vitejs/plugin-react": "^4.7.0",
     "autoprefixer": "^10.4.20",
     "drizzle-kit": "^0.18.1",
     "esbuild": "^0.25.0",
+    "eslint": "^9.38.0",
+    "eslint-plugin-react-hooks": "^7.0.0",
+    "lefthook": "^2.0.0",
+    "madge": "^8.0.0",
     "postcss": "^8.4.47",
     "prisma": "^6.17.1",
     "serve": "^14.2.5",
