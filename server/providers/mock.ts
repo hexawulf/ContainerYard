@@ -175,26 +175,30 @@ export class MockProvider implements IProvider {
     await new Promise(resolve => setTimeout(resolve, 500));
 
     switch (action) {
-      case 'start':
+      case 'start': {
         container.state = 'running';
         container.startedAt = new Date().toISOString();
         break;
-      case 'stop':
+      }
+      case 'stop': {
         container.state = 'exited';
         break;
-      case 'restart':
+      }
+      case 'restart': {
         container.state = 'restarting';
         setTimeout(() => {
           container.state = 'running';
           container.startedAt = new Date().toISOString();
         }, 1000);
         break;
-      case 'remove':
+      }
+      case 'remove': {
         const index = mockContainers.findIndex(c => c.id === id);
         if (index > -1) {
           mockContainers.splice(index, 1);
         }
         break;
+      }
     }
   }
 

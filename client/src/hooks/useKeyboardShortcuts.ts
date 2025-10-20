@@ -1,22 +1,56 @@
-import { useHotkeys } from 'react-hotkeys-hook';
+import { useEffect } from 'react';
 import type { KeyboardShortcut } from '@shared/schema';
 
 export function useKeyboardShortcuts(shortcuts: KeyboardShortcut[]) {
-  shortcuts.forEach(shortcut => {
-    useHotkeys(
-      shortcut.key,
-      (e) => {
-        e.preventDefault();
-        shortcut.action();
-      },
-      {
-        enableOnFormTags: false,
-        enabled: true,
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Skip if focus is in form elements
+      const target = e.target as HTMLElement;
+      if (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.tagName === 'SELECT' ||
+        target.isContentEditable
+      ) {
+        return;
       }
-    );
-  });
+
+      // Check each shortcut
+      for (const shortcut of shortcuts) {
+        if (matchesShortcut(e, shortcut.key)) {
+          e.preventDefault();
+          shortcut.action();
+          break;
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [shortcuts]);
 
   return shortcuts;
+}
+
+function matchesShortcut(e: KeyboardEvent, key: string): boolean {
+  const parts = key.toLowerCase().split('+');
+  const hasShift = parts.includes('shift');
+  const hasCtrl = parts.includes('ctrl') || parts.includes('control');
+  const hasAlt = parts.includes('alt');
+  const hasMeta = parts.includes('meta') || parts.includes('cmd');
+
+  // Get the actual key (last part or only part)
+  const actualKey = parts.filter(p => !['shift', 'ctrl', 'control', 'alt', 'meta', 'cmd'].includes(p))[0];
+
+  // Check modifiers
+  if (hasShift !== e.shiftKey) return false;
+  if (hasCtrl !== e.ctrlKey) return false;
+  if (hasAlt !== e.altKey) return false;
+  if (hasMeta !== e.metaKey) return false;
+
+  // Check key
+  const eventKey = e.key.toLowerCase();
+  return eventKey === actualKey || e.code.toLowerCase() === actualKey.toLowerCase();
 }
 
 export const defaultShortcuts: Omit<KeyboardShortcut, 'action'>[] = [

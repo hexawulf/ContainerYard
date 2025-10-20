@@ -40,7 +40,7 @@ export default function Dashboard() {
     queryKey: ["/api/hosts"],
   });
 
-  const hosts = hostsData ?? [];
+  const hosts = useMemo(() => hostsData ?? [], [hostsData]);
 
   useEffect(() => {
     if (!hosts.length) {
@@ -83,7 +83,7 @@ export default function Dashboard() {
     enabled: Boolean(containersQueryKey),
   });
 
-  const containers = containersData ?? [];
+  const containers = useMemo(() => containersData ?? [], [containersData]);
 
   useEffect(() => {
     if (!containers.length) {
@@ -121,7 +121,10 @@ export default function Dashboard() {
   });
 
   // ✅ Define host BEFORE using it in hook dependencies
-  const host = hosts.find((item) => item.id === selectedHostId) ?? null;
+  const host = useMemo(
+    () => hosts.find((item) => item.id === selectedHostId) ?? null,
+    [hosts, selectedHostId]
+  );
 
   useEffect(() => {
     const stats = statsQuery.data;

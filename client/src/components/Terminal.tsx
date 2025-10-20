@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { Terminal } from '@xterm/xterm';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Terminal as XTerm } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
@@ -19,6 +19,14 @@ export function Terminal({ containerId, onData, onResize, isConnected = false }:
   const xtermRef = useRef<XTerm | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
+
+  const handleData = useCallback((data: string) => {
+    onData?.(data);
+  }, [onData]);
+
+  const handleResize = useCallback((cols: number, rows: number) => {
+    onResize?.(cols, rows);
+  }, [onResize]);
 
   useEffect(() => {
     if (!terminalRef.current) return;
@@ -58,34 +66,32 @@ export function Terminal({ containerId, onData, onResize, isConnected = false }:
     term.loadAddon(webLinksAddon);
 
     term.open(terminalRef.current);
-    
+
     fitAddon.fit();
 
-    term.onData((data) => {
-      onData?.(data);
-    });
+    term.onData(handleData);
 
     term.onResize(({ cols, rows }) => {
-      onResize?.(cols, rows);
+      handleResize(cols, rows);
     });
 
     xtermRef.current = term;
     fitAddonRef.current = fitAddon;
     setIsInitialized(true);
 
-    const handleResize = () => {
+    const handleWindowResize = () => {
       if (fitAddonRef.current) {
         fitAddonRef.current.fit();
       }
     };
 
-    window.addEventListener('resize', handleResize);
+    window.addEventListener('resize', handleWindowResize);
 
     return () => {
-      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('resize', handleWindowResize);
       term.dispose();
     };
-  }, [containerId]);
+  }, [containerId, handleData, handleResize]);
 
   useEffect(() => {
     if (xtermRef.current && isConnected && isInitialized) {
