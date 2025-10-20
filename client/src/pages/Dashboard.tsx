@@ -120,12 +120,15 @@ export default function Dashboard() {
     refetchIntervalInBackground: true,
   });
 
+  // ✅ Define host BEFORE using it in hook dependencies
+  const host = hosts.find((item) => item.id === selectedHostId) ?? null;
+
   useEffect(() => {
     const stats = statsQuery.data;
     if (!stats || !selectedHostId || !selectedContainerId) return;
 
     const key = createHistoryKey(selectedHostId, selectedContainerId);
-    
+
     // Store normalized stats for sparklines
     setNormalizedStatsHistory((prev) => {
       const history = [...(prev[key] ?? []), stats];
@@ -153,8 +156,6 @@ export default function Dashboard() {
       return { ...prev, [key]: history.slice(-HISTORY_POINTS) };
     });
   }, [statsQuery.data, selectedHostId, selectedContainerId, host]);
-
-  const host = hosts.find((item) => item.id === selectedHostId) ?? null;
   const statsKey = selectedHostId && selectedContainerId ? createHistoryKey(selectedHostId, selectedContainerId) : null;
   const history = statsKey ? statsHistory[statsKey] ?? [] : [];
   const normalizedHistory = statsKey ? normalizedStatsHistory[statsKey] ?? [] : [];
