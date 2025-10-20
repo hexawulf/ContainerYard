@@ -29,6 +29,7 @@ export default defineConfig(async () => {
     build: {
       outDir: path.resolve(import.meta.dirname, "dist", "public"),
       emptyOutDir: true,
+      sourcemap: true, // Enable source maps for production debugging
     },
     server: {
       fs: {

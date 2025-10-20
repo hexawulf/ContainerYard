@@ -56,6 +56,21 @@ export interface ContainerDetail extends ContainerSummary {
   startedAt?: string | null;
 }
 
+export interface HostStats {
+  id: string;
+  hostId: string;
+  provider: HostProvider;
+  cpuPercent: number;
+  memoryUsage: number;
+  memoryLimit: number;
+  memoryPercent: number;
+  networkRx: number;
+  networkTx: number;
+  blockRead: number;
+  blockWrite: number;
+  timestamp: string;
+}
+
 export interface ContainerStats {
   id: string;
   hostId: string;

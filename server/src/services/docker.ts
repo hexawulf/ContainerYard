@@ -1,6 +1,7 @@
 import Docker from "dockerode";
 import type { HostConfig } from "../config/hosts";
 import { getDockerSocketPath } from "../config/hosts";
+import { parseContainerInstant } from "../lib/parseDockerStats";
 import type {
   ContainerDetail,
   ContainerEnvVar,
@@ -153,58 +154,23 @@ export async function getContainerDetail(host: HostConfig, containerId: string):
 export async function getContainerStats(host: HostConfig, containerId: string): Promise<ContainerStats> {
   try {
     const container = docker.getContainer(containerId);
-    const stats = (await container.stats({ stream: false })) as any;
+    const raw = (await container.stats({ stream: false })) as any;
 
-    const cpuDelta =
-      (stats.cpu_stats?.cpu_usage?.total_usage ?? 0) -
-      (stats.precpu_stats?.cpu_usage?.total_usage ?? 0);
-    const systemDelta =
-      (stats.cpu_stats?.system_cpu_usage ?? 0) - (stats.precpu_stats?.system_cpu_usage ?? 0);
-    const cpuCount =
-      stats.cpu_stats?.online_cpus ?? stats.cpu_stats?.cpu_usage?.percpu_usage?.length ?? 1;
-
-    const cpuPercent = systemDelta > 0 && cpuDelta > 0 ? (cpuDelta / systemDelta) * cpuCount * 100 : 0;
-
-    const memoryUsageRaw = stats.memory_stats?.usage ?? 0;
-    const memoryCache = stats.memory_stats?.stats?.cache ?? 0;
-    const memoryUsage = Math.max(0, memoryUsageRaw - memoryCache);
-    const memoryLimit = stats.memory_stats?.limit ?? 0;
-    const memoryPercent = memoryLimit > 0 ? (memoryUsage / memoryLimit) * 100 : 0;
-
-    let networkRx = 0;
-    let networkTx = 0;
-    if (stats.networks) {
-      for (const network of Object.values<{ rx_bytes?: number; tx_bytes?: number }>(stats.networks)) {
-        networkRx += network.rx_bytes ?? 0;
-        networkTx += network.tx_bytes ?? 0;
-      }
-    }
-
-    let blockRead = 0;
-    let blockWrite = 0;
-    const ioStats = stats.blkio_stats?.io_service_bytes_recursive ?? [];
-    for (const entry of ioStats) {
-      const op = entry.op?.toLowerCase?.();
-      if (op === "read") {
-        blockRead += entry.value ?? 0;
-      } else if (op === "write") {
-        blockWrite += entry.value ?? 0;
-      }
-    }
+    const parsed = parseContainerInstant(raw);
 
     return {
       id: containerId,
       hostId: host.id,
       provider: host.provider,
-      cpuPercent,
-      memoryUsage,
-      memoryLimit,
-      memoryPercent,
-      networkRx,
-      networkTx,
-      blockRead,
-      blockWrite,
-      timestamp: stats.read ?? new Date().toISOString(),
+      cpuPercent: parsed.cpuPct,
+      memoryUsage: parsed.memBytes,
+      memoryLimit: raw.memory_stats?.limit ?? 0,
+      memoryPercent: parsed.memPct,
+      networkRx: parsed.netRx,
+      networkTx: parsed.netTx,
+      blockRead: parsed.blkRead,
+      blockWrite: parsed.blkWrite,
+      timestamp: parsed.ts,
     };
   } catch (error: any) {
     if (error.statusCode === 404) {
@@ -245,6 +211,25 @@ export interface LogOptions {
   stdout?: boolean;
   stderr?: boolean;
   grep?: string;
+}
+
+export async function getHostStats(host: HostConfig): Promise<ContainerStats> {
+  const info = await docker.info();
+  const memoryTotal = info.MemTotal ?? 0;
+  return {
+    id: host.id,
+    hostId: host.id,
+    provider: host.provider,
+    cpuPercent: info.NCPU ? (info.NCPU / (info.NCPU || 1)) * 100 : 0,
+    memoryUsage: 0,
+    memoryLimit: memoryTotal,
+    memoryPercent: 0,
+    networkRx: 0,
+    networkTx: 0,
+    blockRead: 0,
+    blockWrite: 0,
+    timestamp: new Date().toISOString(),
+  };
 }
 
 export async function getContainerLogs(containerId: string, options: LogOptions = {}): Promise<string> {

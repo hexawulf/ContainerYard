@@ -1,6 +1,8 @@
 import csurf from "csurf";
 import express from "express";
+import fs from "fs";
 import helmet from "helmet";
+import path from "path";
 import { createServer } from "http";
 
 import { env, allowedOrigins } from "./config/env";
@@ -9,7 +11,7 @@ import { prisma } from "./db/client";
 import { authRouter } from "./routes/auth";
 import { hostsRouter } from "./routes/hosts";
 import { attachUserToResponse, globalRateLimiter, requireAuth } from "./middleware/auth";
-import { log, serveStatic, setupVite } from "../vite";
+import { log, setupVite } from "../vite";
 import { registerMetrics } from "./metrics";
 
 export async function createApp() {
@@ -61,13 +63,45 @@ export async function createApp() {
     res.json({ ok: true, ts: new Date().toISOString() });
   });
 
+  // Runtime config endpoint for SPA to fetch when build-time env is missing
+  app.get("/api/runtime-config", (_req, res) => {
+    res.json({
+      apiBase: process.env.PUBLIC_API_BASE || '',
+      appName: process.env.APP_NAME || 'ContainerYard',
+      autoDismiss: process.env.AUTO_DISMISS ?? 'true',
+    });
+  });
+
   app.use("/api/auth", authRouter);
   app.use("/api/hosts", requireAuth, hostsRouter);
   registerMetrics(app);
 
-  app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  // Hard 404 for any unmatched /api/* routes
+  app.all("/api/*", (req, res) => {
+    res.status(404).json({ error: "API route not found", path: req.path });
+  });
+
+  const distPath = path.join(__dirname, "public");
+
+  if (app.get("env") === "development") {
+    await setupVite(app, httpServer);
+  } else {
+    // Startup guard: fail fast if client build is missing
+    const indexFile = path.join(distPath, "index.html");
+    if (!fs.existsSync(indexFile)) {
+      log("❌ Missing client build: dist/public/index.html not found", "error");
+      process.exit(1);
+    }
+
+    app.use(express.static(distPath));
+    app.get(/^\/(?!api\/).*/, (_req, res) => {
+      res.sendFile(path.join(distPath, "index.html"));
+    });
+  }
+
+  app.use((err: any, req: express.Request, res: express.Response, _next: express.NextFunction) => {
     if (err.code === "EBADCSRFTOKEN") {
-      return res.status(403).json({ message: "Invalid CSRF token" });
+      return res.status(403).json({ error: "Invalid CSRF token" });
     }
 
     const status = err.status || err.statusCode || 500;
@@ -76,17 +110,24 @@ export async function createApp() {
       log(`${status} ${message}`, "error");
     }
 
-    res.status(status).json({ message });
+    // Always return JSON for API routes (defensive)
+    if (req.path?.startsWith("/api/")) {
+      return res.status(status).json({ error: message });
+    }
+
+    // Non-API: plain text fallback
+    res.status(status).send(message);
   });
 
   if (prisma) {
     await prisma.$connect();
   }
 
-  if (app.get("env") === "development") {
-    await setupVite(app, httpServer);
-  } else {
-    serveStatic(app);
+  try {
+    const client = await prisma;
+    await client.$connect();
+  } catch (error) {
+    log(`Failed to connect Prisma client: ${error}`, "error");
   }
 
   const port = env.PORT;

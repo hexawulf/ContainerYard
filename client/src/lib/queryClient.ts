@@ -76,7 +76,7 @@ export async function apiRequest(
   }
 
   // Use apiFetch for consistent error handling
-  const res = await apiFetch(url.startsWith('/api') ? url.slice(4) : url, {
+  const res = await apiFetch(url, {
     method: upperMethod,
     headers,
     body: data ? JSON.stringify(data) : undefined,
@@ -93,10 +93,9 @@ export const getQueryFn: <T>(options: {
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
     const fullPath = queryKey.join("/") as string;
-    const path = fullPath.startsWith('/api') ? fullPath.slice(4) : fullPath;
-    
+
     try {
-      const res = await apiFetch(path);
+      const res = await apiFetch(fullPath);
       return await res.json();
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {

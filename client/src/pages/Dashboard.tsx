@@ -64,6 +64,19 @@ export default function Dashboard() {
     return ["/api/hosts", selectedHostId, "containers"] as const;
   }, [selectedHostId]);
 
+  const hostStatsQueryKey = useMemo(() => {
+    if (!selectedHostId) return null;
+    return ["/api/hosts", selectedHostId, "stats"] as const;
+  }, [selectedHostId]);
+
+  const hostStats = useQuery({
+    queryKey: hostStatsQueryKey ?? [],
+    queryFn: hostStatsQueryKey ? getQueryFn({ on401: "throw" }) : undefined,
+    enabled: Boolean(hostStatsQueryKey),
+    refetchInterval: 5000,
+    refetchIntervalInBackground: true,
+  });
+
   const { data: containersData, isLoading: containersLoading } = useQuery<ContainerSummary[]>({
     queryKey: containersQueryKey ?? [],
     queryFn: containersQueryKey ? getQueryFn<ContainerSummary[]>({ on401: "throw" }) : undefined,

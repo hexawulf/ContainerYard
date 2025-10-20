@@ -54,7 +54,7 @@ export default function Login() {
     setError(null);
 
     try {
-      const res = await apiRequest("POST", "/api/auth/login", { email, password });
+      const res = await apiRequest("POST", "/auth/login", { email, password });
       const data = (await res.json()) as { user: SessionUser };
       clearCsrfToken();
       await prefetchCsrfToken();

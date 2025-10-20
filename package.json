@@ -5,7 +5,10 @@
   "license": "MIT",
   "scripts": {
     "dev": "NODE_ENV=development tsx -r dotenv/config server/index.ts",
-    "build": "vite build",
+    "build": "npm run build:server && npm run build:client && npm run verify:dist",
+    "build:server": "esbuild server/index.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/index.js --banner:js=\"import { createRequire } from 'module'; import { fileURLToPath } from 'url'; import { dirname } from 'path'; const require = createRequire(import.meta.url); const __filename = fileURLToPath(import.meta.url); const __dirname = dirname(__filename);\"",
+    "build:client": "vite build",
+    "verify:dist": "bash scripts/verify-dist.sh",
     "start:static": "serve -s dist/public -l tcp://127.0.0.1:5001",
     "preview:e2e": "vite preview --host 127.0.0.1 --port 4173 --strictPort",
     "e2e": "playwright test",

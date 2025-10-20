@@ -1,6 +1,32 @@
-// Centralized API client with error handling for non-JSON responses
+import { useState, useEffect } from 'react';
 
-export const API_BASE = import.meta.env.VITE_API_BASE ?? '/api';
+// Robust API base resolution: env → runtime window var → fallback origin
+const FALLBACK_ORIGIN = typeof window !== 'undefined' ? window.location.origin : '';
+const runtimeBase = typeof window !== 'undefined' ? (window as any).__CY_API_BASE__ : '';
+const API_BASE_RAW =
+  (import.meta.env.VITE_API_BASE as string | undefined)?.trim() ||
+  runtimeBase ||
+  FALLBACK_ORIGIN;
+
+// API base URL - must be initialized first to avoid TDZ issues
+export const API_BASE = API_BASE_RAW.replace(/\/+$/, ''); // strip trailing slash
+
+// Build a correct API URL no matter what callers pass.
+// Accepts: '/auth/login', 'auth/login', '/api/auth/login', 'api/auth/login'
+// Always produces: <BASE>/api/<path...>
+const ABSOLUTE = /^https?:\/\//i.test(API_BASE);
+function buildApiUrl(path: string): string {
+  // Normalize caller path to begin with /api/...
+  const p = path.startsWith('/api/')
+    ? path
+    : path.startsWith('/api')
+      ? path.replace(/^\/?api/, '/api')
+      : path.startsWith('/')
+        ? '/api' + path
+        : '/api/' + path;
+  return ABSOLUTE ? API_BASE + p : (API_BASE || '') + p;
+}
+
 const AUTH_DISABLED = import.meta.env.VITE_AUTH_DISABLED === 'true';
 
 export class ApiError extends Error {
@@ -19,6 +45,7 @@ export class ApiError extends Error {
  * - Respects VITE_AUTH_DISABLED for auth endpoints
  * - Validates JSON responses (rejects HTML 502 bodies)
  * - Provides consistent error handling
+ * - Supports cache control for auth endpoints
  */
 export async function apiFetch(
   path: string,
@@ -29,19 +56,24 @@ export async function apiFetch(
     throw new ApiError('disabled', '', 'Authentication is disabled in this environment');
   }
 
-  const url = path.startsWith('http') ? path : `${API_BASE}${path}`;
+  const url = buildApiUrl(path);
 
   const headers: HeadersInit = {
     'Accept': 'application/json',
     ...(options?.headers as Record<string, string> || {}),
   };
 
+  // Force no-store cache for auth endpoints to avoid stale sessions
+  const isAuthEndpoint = path.includes('/auth/');
+  const fetchOptions: RequestInit = {
+    ...options,
+    headers,
+    credentials: options?.credentials || 'include',
+    ...(isAuthEndpoint && { cache: 'no-store' }),
+  };
+
   try {
-    const res = await fetch(url, {
-      ...options,
-      headers,
-      credentials: options?.credentials || 'include',
-    });
+    const res = await fetch(url, fetchOptions);
 
     // Check if response is JSON
     const contentType = res.headers.get('content-type') || '';
@@ -64,11 +96,11 @@ export async function apiFetch(
 
     // Validate that successful responses are JSON when expected
     if (!isJson) {
-      const body = await res.text();
+      const body = await res.text().catch(() => '');
       throw new ApiError(
         'not-json',
         body.slice(0, 500),
-        'Expected JSON response but got ' + contentType
+        `Expected JSON response but got ${contentType.split(';')[0]} @ ${url}. Snippet: ${body.slice(0, 120)}...`
       );
     }
 
@@ -84,6 +116,7 @@ export async function apiFetch(
 
 /**
  * Hook to check API health status
+ * Stable implementation that won't cause re-render loops
  */
 export function useApiHealth(): { online: boolean; checking: boolean } {
   const [online, setOnline] = useState(true);
@@ -96,32 +129,42 @@ export function useApiHealth(): { online: boolean; checking: boolean } {
       return;
     }
 
+    let mounted = true;
+
     const check = async () => {
       try {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 3000);
         
-        await fetch(`${API_BASE}/health`, {
+        const res = await fetch(`${API_BASE}/health`, {
           signal: controller.signal,
           credentials: 'include',
+          cache: 'no-store',
         });
         
         clearTimeout(timeout);
-        setOnline(true);
+        
+        if (mounted) {
+          setOnline(res.ok);
+          setChecking(false);
+        }
       } catch {
-        setOnline(false);
-      } finally {
-        setChecking(false);
+        if (mounted) {
+          setOnline(false);
+          setChecking(false);
+        }
       }
     };
 
     check();
     const interval = setInterval(check, 30000); // Check every 30s
-    return () => clearInterval(interval);
-  }, []);
+    
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, []); // Empty deps - only run once on mount
 
   return { online, checking };
 }
 
-// Add React imports for the hook
-import { useState, useEffect } from 'react';

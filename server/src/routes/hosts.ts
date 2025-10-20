@@ -8,13 +8,42 @@ import {
   streamContainerLogs,
   type LogOptions 
 } from "../services/docker";
+import { getDockerHostStats } from "../services/dockerHostStats";
 import { getCadvisorService } from "../services/cadvisor";
-import type { ContainerLogsResponse, NormalizedStats } from "@shared/monitoring";
+import type { ContainerLogsResponse, NormalizedStats, HostStats } from "@shared/monitoring";
 
 const router = Router();
 
 router.get("/", (_req, res) => {
   res.json(listHosts());
+});
+
+router.get("/:hostId/stats", async (req, res, next) => {
+  try {
+    const host = getHost(req.params.hostId);
+
+    if (host.provider !== "DOCKER") {
+      return res.json({
+        id: host.id,
+        hostId: host.id,
+        provider: host.provider,
+        cpuPercent: 0,
+        memoryUsage: 0,
+        memoryLimit: 0,
+        memoryPercent: 0,
+        networkRx: 0,
+        networkTx: 0,
+        blockRead: 0,
+        blockWrite: 0,
+        timestamp: new Date().toISOString(),
+      } satisfies HostStats);
+    }
+
+    const stats = await getDockerHostStats(host);
+    return res.json(stats);
+  } catch (error) {
+    next(error);
+  }
 });
 
 router.get("/:hostId/containers", async (req, res, next) => {
@@ -65,15 +94,16 @@ router.get("/:hostId/containers/:containerId/stats", async (req, res, next) => {
       stats = await service.getStats(host, containerId);
     }
 
+    // Normalize all stats to numbers (never null/undefined)
     const normalized: NormalizedStats = {
-      cpuPct: stats.cpuPercent,
-      memPct: stats.memoryPercent,
-      memBytes: stats.memoryUsage,
-      blkRead: stats.blockRead,
-      blkWrite: stats.blockWrite,
-      netRx: stats.networkRx,
-      netTx: stats.networkTx,
-      ts: stats.timestamp,
+      cpuPct: Number(stats.cpuPercent || 0),
+      memPct: Number(stats.memoryPercent || 0),
+      memBytes: Number(stats.memoryUsage || 0),
+      blkRead: Number(stats.blockRead || 0),
+      blkWrite: Number(stats.blockWrite || 0),
+      netRx: Number(stats.networkRx || 0),
+      netTx: Number(stats.networkTx || 0),
+      ts: stats.timestamp || new Date().toISOString(),
     };
 
     return res.json(normalized);

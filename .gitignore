@@ -59,3 +59,11 @@ vite.config.ts.*
 # Temporary files
 .tmp/
 .temp/
+# Build artifacts
+/dist
+/server/index.js
+*.log
+
+# Env and local
+.env
+.env.*
