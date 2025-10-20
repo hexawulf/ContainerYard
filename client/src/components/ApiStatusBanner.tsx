@@ -1,4 +1,4 @@
-import { useApiHealth } from "@/lib/api";
+import { useApiHealth } from "@/lib/hooks/useApiHealth";
 
 const AUTH_DISABLED = import.meta.env.VITE_AUTH_DISABLED === 'true';
 

@@ -1,30 +1,24 @@
-import { useState, useEffect } from 'react';
+// client/src/lib/api.ts
+// Pure utility for API requests - NO React imports, NO hooks
 
-// Robust API base resolution: env → runtime window var → fallback origin
-const FALLBACK_ORIGIN = typeof window !== 'undefined' ? window.location.origin : '';
-const runtimeBase = typeof window !== 'undefined' ? (window as any).__CY_API_BASE__ : '';
-const API_BASE_RAW =
-  (import.meta.env.VITE_API_BASE as string | undefined)?.trim() ||
-  runtimeBase ||
-  FALLBACK_ORIGIN;
+// Runtime base: allow server to set window.__CY_API_BASE__
+const runtimeBase =
+  typeof window !== 'undefined' && (window as any).__CY_API_BASE__
+    ? (window as any).__CY_API_BASE__
+    : '';
 
-// API base URL - must be initialized first to avoid TDZ issues
-export const API_BASE = API_BASE_RAW.replace(/\/+$/, ''); // strip trailing slash
+const envBase = (import.meta as any)?.env?.VITE_API_BASE as string | undefined;
+const API_BASE_RAW = (envBase?.trim() || runtimeBase || '/api').replace(/\/+$/, '');
 
-// Build a correct API URL no matter what callers pass.
-// Accepts: '/auth/login', 'auth/login', '/api/auth/login', 'api/auth/login'
-// Always produces: <BASE>/api/<path...>
-const ABSOLUTE = /^https?:\/\//i.test(API_BASE);
+export const API_BASE = API_BASE_RAW;
+
+// Build a fully-qualified API path: accepts '/x', 'x', or 'http(s)://...'
 function buildApiUrl(path: string): string {
-  // Normalize caller path to begin with /api/...
-  const p = path.startsWith('/api/')
-    ? path
-    : path.startsWith('/api')
-      ? path.replace(/^\/?api/, '/api')
-      : path.startsWith('/')
-        ? '/api' + path
-        : '/api/' + path;
-  return ABSOLUTE ? API_BASE + p : (API_BASE || '') + p;
+  if (!path) return API_BASE;
+  if (/^https?:\/\//i.test(path)) return path;
+  const p = ('/' + path).replace(/\/{2,}/g, '/');
+  // If API_BASE already includes /api, don't duplicate it
+  return API_BASE + (p.startsWith('/api/') ? p.slice(4) : p);
 }
 
 const AUTH_DISABLED = import.meta.env.VITE_AUTH_DISABLED === 'true';
@@ -112,59 +106,5 @@ export async function apiFetch(
     // Network errors, CORS, etc.
     throw new ApiError('network', '', err instanceof Error ? err.message : 'Network error');
   }
-}
-
-/**
- * Hook to check API health status
- * Stable implementation that won't cause re-render loops
- */
-export function useApiHealth(): { online: boolean; checking: boolean } {
-  const [online, setOnline] = useState(true);
-  const [checking, setChecking] = useState(true);
-
-  useEffect(() => {
-    if (AUTH_DISABLED) {
-      setOnline(false);
-      setChecking(false);
-      return;
-    }
-
-    let mounted = true;
-
-    const check = async () => {
-      try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 3000);
-        
-        const res = await fetch(`${API_BASE}/health`, {
-          signal: controller.signal,
-          credentials: 'include',
-          cache: 'no-store',
-        });
-        
-        clearTimeout(timeout);
-        
-        if (mounted) {
-          setOnline(res.ok);
-          setChecking(false);
-        }
-      } catch {
-        if (mounted) {
-          setOnline(false);
-          setChecking(false);
-        }
-      }
-    };
-
-    check();
-    const interval = setInterval(check, 30000); // Check every 30s
-    
-    return () => {
-      mounted = false;
-      clearInterval(interval);
-    };
-  }, []); // Empty deps - only run once on mount
-
-  return { online, checking };
 }
 
