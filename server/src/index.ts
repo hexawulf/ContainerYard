@@ -10,6 +10,8 @@ import { sessionMiddleware, redisClient } from "./config/session";
 import { prisma } from "./db/client";
 import { authRouter } from "./routes/auth";
 import { hostsRouter } from "./routes/hosts";
+import { hostLogsRouter } from "./routes/hostLogs";
+import { logDownloadRouter } from "./routes/logDownload";
 import { attachUserToResponse, globalRateLimiter, requireAuth } from "./middleware/auth";
 import { log, setupVite } from "../vite";
 import { registerMetrics } from "./metrics";
@@ -74,6 +76,8 @@ export async function createApp() {
 
   app.use("/api/auth", authRouter);
   app.use("/api/hosts", requireAuth, hostsRouter);
+  app.use("/api/hostlogs", requireAuth, hostLogsRouter);
+  app.use("/api/logs/download", logDownloadRouter); // has its own requireAdmin middleware
   registerMetrics(app);
 
   // Hard 404 for any unmatched /api/* routes
