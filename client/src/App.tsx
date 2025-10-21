@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import Dashboard from "@/pages/Dashboard";
 import Login from "@/pages/Login";
 import NotFound from "@/pages/not-found";
+import HostLogs from "@/pages/HostLogs";
 import { useTheme } from "@/hooks/useTheme";
 import { useEffect, useState } from "react";
 import { AuthGate } from "@/components/AuthGate";
@@ -23,6 +24,14 @@ function Router() {
     </AuthGate>
   );
 
+  const ProtectedHostLogs = () => (
+    <AuthGate>
+      <Layout>
+        <HostLogs />
+      </Layout>
+    </AuthGate>
+  );
+
   return (
     <Switch>
       <Route path="/" component={LandingPage} />
@@ -32,6 +41,7 @@ function Router() {
         </Layout>
       </Route>
       <Route path="/dashboard" component={ProtectedDashboard} />
+      <Route path="/host-logs" component={ProtectedHostLogs} />
       <Route path="/styleguide" component={StyleGuidePage} />
       <Route component={NotFound} />
     </Switch>

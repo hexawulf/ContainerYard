@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/components/AuthGate";
 import { getQueryFn, queryClient } from "@/lib/queryClient";
+import { Link } from "wouter";
 import type {
   ContainerDetail,
   ContainerStats,
@@ -190,6 +191,11 @@ export default function Dashboard() {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-display">Dashboard</h1>
         <div className="flex items-center gap-3">
+          <Link href="/host-logs">
+            <Button variant="outline" size="sm">
+              Host Logs
+            </Button>
+          </Link>
           {user && (
             <Badge variant="outline" className="uppercase tracking-wide">
               {user.role}
