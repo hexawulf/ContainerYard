@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState, useMemo } from 'react';
+import { useRef, useEffect, useState, useMemo, useCallback } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -57,7 +57,7 @@ export function LogsViewer({
   const [showSettings, setShowSettings] = useState(false);
 
   // Build query params
-  const buildQueryString = (includeFollow = false) => {
+  const buildQueryString = useCallback((includeFollow = false) => {
     const params = new URLSearchParams();
     if (includeFollow) params.set('follow', '1');
     params.set('tail', String(tail));
@@ -66,7 +66,7 @@ export function LogsViewer({
     if (timestamps) params.set('timestamps', '1');
     if (grep) params.set('grep', grep);
     return params.toString();
-  };
+  }, [tail, stdout, stderr, timestamps, grep]);
 
   // Apply client-side filter
   const filteredLines = useMemo(() => {
@@ -83,7 +83,7 @@ export function LogsViewer({
   });
 
   // Fetch logs (snapshot mode)
-  const fetchLogs = async () => {
+  const fetchLogs = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
@@ -106,10 +106,10 @@ export function LogsViewer({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [endpoint, buildQueryString]);
 
   // Start SSE streaming
-  const startStreaming = () => {
+  const startStreaming = useCallback(() => {
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
     }
@@ -143,7 +143,7 @@ export function LogsViewer({
     };
 
     eventSourceRef.current = es;
-  };
+  }, [endpoint, buildQueryString]);
 
   // Stop streaming
   const stopStreaming = () => {
@@ -163,7 +163,7 @@ export function LogsViewer({
     }
 
     return () => stopStreaming();
-  }, [endpoint, follow, tail, stdout, stderr, timestamps, grep]);
+  }, [follow, fetchLogs, startStreaming]);
 
   // Auto-scroll
   useEffect(() => {
