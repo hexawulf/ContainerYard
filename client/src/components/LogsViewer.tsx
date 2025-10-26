@@ -97,22 +97,32 @@ export function LogsViewer({
         throw new Error(errorData.error || errorData.message || `HTTP ${response.status}`);
       }
 
-      const data = await response.json();
+      const contentType = response.headers.get('content-type') || '';
       
-      if (!data.available) {
-        let errorMessage = 'Log not available';
-        if (data.reason === 'not_found') {
-          errorMessage = 'Log file not found';
-        } else if (data.reason === 'permission') {
-          errorMessage = 'Permission denied to read log file';
-        } else if (data.reason === 'container_missing') {
-          errorMessage = `Container not found: ${data.containerName}`;
+      // Check if response is JSON (error/unavailable) or text (actual logs)
+      if (contentType.includes('application/json')) {
+        const data = await response.json();
+        
+        if (!data.available) {
+          let errorMessage = 'Log not available';
+          if (data.reason === 'not_found') {
+            errorMessage = `Log file not found: ${data.details?.path || 'unknown path'}`;
+          } else if (data.reason === 'permission') {
+            errorMessage = `Permission denied to read log file: ${data.details?.path || 'unknown path'}`;
+          } else if (data.reason === 'empty') {
+            errorMessage = `Log file is empty: ${data.details?.path || 'unknown path'}`;
+          } else if (data.reason === 'container_missing') {
+            errorMessage = `Container not found: ${data.details?.containerName || 'unknown'}`;
+          } else if (data.reason === 'exec_error') {
+            errorMessage = `Execution error: ${data.details?.stderr || 'unknown error'}`;
+          }
+          throw new Error(errorMessage);
         }
-        throw new Error(errorMessage);
+      } else {
+        // Plain text response - actual log content
+        const content = await response.text();
+        setLines(content.split('\n').filter((line: string) => line.length > 0));
       }
-      
-      const content = data.content || '';
-      setLines(content.split('\n').filter((line: string) => line.length > 0));
     } catch (err: any) {
       setError(err.message);
       setLines([]);
