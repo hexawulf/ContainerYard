@@ -19,9 +19,14 @@ import { StatsPanel } from "@/features/monitoring/StatsPanel";
 import { LogsDrawer } from "@/features/monitoring/LogsDrawer";
 import { InspectModal } from "@/features/monitoring/InspectModal";
 import { StatsChips } from "@/features/monitoring/StatsChips";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { X } from "lucide-react";
 import type { NormalizedStats } from "@shared/monitoring";
 
 const HOST_STORAGE_KEY = "cy.selectedHost";
+const FILTERS_STORAGE_KEY = "cy.containerFilters";
+const SORT_STORAGE_KEY = "cy.containerSort";
 const HISTORY_POINTS = 30;
 
 function createHistoryKey(hostId: string, containerId: string) {
@@ -36,6 +41,27 @@ export default function Dashboard() {
   const [normalizedStatsHistory, setNormalizedStatsHistory] = useState<Record<string, NormalizedStats[]>>({});
   const [logsContainerId, setLogsContainerId] = useState<string | null>(null);
   const [inspectContainerId, setInspectContainerId] = useState<string | null>(null);
+  
+  // Filter and sort state
+  interface FilterState {
+    state: string;
+    label: string;
+    image: string;
+  }
+  
+  interface SortState {
+    field: string;
+    direction: string;
+  }
+  
+  const [filters, setFilters] = useState<FilterState>(() => {
+    const saved = localStorage.getItem(FILTERS_STORAGE_KEY);
+    return saved ? JSON.parse(saved) : { state: "all", label: "", image: "" };
+  });
+  const [sort, setSort] = useState<SortState>(() => {
+    const saved = localStorage.getItem(SORT_STORAGE_KEY);
+    return saved ? JSON.parse(saved) : { field: "name", direction: "asc" };
+  });
 
   const { data: hostsData, isLoading: hostsLoading } = useQuery<HostSummary[]>({
     queryKey: ["/api/hosts"],
@@ -59,6 +85,14 @@ export default function Dashboard() {
       localStorage.setItem(HOST_STORAGE_KEY, selectedHostId);
     }
   }, [selectedHostId]);
+
+  useEffect(() => {
+    localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(filters));
+  }, [filters]);
+
+  useEffect(() => {
+    localStorage.setItem(SORT_STORAGE_KEY, JSON.stringify(sort));
+  }, [sort]);
 
   const containersQueryKey = useMemo(() => {
     if (!selectedHostId) return null;
@@ -180,6 +214,64 @@ export default function Dashboard() {
     return map;
   }, [statsHistory, selectedHostId]);
 
+  // Filter and sort containers
+  const filteredAndSortedContainers = useMemo(() => {
+    let filtered = containers;
+
+    // Apply state filter
+    if (filters.state !== "all") {
+      filtered = filtered.filter(container => container.state === filters.state);
+    }
+
+    // Apply label filter
+    if (filters.label) {
+      filtered = filtered.filter(container => 
+        Object.entries(container.labels || {}).some(([key, value]) => 
+          `${key}=${value}`.toLowerCase().includes(filters.label.toLowerCase())
+        )
+      );
+    }
+
+    // Apply image filter
+    if (filters.image) {
+      filtered = filtered.filter(container => 
+        container.image.toLowerCase().includes(filters.image.toLowerCase())
+      );
+    }
+
+    // Apply sorting
+    const sorted = [...filtered].sort((a, b) => {
+      const aStats = latestStatsByContainer[a.id];
+      const bStats = latestStatsByContainer[b.id];
+      
+      switch (sort.field) {
+        case "name":
+          return sort.direction === "asc" 
+            ? a.name.localeCompare(b.name) 
+            : b.name.localeCompare(a.name);
+        case "cpu": {
+          const aCpu = aStats?.cpuPercent || 0;
+          const bCpu = bStats?.cpuPercent || 0;
+          return sort.direction === "desc" ? bCpu - aCpu : aCpu - bCpu;
+        }
+        case "memory": {
+          const aMem = aStats?.memoryPercent || 0;
+          const bMem = bStats?.memoryPercent || 0;
+          return sort.direction === "desc" ? bMem - aMem : aMem - bMem;
+        }
+        case "uptime": {
+          const aUptime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const bUptime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return sort.direction === "desc" ? bUptime - aUptime : aUptime - bUptime;
+        }
+        default:
+          return 0;
+      }
+    });
+
+    return sorted;
+  }, [containers, filters, sort, latestStatsByContainer]);
+
   const handleHostChange = (hostId: string) => {
     setSelectedContainerId(null);
     setSelectedHostId(hostId);
@@ -219,8 +311,86 @@ export default function Dashboard() {
           </CardHeader>
           <Separator />
           <CardContent className="p-0">
+            {/* Filter Controls */}
+            <div className="p-4 space-y-3 border-b">
+              <div className="flex flex-wrap gap-2 items-center">
+                <span className="text-sm font-medium">Filters:</span>
+                
+                {/* State Filter */}
+                <Select value={filters.state} onValueChange={(value) => setFilters(prev => ({ ...prev, state: value }))}>
+                  <SelectTrigger className="w-28">
+                    <SelectValue placeholder="State" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    <SelectItem value="running">Running</SelectItem>
+                    <SelectItem value="exited">Exited</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                {/* Label Filter */}
+                <Input
+                  placeholder="Label filter"
+                  value={filters.label}
+                  onChange={(e) => setFilters(prev => ({ ...prev, label: e.target.value }))}
+                  className="w-40"
+                />
+
+                {/* Image Filter */}
+                <Input
+                  placeholder="Image filter"
+                  value={filters.image}
+                  onChange={(e) => setFilters(prev => ({ ...prev, image: e.target.value }))}
+                  className="w-40"
+                />
+
+                {/* Clear Filters */}
+                {(filters.state !== "all" || filters.label || filters.image) && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setFilters({ state: "all", label: "", image: "" })}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+
+              {/* Sort Controls */}
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium">Sort by:</span>
+                <Select 
+                  value={sort.field} 
+                  onValueChange={(field) => setSort(prev => ({ ...prev, field }))}
+                >
+                  <SelectTrigger className="w-32">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="name">Name</SelectItem>
+                    <SelectItem value="cpu">CPU %</SelectItem>
+                    <SelectItem value="memory">Memory %</SelectItem>
+                    <SelectItem value="uptime">Uptime</SelectItem>
+                  </SelectContent>
+                </Select>
+                
+                <Select 
+                  value={sort.direction} 
+                  onValueChange={(direction) => setSort(prev => ({ ...prev, direction }))}
+                >
+                  <SelectTrigger className="w-24">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="asc">Ascending</SelectItem>
+                    <SelectItem value="desc">Descending</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
             <ContainerTable
-              containers={containers}
+              containers={filteredAndSortedContainers}
               host={host}
               selectedId={selectedContainerId}
               onSelect={setSelectedContainerId}

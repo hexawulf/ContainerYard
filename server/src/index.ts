@@ -85,7 +85,7 @@ export async function createApp() {
     res.status(404).json({ error: "API route not found", path: req.path });
   });
 
-  const distPath = path.join(__dirname, "public");
+  const distPath = path.resolve(process.cwd(), "dist", "public");
 
   if (app.get("env") === "development") {
     await setupVite(app, httpServer);

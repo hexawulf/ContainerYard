@@ -17,12 +17,13 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function useAuth() {
   const ctx = useContext(AuthContext);
   if (!ctx) {
-    throw new Error("useAuth must be used within an AuthGate");
+    // Soft guard: return a benign shape to avoid crash on public pages
+    return { user: null, loading: false, refresh: async () => {}, logout: async () => {} };
   }
   return ctx;
 }
 
-export function AuthGate({ children }: { children: React.ReactNode }) {
+export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [, setLocation] = useLocation();
 
   // ✅ ALWAYS call hooks at top level (Rules of Hooks compliance)
@@ -33,13 +34,6 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     refetchOnMount: true,
     enabled: !AUTH_DISABLED, // Disable query when auth is off
   });
-
-  useEffect(() => {
-    if (AUTH_DISABLED) return; // Guard logic inside hook
-    if (!isLoading && !data?.user) {
-      setLocation("/login");
-    }
-  }, [data, isLoading, setLocation]);
 
   // ✅ Compute value at top level, always calling useMemo
   const value = useMemo<AuthContextValue>(() => {
@@ -78,8 +72,24 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     };
   }, [data?.user, refetch, setLocation]);
 
-  // ✅ Conditional rendering AFTER all hooks
-  if (!AUTH_DISABLED && isLoading) {
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+export function AuthGate({ children }: { children: React.ReactNode }) {
+  const { user, refresh } = useAuth();
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    if (AUTH_DISABLED) return;
+    
+    // If user is null (not authenticated), redirect to login
+    if (!user) {
+      setLocation("/login");
+    }
+  }, [user, setLocation]);
+
+  // Show loading while checking authentication
+  if (!AUTH_DISABLED && !user) {
     return (
       <div className="h-screen flex items-center justify-center text-muted-foreground">
         Checking authentication…
@@ -87,9 +97,5 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!AUTH_DISABLED && !data?.user) {
-    return null;
-  }
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return <>{children}</>;
 }

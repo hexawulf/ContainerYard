@@ -25,31 +25,31 @@ interface HostLogsListResponse {
 }
 
 const LOG_DESCRIPTIONS: Record<string, { title: string; description: string }> = {
-  nginx_containerYard_access: {
+  nginx_access: {
     title: "Nginx Access Log",
     description: "HTTP requests to container.piapps.dev"
   },
-  nginx_containerYard_error: {
+  nginx_error: {
     title: "Nginx Error Log",
     description: "Nginx errors and warnings"
   },
-  pm2_containeryard_out: {
+  pm2_out: {
     title: "PM2 Output",
     description: "ContainerYard application output"
   },
-  pm2_containeryard_err: {
+  pm2_err: {
     title: "PM2 Errors",
     description: "ContainerYard application errors"
   },
-  grafana_server: {
+  grafana: {
     title: "Grafana Server",
     description: "Grafana service logs"
   },
-  prometheus_server: {
+  prometheus: {
     title: "Prometheus Server",
     description: "Prometheus service logs"
   },
-  cryptoagent_freqtrade: {
+  freqtrade: {
     title: "FreqTrade",
     description: "Crypto trading bot logs"
   },
@@ -151,7 +151,6 @@ export default function HostLogs() {
                     <Button
                       size="sm"
                       onClick={() => handleViewLog(log.name)}
-                      disabled={!log.exists}
                       className="w-full"
                     >
                       <ExternalLink className="h-3 w-3 mr-2" />

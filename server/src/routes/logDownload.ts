@@ -1,6 +1,8 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { getHost } from "../config/hosts";
 import { getContainerLogs } from "../services/docker";
+import { HOST_LOGS } from "../config/hostlogs";
+import { requireRole } from "../middleware/auth";
 import { spawn } from "child_process";
 import * as fs from "fs";
 import * as path from "path";
@@ -8,33 +10,12 @@ import * as path from "path";
 const router = Router();
 
 // Reuse the same allowlist as hostLogs
-const HOST_LOG_ALLOWLIST: Record<string, string> = {
-  nginx_containerYard_access: '/var/log/nginx/container.piapps.dev.access.log',
-  nginx_containerYard_error: '/var/log/nginx/container.piapps.dev.error.log',
-  pm2_containeryard_out: path.join(process.env.HOME || '/home/zk', '.pm2/logs/containeryard-out.log'),
-  pm2_containeryard_err: path.join(process.env.HOME || '/home/zk', '.pm2/logs/containeryard-error.log'),
-  grafana_server: '/var/log/grafana/grafana.log',
-  prometheus_server: '/var/log/prometheus/prometheus.log',
-  cryptoagent_freqtrade: path.join(process.env.HOME || '/home/zk', 'bots/crypto-agent/user_data/logs/freqtrade.log'),
-};
+const HOST_LOG_ALLOWLIST = HOST_LOGS;
 
-// Middleware to check for admin role
-function requireAdmin(req: Request, res: Response, next: NextFunction) {
-  const user = (req as any).user;
-
-  if (!user) {
-    return res.status(401).json({ error: "Authentication required" });
-  }
-
-  if (user.role !== 'ADMIN') {
-    return res.status(403).json({ error: "Admin access required for log downloads" });
-  }
-
-  next();
-}
+// Use standard requireRole middleware for admin access
 
 interface DownloadQuery {
-  source: 'container' | 'hostfile';
+  scope: 'container' | 'hostlog';
   hostId?: string;
   containerId?: string;
   name?: string;
@@ -43,11 +24,11 @@ interface DownloadQuery {
 }
 
 function parseDownloadQuery(query: any): DownloadQuery {
-  const source = query.source === 'hostfile' ? 'hostfile' : 'container';
+  const scope = query.scope === 'hostlog' ? 'hostlog' : 'container';
   const tail = query.tail ? parseInt(String(query.tail), 10) : 5000;
 
   return {
-    source,
+    scope,
     hostId: query.hostId ? String(query.hostId) : undefined,
     containerId: query.containerId ? String(query.containerId) : undefined,
     name: query.name ? String(query.name) : undefined,
@@ -57,16 +38,16 @@ function parseDownloadQuery(query: any): DownloadQuery {
 }
 
 // Download container logs
-router.get("/", requireAdmin, async (req, res, next) => {
+router.get("/", requireRole('ADMIN'), async (req, res, next) => {
   try {
     const options = parseDownloadQuery(req.query);
 
-    if (options.source === 'container') {
+    if (options.scope === 'container') {
       // Download container logs
       if (!options.hostId || !options.containerId) {
         return res.status(400).json({
           error: "Missing required parameters",
-          message: "For container logs, provide: source=container, hostId, containerId"
+          message: "For container logs, provide: scope=container, hostId, containerId"
         });
       }
 
@@ -94,12 +75,12 @@ router.get("/", requireAdmin, async (req, res, next) => {
 
       res.send(logs);
 
-    } else if (options.source === 'hostfile') {
+    } else if (options.scope === 'hostlog') {
       // Download host file logs
       if (!options.name) {
         return res.status(400).json({
           error: "Missing required parameters",
-          message: "For host logs, provide: source=hostfile, name"
+          message: "For host logs, provide: scope=hostlog, name"
         });
       }
 
@@ -156,8 +137,8 @@ router.get("/", requireAdmin, async (req, res, next) => {
 
     } else {
       return res.status(400).json({
-        error: "Invalid source",
-        message: "Source must be 'container' or 'hostfile'"
+        error: "Invalid scope",
+        message: "Scope must be 'container' or 'hostlog'"
       });
     }
   } catch (error) {

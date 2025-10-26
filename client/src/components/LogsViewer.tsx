@@ -98,6 +98,19 @@ export function LogsViewer({
       }
 
       const data = await response.json();
+      
+      if (!data.available) {
+        let errorMessage = 'Log not available';
+        if (data.reason === 'not_found') {
+          errorMessage = 'Log file not found';
+        } else if (data.reason === 'permission') {
+          errorMessage = 'Permission denied to read log file';
+        } else if (data.reason === 'container_missing') {
+          errorMessage = `Container not found: ${data.containerName}`;
+        }
+        throw new Error(errorMessage);
+      }
+      
       const content = data.content || '';
       setLines(content.split('\n').filter((line: string) => line.length > 0));
     } catch (err: any) {

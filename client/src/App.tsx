@@ -9,7 +9,7 @@ import NotFound from "@/pages/not-found";
 import HostLogs from "@/pages/HostLogs";
 import { useTheme } from "@/hooks/useTheme";
 import { useEffect, useState } from "react";
-import { AuthGate } from "@/components/AuthGate";
+import { AuthProvider, AuthGate } from "@/components/AuthGate";
 import LandingPage from "@/pages/Landing";
 import Layout from "@/components/Layout";
 import StyleGuidePage from "@/pages/StyleGuide";
@@ -130,7 +130,9 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
-        <Router />
+        <AuthProvider>
+          <Router />
+        </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );

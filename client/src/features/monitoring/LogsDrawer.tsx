@@ -14,8 +14,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Download, Play, Pause, ExternalLink } from "lucide-react";
+import { Download, Play, Pause, ExternalLink, Search } from "lucide-react";
 import { API_BASE } from "@/lib/api";
+import { SavedSearches } from "@/components/SavedSearches";
+import { LogBookmarks } from "@/components/LogBookmarks";
 import type { ContainerLogsResponse, DozzleLinkResponse } from "@shared/monitoring";
 
 interface LogsDrawerProps {
@@ -41,6 +43,8 @@ export function LogsDrawer({
   const [isLive, setIsLive] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [liveLines, setLiveLines] = useState<string[]>([]);
+  const [showSavedSearches, setShowSavedSearches] = useState(false);
+  const [currentTimestamp, setCurrentTimestamp] = useState<string>();
   const scrollRef = useRef<HTMLDivElement>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
 
@@ -73,6 +77,9 @@ export function LogsDrawer({
     if (!open) {
       setIsLive(false);
       setLiveLines([]);
+    } else {
+      // Set current timestamp when drawer opens
+      setCurrentTimestamp(new Date().toISOString());
     }
   }, [open]);
 
@@ -119,15 +126,42 @@ export function LogsDrawer({
   }, [liveLines, isPaused]);
 
   const handleDownload = () => {
-    if (!data || !("content" in data)) return;
+    // Use server download endpoint for admin users
+    const params = new URLSearchParams({
+      scope: 'container',
+      hostId,
+      id: containerId,
+      tail: tail,
+      since: since,
+    });
+    if (grep) params.set('grep', grep);
     
-    const blob = new Blob([data.content], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
+    const downloadUrl = `${API_BASE}/logs/download?${params}`;
+    
+    // Create a temporary anchor element to trigger download
     const a = document.createElement("a");
-    a.href = url;
-    a.download = `${containerName}-logs.txt`;
+    a.href = downloadUrl;
+    a.download = `${containerName}-logs-${Date.now()}.txt`;
     a.click();
-    URL.revokeObjectURL(url);
+  };
+
+  const handleApplySearch = (query: string) => {
+    setGrep(query);
+    if (isLive) {
+      setIsLive(false);
+      setTimeout(() => setIsLive(true), 100);
+    } else {
+      refetch();
+    }
+  };
+
+  const handleJumpToBookmark = (containerId: string, timestamp: string, filters?: string) => {
+    // For now, just set the timestamp and refresh
+    setCurrentTimestamp(timestamp);
+    if (filters) {
+      setGrep(filters);
+    }
+    refetch();
   };
 
   const renderContent = () => {
@@ -236,49 +270,70 @@ export function LogsDrawer({
             </div>
           </div>
 
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                variant={isLive ? "default" : "outline"}
-                onClick={() => {
-                  setIsLive(!isLive);
-                  setIsPaused(false);
-                }}
-              >
-                {isLive ? "Stop Live" : "Go Live"}
-              </Button>
-              {isLive && (
-                <Button size="sm" variant="outline" onClick={() => setIsPaused(!isPaused)}>
-                  {isPaused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
-                </Button>
-              )}
-              {isLive && <Badge variant="secondary">{liveLines.length} lines</Badge>}
-            </div>
-            <div className="flex items-center gap-2">
-              {!isLive && (
-                <Button size="sm" variant="outline" onClick={() => refetch()}>
-                  Refresh
-                </Button>
-              )}
-              {data && "content" in data && (
-                <Button size="sm" variant="outline" onClick={handleDownload}>
-                  <Download className="h-4 w-4 mr-1" />
-                  Download
-                </Button>
-              )}
-            </div>
-          </div>
+           <div className="flex items-center justify-between gap-2">
+             <div className="flex items-center gap-2">
+               <Button
+                 size="sm"
+                 variant={isLive ? "default" : "outline"}
+                 onClick={() => {
+                   setIsLive(!isLive);
+                   setIsPaused(false);
+                 }}
+               >
+                 {isLive ? "Stop Live" : "Go Live"}
+               </Button>
+               {isLive && (
+                 <Button size="sm" variant="outline" onClick={() => setIsPaused(!isPaused)}>
+                   {isPaused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
+                 </Button>
+               )}
+               {isLive && <Badge variant="secondary">{liveLines.length} lines</Badge>}
+             </div>
+             <div className="flex items-center gap-2">
+               <LogBookmarks
+                 containerId={containerId}
+                 currentTimestamp={currentTimestamp}
+                 currentFilters={grep}
+                 onJumpTo={handleJumpToBookmark}
+               />
+               <Button 
+                 size="sm" 
+                 variant="outline" 
+                 onClick={() => setShowSavedSearches(true)}
+               >
+                 <Search className="h-4 w-4 mr-1" />
+                 Saved Searches
+               </Button>
+               {!isLive && (
+                 <Button size="sm" variant="outline" onClick={() => refetch()}>
+                   Refresh
+                 </Button>
+               )}
+               {data && "content" in data && (
+                 <Button size="sm" variant="outline" onClick={handleDownload}>
+                   <Download className="h-4 w-4 mr-1" />
+                   Download
+                 </Button>
+               )}
+             </div>
+           </div>
 
           {data && "truncated" in data && data.truncated && (
             <Badge variant="destructive">Truncated at 5000 lines</Badge>
           )}
 
-          <div className="border rounded-lg overflow-hidden bg-muted/20">
-            {renderContent()}
-          </div>
-        </div>
-      </SheetContent>
-    </Sheet>
-  );
-}
+           <div className="border rounded-lg overflow-hidden bg-muted/20">
+             {renderContent()}
+           </div>
+         </div>
+       </SheetContent>
+
+       <SavedSearches
+         isOpen={showSavedSearches}
+         onClose={() => setShowSavedSearches(false)}
+         onApplySearch={handleApplySearch}
+         currentQuery={grep}
+       />
+     </Sheet>
+   );
+ }
