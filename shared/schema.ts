@@ -169,3 +169,111 @@ export const logBookmarks = pgTable("log_bookmarks", {
 export const insertLogBookmarkSchema = createInsertSchema(logBookmarks).omit({ id: true, createdAt: true });
 export type InsertLogBookmark = z.infer<typeof insertLogBookmarkSchema>;
 export type LogBookmark = typeof logBookmarks.$inferSelect;
+
+// Alert Rule Condition Types
+export const alertConditionTypeSchema = z.enum([
+  'cpu_percent',
+  'memory_percent',
+  'restart_count',
+  'container_status',
+  'log_pattern'
+]);
+export type AlertConditionType = z.infer<typeof alertConditionTypeSchema>;
+
+export const alertOperatorSchema = z.enum(['>', '<', '>=', '<=', '==', '!=', 'contains']);
+export type AlertOperator = z.infer<typeof alertOperatorSchema>;
+
+// Notification Channel Types
+export const notificationChannelTypeSchema = z.enum(['webhook', 'email', 'browser']);
+export type NotificationChannelType = z.infer<typeof notificationChannelTypeSchema>;
+
+// Notification Channels Table
+export const notificationChannels = pgTable("notification_channels", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  type: varchar("type", { length: 50 }).notNull(), // webhook, email, browser
+  config: text("config").notNull(), // JSON string with channel-specific config
+  enabled: varchar("enabled", { length: 10 }).notNull().default("true"), // "true" or "false" as strings
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertNotificationChannelSchema = createInsertSchema(notificationChannels).omit({ 
+  id: true, 
+  createdAt: true,
+  updatedAt: true 
+});
+export type InsertNotificationChannel = z.infer<typeof insertNotificationChannelSchema>;
+export type NotificationChannel = typeof notificationChannels.$inferSelect;
+
+// Alert Rules Table
+export const alertRules = pgTable("alert_rules", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  conditionType: varchar("condition_type", { length: 50 }).notNull(), // cpu_percent, memory_percent, etc.
+  operator: varchar("operator", { length: 10 }).notNull(), // >, <, >=, <=, ==, !=, contains
+  threshold: varchar("threshold", { length: 255 }).notNull(), // stored as string, can be number or pattern
+  durationMinutes: serial("duration_minutes").notNull(), // how long condition must be true
+  containerFilter: text("container_filter"), // JSON string with container selection criteria
+  channelId: serial("channel_id").notNull(), // foreign key to notification_channels
+  enabled: varchar("enabled", { length: 10 }).notNull().default("true"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const insertAlertRuleSchema = createInsertSchema(alertRules).omit({ 
+  id: true, 
+  createdAt: true,
+  updatedAt: true 
+});
+export type InsertAlertRule = z.infer<typeof insertAlertRuleSchema>;
+export type AlertRule = typeof alertRules.$inferSelect;
+
+// Alert History Table
+export const alertHistory = pgTable("alert_history", {
+  id: serial("id").primaryKey(),
+  ruleId: serial("rule_id").notNull(), // foreign key to alert_rules
+  containerId: varchar("container_id", { length: 255 }).notNull(),
+  containerName: varchar("container_name", { length: 255 }).notNull(),
+  message: text("message").notNull(),
+  severity: varchar("severity", { length: 50 }).notNull().default("warning"), // info, warning, critical
+  acknowledgedAt: timestamp("acknowledged_at"),
+  acknowledgedBy: varchar("acknowledged_by", { length: 255 }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertAlertHistorySchema = createInsertSchema(alertHistory).omit({ 
+  id: true, 
+  createdAt: true 
+});
+export type InsertAlertHistory = z.infer<typeof insertAlertHistorySchema>;
+export type AlertHistory = typeof alertHistory.$inferSelect;
+
+// Container Metrics Hourly Table (for historical trend analysis)
+export const containerMetricsHourly = pgTable("container_metrics_hourly", {
+  id: serial("id").primaryKey(),
+  hostId: varchar("host_id", { length: 255 }).notNull(),
+  containerId: varchar("container_id", { length: 255 }).notNull(),
+  containerName: varchar("container_name", { length: 255 }).notNull(),
+  aggregatedAt: timestamp("aggregated_at").notNull(), // Start of the hour
+  avgCpuPercent: varchar("avg_cpu_percent", { length: 50 }).notNull(), // stored as string for precision
+  maxCpuPercent: varchar("max_cpu_percent", { length: 50 }).notNull(),
+  avgMemoryPercent: varchar("avg_memory_percent", { length: 50 }).notNull(),
+  maxMemoryPercent: varchar("max_memory_percent", { length: 50 }).notNull(),
+  avgMemoryBytes: varchar("avg_memory_bytes", { length: 50 }).notNull(),
+  maxMemoryBytes: varchar("max_memory_bytes", { length: 50 }).notNull(),
+  totalNetworkRx: varchar("total_network_rx", { length: 50 }).notNull(),
+  totalNetworkTx: varchar("total_network_tx", { length: 50 }).notNull(),
+  totalBlockRead: varchar("total_block_read", { length: 50 }).notNull(),
+  totalBlockWrite: varchar("total_block_write", { length: 50 }).notNull(),
+  sampleCount: serial("sample_count").notNull(), // number of data points aggregated
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertContainerMetricsHourlySchema = createInsertSchema(containerMetricsHourly).omit({ 
+  id: true, 
+  createdAt: true 
+});
+export type InsertContainerMetricsHourly = z.infer<typeof insertContainerMetricsHourlySchema>;
+export type ContainerMetricsHourly = typeof containerMetricsHourly.$inferSelect;

@@ -3,28 +3,51 @@
 
 # ContainerYard 🐳
 
-> A modern, log-first Docker container observability and debugging dashboard
+> A complete Docker stack monitoring platform with log analysis, alerting, and historical trends
 
-ContainerYard is a powerful, developer-focused observability tool inspired by Dozzle, designed for real-time Docker container monitoring, log analysis, and debugging. Built with React 18 and Express, it provides a sleek interface for managing containers, analyzing logs, and troubleshooting issues—all optimized for modern developer workflows.
+ContainerYard is a comprehensive Docker observability platform that goes beyond simple log viewing. It provides Docker Compose stack management, proactive alerting, historical metrics analysis, and real-time log streaming—all in one sleek, developer-friendly interface. Built with React 18 and Express, it bridges the gap between lightweight viewers and enterprise monitoring solutions.
 
 ![ContainerYard Dashboard](https://github.com/hexawulf/ContainerYard/blob/main/attached_assets/screenshot.png?raw=true)
 
 
 ## ✨ Features
 
+### 🎯 Stack Management (Phase 1)
+- **Docker Compose Stack Detection** - Automatically groups containers by compose project
+- **Stack Health Indicators** - Visual status badges (healthy/unhealthy/partial/unknown)
+- **Bulk Stack Operations** - Start, stop, or restart entire stacks with one click
+- **Stack-Level Metrics** - Aggregated stats for all containers in a stack
+- **Standalone Container View** - Separate display for non-compose containers
+
+### 📢 Proactive Alerting (Phase 1)
+- **Alert Rules Engine** - Define CPU, memory, status, and log pattern alerts
+- **Duration-Based Triggers** - Alerts fire only when conditions persist (e.g., CPU > 80% for 5 minutes)
+- **Multiple Notification Channels** - Webhook, email, and browser notifications
+- **Alert History & Acknowledgment** - Track triggered alerts with audit trail
+- **Smart Debouncing** - Prevents notification spam with 5-minute cooldown
+- **Background Monitoring** - Continuous 30-second health checks
+- **Container Filtering** - Target specific containers by name, image, or labels
+
+### 📊 Historical Trends (Phase 1)
+- **Hourly Metrics Aggregation** - Automatic collection and storage of container metrics
+- **90-Day Retention** - Long-term trend analysis with configurable retention
+- **Top Resource Consumers** - Identify CPU and memory hogs over time
+- **Metrics Summary API** - Query historical data with flexible time ranges
+- **Avg/Max Statistics** - Track both average and peak resource usage
+- **Per-Container History** - Detailed historical charts for capacity planning
+
 ### Core Features
 - 🔴 **Real-time Container Monitoring** - Live status updates, metrics, and health checks
 - 📜 **Advanced Log Streaming** - Virtual scrolling for performance with large log datasets
 - 🔍 **Powerful Search & Filtering** - Regex support, log level filtering, and custom DSL queries
-- 📊 **Performance Metrics** - CPU, memory, and network visualization with interactive timelines
 - 💻 **Integrated Terminal** - Web-based shell access for container debugging
 - ⌨️ **Keyboard Shortcuts** - Navigate efficiently with keyboard-driven controls
 - 🌓 **Dark/Light Mode** - Beautiful themes optimized for log readability
 
 ### Advanced Features
-- 🎨 **Multi-Container Log Interleaving** - Stream and compare logs from up to 3 containers simultaneously with color-coding
+- 🎨 **Multi-Container Log Interleaving** - Stream and compare logs from up to 3 containers simultaneously
 - 🔖 **Log Moments Bookmarks** - Save timestamped log moments with notes and shareable deep-links
-- 📊 **JSON Field Detection** - Auto-parse structured logs with interactive field chips for pivoting
+- 📊 **JSON Field Detection** - Auto-parse structured logs with interactive field chips
 - 🔎 **Query DSL** - Advanced query syntax: `level:warn..error`, `service:auth`, `-"exclude"`
 - 📈 **Timeline Spike Analysis** - Clickable metric spikes auto-scope logs to relevant time windows
 - 🔥 **Log Rate Heatmap** - Visualize log bursts with Z-score detection and auto-filtering
@@ -172,13 +195,14 @@ ContainerYard/
 - **Drizzle ORM** - Type-safe database toolkit
 - **Zod** - Schema validation
 
-### Database (Optional)
-- **PostgreSQL** - For saved searches and bookmarks
+### Database
+- **PostgreSQL** - Required for alerts, metrics, saved searches, and bookmarks
 - **Neon Serverless** - Serverless PostgreSQL driver
+- **Drizzle ORM** - Type-safe database operations with migrations
 
-## 📡 Monitoring API
+## 📡 API Reference
 
-ContainerYard provides read-only monitoring APIs for container logs and stats.
+ContainerYard provides comprehensive REST APIs for container monitoring, stack management, alerting, and historical metrics.
 
 ### Container Logs
 
@@ -236,6 +260,106 @@ Returns normalized metrics:
 }
 ```
 
+### Docker Compose Stacks
+
+**GET** `/api/hosts/:hostId/stacks`
+
+List all Docker Compose stacks with health indicators.
+
+Response:
+```json
+{
+  "stacks": [
+    {
+      "name": "myapp",
+      "containers": [...],
+      "containerCount": 3,
+      "runningCount": 3,
+      "stoppedCount": 0,
+      "healthStatus": "healthy"
+    }
+  ],
+  "standaloneContainers": [...]
+}
+```
+
+**GET** `/api/hosts/:hostId/stacks/:name`
+
+Get details for a specific stack.
+
+**POST** `/api/hosts/:hostId/stacks/:name/action`
+
+Perform bulk actions (start/stop/restart) on all containers in a stack.
+
+Body: `{ "action": "start" | "stop" | "restart" | "remove" }`
+
+### Alert Management
+
+**Notification Channels**
+
+- `GET /api/alerts/channels` - List all channels
+- `POST /api/alerts/channels` - Create channel
+- `PATCH /api/alerts/channels/:id` - Update channel
+- `DELETE /api/alerts/channels/:id` - Delete channel
+- `POST /api/alerts/channels/:id/test` - Test notification
+
+**Alert Rules**
+
+- `GET /api/alerts/rules` - List all rules
+- `POST /api/alerts/rules` - Create rule
+- `PATCH /api/alerts/rules/:id` - Update rule
+- `DELETE /api/alerts/rules/:id` - Delete rule
+
+Alert rule example:
+```json
+{
+  "name": "High CPU Alert",
+  "conditionType": "cpu_percent",
+  "operator": ">",
+  "threshold": "80",
+  "durationMinutes": 5,
+  "channelId": 1,
+  "enabled": "true"
+}
+```
+
+**Alert History**
+
+- `GET /api/alerts/history?limit=100` - Get alert history
+- `POST /api/alerts/history/:id/acknowledge` - Acknowledge alert
+
+### Historical Metrics
+
+**GET** `/api/hosts/:hostId/containers/:containerId/metrics/history?days=7`
+
+Get historical metrics for a container (default: 7 days).
+
+Response includes hourly aggregated data:
+```json
+[
+  {
+    "aggregatedAt": "2024-01-01T12:00:00.000Z",
+    "avgCpuPercent": "45.2",
+    "maxCpuPercent": "78.5",
+    "avgMemoryPercent": "62.1",
+    "maxMemoryPercent": "85.3",
+    "sampleCount": 60
+  }
+]
+```
+
+**GET** `/api/hosts/:hostId/metrics/summary?days=7`
+
+Get aggregated metrics summary for all containers.
+
+**GET** `/api/hosts/:hostId/metrics/top-cpu?limit=5`
+
+Get top CPU-consuming containers.
+
+**GET** `/api/hosts/:hostId/metrics/top-memory?limit=5`
+
+Get top memory-consuming containers.
+
 ### Prometheus Metrics
 
 **GET** `/metrics`
@@ -243,6 +367,22 @@ Returns normalized metrics:
 Exports process metrics (CPU, memory, HTTP duration) in Prometheus format.
 
 Optional authentication via `x-metrics-token` header (set `METRICS_TOKEN` in .env).
+
+### Background Services
+
+ContainerYard runs two background services for continuous monitoring:
+
+**Alert Worker**
+- Checks alert rules every 30 seconds
+- Evaluates conditions across all hosts and containers
+- Sends notifications via configured channels
+- 5-minute debouncing to prevent spam
+
+**Metrics Aggregator**
+- Collects metrics every minute
+- Aggregates hourly for historical storage
+- Stores 90 days of trend data (configurable)
+- Automatic cleanup on server shutdown
 
 ### Testing
 
@@ -254,15 +394,21 @@ curl -s -H "cookie: cy.sid=<session>" \
 # SSE streaming test
 node scripts/test-sse.js https://your-app.dev piapps <cid> "cy.sid=<session>"
 
+# Test stack detection
+curl -s -H "cookie: cy.sid=<session>" \
+  "https://your-app.dev/api/hosts/piapps/stacks" | jq .
+
 # Run Jest tests (requires test container)
 TEST_CONTAINER_ID=<cid> npm test
 ```
 
 ## 📚 Documentation
 
+- [Phase 1 Implementation](PHASE1_IMPLEMENTATION_SUMMARY.md) - Complete feature breakdown
 - [Deployment Guide](DEPLOYMENT.md) - Production deployment instructions
 - [Environment Variables](.env.example) - Configuration reference
 - [Architecture](replit.md) - Technical architecture details
+- [Original Plan](plan.md) - Phase 1 relaunch strategy
 
 ## 🔑 Keyboard Shortcuts
 

@@ -47,6 +47,7 @@ export interface ContainerSummary {
   labels: Record<string, string>;
   networks: NormalizedNetwork[];
   ports: NormalizedPort[];
+  composeProject?: string | null;
 }
 
 export interface ContainerDetail extends ContainerSummary {

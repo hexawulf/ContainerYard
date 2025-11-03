@@ -15,13 +15,15 @@ import type {
 } from "@shared/monitoring";
 import { HostSwitcher } from "@/features/monitoring/HostSwitcher";
 import { ContainerTable } from "@/features/monitoring/ContainerTable";
+import { StackView } from "@/features/monitoring/StackView";
 import { StatsPanel } from "@/features/monitoring/StatsPanel";
 import { LogsDrawer } from "@/features/monitoring/LogsDrawer";
 import { InspectModal } from "@/features/monitoring/InspectModal";
 import { StatsChips } from "@/features/monitoring/StatsChips";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { X } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { X, List, Layers } from "lucide-react";
 import type { NormalizedStats } from "@shared/monitoring";
 
 const HOST_STORAGE_KEY = "cy.selectedHost";
@@ -62,6 +64,8 @@ export default function Dashboard() {
     const saved = localStorage.getItem(SORT_STORAGE_KEY);
     return saved ? JSON.parse(saved) : { field: "name", direction: "asc" };
   });
+  
+  const [viewMode, setViewMode] = useState<"containers" | "stacks">("containers");
 
   const { data: hostsData, isLoading: hostsLoading } = useQuery<HostSummary[]>({
     queryKey: ["/api/hosts"],
@@ -301,7 +305,21 @@ export default function Dashboard() {
       <div className="grid gap-6 md:grid-cols-[320px_1fr]">
         <Card className="overflow-hidden">
           <CardHeader className="space-y-3">
-            <CardTitle>Hosts</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle>Hosts</CardTitle>
+              <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as "containers" | "stacks")}>
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="containers" className="gap-2">
+                    <List className="h-4 w-4" />
+                    Containers
+                  </TabsTrigger>
+                  <TabsTrigger value="stacks" className="gap-2">
+                    <Layers className="h-4 w-4" />
+                    Stacks
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
             <HostSwitcher
               hosts={hosts}
               selectedHostId={selectedHostId}
@@ -311,6 +329,8 @@ export default function Dashboard() {
           </CardHeader>
           <Separator />
           <CardContent className="p-0">
+            {viewMode === "containers" && (
+            <>
             {/* Filter Controls */}
             <div className="p-4 space-y-3 border-b">
               <div className="flex flex-wrap gap-2 items-center">
@@ -399,6 +419,19 @@ export default function Dashboard() {
               onLogsClick={setLogsContainerId}
               onInspectClick={setInspectContainerId}
             />
+            </>
+            )}
+            {viewMode === "stacks" && selectedHostId && (
+              <div className="p-4">
+                <StackView
+                  hostId={selectedHostId}
+                  onContainerSelect={setSelectedContainerId}
+                  onLogsClick={setLogsContainerId}
+                  onInspectClick={setInspectContainerId}
+                  selectedContainerId={selectedContainerId}
+                />
+              </div>
+            )}
           </CardContent>
         </Card>
 

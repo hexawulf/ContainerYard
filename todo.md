@@ -1,188 +1,297 @@
-# 🔧 Fixit — Implement Grafana & Prometheus log viewing (and ensure they actually log)
+# todo.md — Recovery & hardening workflow (for Sonnet 4.5)
 
-**Model:** Anthropic **Claude Sonnet 4.5**  
-**Repo:** `/home/zk/projects/ContainerYard`  
-**App URL:** `https://container.piapps.dev/host-logs`
+> **Context:** Home-hosted sites behind Cloudflare on `piapps` (Ubuntu).
+>  Front door: Nginx on ports 80/443 → app backends on localhost.
+>  ContainerYard **API must run on :5008** (Synology uses :5001).
+>  Goal: restore availability, standardize Cloudflare real-IP, fix API port, and harden.
 
-We want the **Grafana** and **Prometheus** cards on the Host Logs page to display logs from **host files**:
-- **Grafana:** `/var/log/grafana/grafana.log`
-- **Prometheus:** `/var/log/prometheus/prometheus.log`
+------
 
-If those files are empty/missing because the containers are not producing file logs, investigate and **enable file logging** for both services (within the crypto‑agent stack).
+## 0) Quick facts (don’t change)
 
----
+- Primary host IP: `192.168.50.102` (eth0 only; Wi-Fi disabled)
+- WAN IP example: `122.116.150.249` (update A records if it changes)
+- ContainerYard UI: `:5003` (or static SPA via Nginx)
+   ContainerYard **API: :5008** (health `/api/health`, metrics `/metrics`)
 
-## Deliverables (acceptance criteria)
+------
 
-1) **UI:** On `/host-logs`, clicking **Grafana** or **Prometheus** opens a modal showing recent lines from the log files above (with tail/since/grep/follow controls). No blank panes.  
-2) **API:** `GET /api/hostlogs/grafana` and `GET /api/hostlogs/prometheus` read from the exact file paths above (tail/since/grep/follow). If the file is unavailable, return JSON like `{available:false, reason:"not_found"|"permission"|"empty", details:{path}}`.  
-3) **Containers log to files:** If the log files don’t exist or are always empty, fix the **Docker stack** so **Grafana** and **Prometheus** actually write logs into those paths (inside the host) and keep them updating.  
-4) **Permissions:** The web process user (likely `www-data`/node process) can read those files (group `adm` or proper ACL). Do **not** open arbitrary paths.  
-5) **Docs:** A short note in the repo explaining where these logs live and how they’re wired.  
-6) **Tests:** Minimal unit/integration tests to prevent regressions (see below).
+## 1) Snapshot + basic triage (run on piapps)
 
----
+```
+# WAN & listeners
+curl -s https://ipinfo.io/ip
+ss -ltnp | grep -E ':(80|443)\b' || echo NO_80443
 
-## Implementation Plan
-
-### A) Server: allowlist + routes
-
-**Edit / add:** `server/config/hostlogs.ts`
-```ts
-export const HOST_LOGS = {
-  grafana:    '/var/log/grafana/grafana.log',
-  prometheus: '/var/log/prometheus/prometheus.log',
-  nginx_access: '/var/log/nginx/container.piapps.dev.access.log',
-  nginx_error:  '/var/log/nginx/container.piapps.dev.error.log',
-  pm2_out:      process.env.HOME + '/.pm2/logs/containeryard-out.log',
-  pm2_err:      process.env.HOME + '/.pm2/logs/containeryard-error.log',
-  freqtrade:    '/home/zk/bots/crypto-agent/user_data/logs/freqtrade.log',
-} as const;
+# Is Cloudflare actually reaching origin?
+tail -n 80 /var/log/nginx/access.log | grep -E '^(104\.|172\.64\.|188\.114\.|162\.158\.)' || echo NO_CF_HITS
 ```
 
-**Edit / add:** `server/routes/hostLogs.ts`
-- Implement `GET /api/hostlogs/:name` to:
-  - Validate `name` is in `HOST_LOGS`; otherwise 404.
-  - Parse `tail` (default 500, max 5000), `since` (ISO or seconds, clamp ≤ 7d), `grep`, `timestamps` (0/1), `follow` (0/1).
-  - If file exists and readable → tail/stream content.
-  - If file missing → JSON `{available:false, reason:"not_found", details:{path}}`.
-  - If exists but size 0 → `{available:false, reason:"empty", details:{path}}`.
-  - `follow=1` uses fs tail + SSE.
-  - Set `Content-Type: text/plain` on success.
+**Decision:**
 
-**Edit:** `server/index.ts`
-- Mount the host logs router **after** auth middleware & rate limiter:
-  ```ts
-  app.use('/api/hostlogs', hostLogsRouter);
-  ```
+- If `NO_CF_HITS` → check Cloudflare/DNS first (Step 4) after ensuring Nginx is clean (Step 2–3).
+- If CF hits appear but users get errors → backend/upstream issue (Step 6–7).
 
-### B) Client: always open modal, show reason
+------
 
-**Edit:** `client/src/pages/HostLogs.tsx`
-- Cards for grafana/prometheus should **not** be permanently disabled. Clicking opens modal and requests `/api/hostlogs/<name>?tail=200`.
-- If API returns `{available:false,...}` show a red inline banner in the modal with humanized reason (“File not found”, “Permission denied”, “File is empty”), include `details.path`.
+## 2) Nginx housekeeping (delete stale backups)
 
-**Edit:** `client/src/components/LogsViewer.tsx`
-- Recognize error JSON and render banner; avoid a blank log area.
-
-### C) Ensure the containers actually log to the specified files
-
-These two images by default emit logs to **stdout/stderr**; we need to write to host files:
-
-#### Grafana
-- **File logging support exists**. Set environment and mount the host directory.
-
-**Likely compose file:** `/home/zk/bots/crypto-agent/docker-compose.yml` (adjust if different).
-
-```yaml
-services:
-  grafana:
-    image: grafana/grafana:latest
-    environment:
-      - GF_LOG_MODE=file
-      - GF_PATHS_LOGS=/var/log/grafana
-      # Optional: verbosity
-      - GF_LOG_LEVEL=info
-    volumes:
-      - /var/log/grafana:/var/log/grafana
-      # ... existing grafana data/config volumes ...
-    # (Keep ports/networks as they are)
+```
+sudo find /etc/nginx/sites-available -maxdepth 1 -type f \
+  \( -name '*.bak' -o -name '*.bk' -o -name '*.bak.*' -o -name '*.bk.*' -o -name '*backup*' \) \
+  -delete
+ls -ltr /etc/nginx/sites-available
 ```
 
-> Result: Grafana writes `/var/log/grafana/grafana.log` inside container → mounted to host at `/var/log/grafana/grafana.log`.
+------
 
-#### Prometheus
-- Prometheus **does not** natively write to a file; it writes to stdout.
-- Wrap the entrypoint to tee output to our host file while keeping stdout (so `docker logs` still works).
+## 3) Single source of truth: Cloudflare real client IPs
 
-```yaml
-services:
-  prometheus:
-    image: prom/prometheus:latest
-    # Ensure /var/log/prometheus exists on host
-    volumes:
-      - /var/log/prometheus:/var/log/prometheus
-      # ... existing prometheus config/data volumes ...
-    command: >
-      sh -c '
-        mkdir -p /var/log/prometheus &&
-        exec prometheus --config.file=/etc/prometheus/prometheus.yml --storage.tsdb.path=/prometheus --web.enable-lifecycle 2>&1
-        | tee -a /var/log/prometheus/prometheus.log
-      '
+**Keep exactly one global include:** `/etc/nginx/conf.d/cloudflare_real_ip.conf`
+
+```
+sudo tee /etc/nginx/conf.d/cloudflare_real_ip.conf >/dev/null <<'NGX'
+# Cloudflare egress ranges — official IPv4/IPv6
+set_real_ip_from 173.245.48.0/20;
+set_real_ip_from 103.21.244.0/22;
+set_real_ip_from 103.22.200.0/22;
+set_real_ip_from 103.31.4.0/22;
+set_real_ip_from 141.101.64.0/18;
+set_real_ip_from 108.162.192.0/18;
+set_real_ip_from 190.93.240.0/20;
+set_real_ip_from 188.114.96.0/20;
+set_real_ip_from 197.234.240.0/22;
+set_real_ip_from 198.41.128.0/17;
+set_real_ip_from 162.158.0.0/15;
+set_real_ip_from 104.16.0.0/12;
+set_real_ip_from 172.64.0.0/13;
+set_real_ip_from 131.0.72.0/22;
+
+real_ip_header CF-Connecting-IP;
+NGX
+
+# Remove any old variants/includes that cause duplicates
+sudo rm -f /etc/nginx/conf.d/cloudflare_realip.conf /etc/nginx/snippets/cloudflare_realip.conf
+sudo sed -i 's#^\s*include /etc/nginx/conf\.d/cloudflare_real_ip\.conf;.*##' \
+  /etc/nginx/sites-available/* /etc/nginx/sites-enabled/* 2>/dev/null || true
+
+sudo nginx -t && sudo systemctl reload nginx
 ```
 
-- This keeps runtime output and creates `/var/log/prometheus/prometheus.log` in the container, persisted to the host via the volume.
+------
 
-#### Permissions (host)
-Make sure the log directories exist and are readable by the app user (no need to make them world-readable). On the **Pi host**:
+## 4) Cloudflare edge sanity (dashboard tasks)
 
-```bash
-# Create dirs if missing
-sudo /bin/mkdir -p /var/log/grafana /var/log/prometheus
+**For each host (start with `pideck.piapps.dev`):**
 
-# Ownership: docker daemon often runs as root; use adm group for read sharing
-sudo /bin/chgrp -R adm /var/log/grafana /var/log/prometheus
-sudo /bin/chmod -R g+rX /var/log/grafana /var/log/prometheus
+- **DNS:** A → current WAN IP; **Proxy = ON** (orange). **Delete AAAA** records.
+- **SSL/TLS → Overview:** **Full (strict)**.
+- **Edge Certificates:** **Always Use HTTPS = ON**.
+   (Temporary: **IPv6 Compatibility = OFF** if origin v6 isn’t reachable; optional to re-enable later.)
+- **WAF/Firewall:** disable custom block rules during testing.
 
-# Ensure web user is in adm (one-time)
-sudo /usr/sbin/usermod -aG adm www-data 2>/dev/null || true
+**Bypass test (if needed):** set DNS record to **DNS only (grey)** to confirm origin works; then switch back to orange.
+
+------
+
+## 5) Ensure :80 is a clean redirect
+
+```
+sudo tee /etc/nginx/sites-available/redirect_piapps.conf >/dev/null <<'NGINX'
+server {
+  listen 80 default_server;
+  server_name pideck.piapps.dev container.piapps.dev mybooks.piapps.dev codepatchwork.com;
+  return 301 https://$host$request_uri;
+}
+NGINX
+sudo ln -sf /etc/nginx/sites-available/redirect_piapps.conf /etc/nginx/sites-enabled/redirect_piapps.conf
+sudo nginx -t && sudo systemctl reload nginx
+curl -sI http://127.0.0.1/ | head -n 5  # expect HTTP/1.1 301 and Location: https://...
 ```
 
-- After changing compose, **recreate** the two containers:
-```bash
-cd /home/zk/bots/crypto-agent
-/usr/bin/docker compose up -d grafana prometheus
+------
+
+## 6) ContainerYard processes — **run UI + API separately**
+
+### 6.1 API on **:5008** (remove hidden preloads)
+
+```
+cd ~/projects/ContainerYard
+
+# Kill any old definition that might preload dotenv/config via NODE_OPTIONS
+pm2 delete containeryard-api || true
+
+# Start clean — explicitly blank NODE_OPTIONS, force :5008
+NODE_OPTIONS= PORT=5008 NODE_ENV=production \
+pm2 start dist/index.js --name containeryard-api --interpreter node --node-args "" --update-env
+
+pm2 save
 ```
 
-### D) Diagnostics route (helps future debugging)
+**Verify:**
 
-Add admin-only route to quickly inspect file existence/size and last mtime, e.g. `GET /api/hostlogs/_diag` returning:
-```json
-{
-  "paths": {
-    "grafana": {"path":"/var/log/grafana/grafana.log","exists":true,"size":12345,"mtime":"2025-10-26T09:20:14Z","readable":true},
-    "prometheus": {"path":"/var/log/prometheus/prometheus.log","exists":true,"size":4567,"mtime":"2025-10-26T09:20:02Z","readable":true}
+```
+ss -ltnp | grep -E ':(5008)\b' || echo NO_5008
+curl -sS -m 5 http://127.0.0.1:5008/api/health || echo 5008_NO_HEALTH
+pm2 logs containeryard-api --lines 80
+```
+
+> If logs show `connect ECONNREFUSED 127.0.0.1:6379`, start Redis or point to a real Redis:
+>
+> ```
+> sudo systemctl status redis-server 2>/dev/null || \
+> (sudo apt-get update && sudo apt-get install -y redis-server && sudo systemctl enable --now redis-server)
+> redis-cli ping
+> ```
+
+### 6.2 UI process (if needed) — typically on **:5003**
+
+If UI is served by Node (not purely static):
+
+```
+# Example only — adjust to your actual UI entry if different
+# NODE_OPTIONS= PORT=5003 NODE_ENV=production pm2 start dist/ui.js --name containeryard-ui --update-env
+# pm2 save
+```
+
+(If the SPA is served statically by Nginx from `dist/public`, you don’t need a UI Node port.)
+
+------
+
+## 7) Nginx vhost for `container.piapps.dev` (UI + API split)
+
+**Key points:**
+
+- Root serves the SPA (`dist/public`) with `try_files`.
+- `/api/*` proxies to **127.0.0.1:5008**.
+- Health/metrics pass through to API.
+
+```
+# /etc/nginx/sites-available/container.piapps.dev (essentials)
+server {
+  listen 80;
+  server_name container.piapps.dev;
+  return 301 https://$host$request_uri;
+}
+
+server {
+  listen 443 ssl; http2 on;
+  server_name container.piapps.dev;
+
+  ssl_certificate     /etc/letsencrypt/live/piapps.dev-0001/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/piapps.dev-0001/privkey.pem;
+  include /etc/letsencrypt/options-ssl-nginx.conf;
+  ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+  include /etc/nginx/conf.d/cloudflare_real_ip.conf;
+  add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
+
+  # SPA
+  root /home/zk/projects/ContainerYard/dist/public;
+  index index.html;
+
+  location ^~ /assets/ {
+    try_files $uri =404;
+    access_log off;
+    add_header Cache-Control "public, max-age=31536000, immutable";
   }
+
+  # API (generic)
+  location /api/ {
+    proxy_pass http://127.0.0.1:5008;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $connection_upgrade;
+    proxy_set_header Host              $host;
+    proxy_set_header X-Real-IP         $remote_addr;
+    proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_read_timeout 75s;
+    proxy_send_timeout 75s;
+    proxy_connect_timeout 15s;
+    client_max_body_size 25m;
+  }
+
+  # Health/metrics passthrough
+  location = /health  { proxy_pass http://127.0.0.1:5008/api/health; }
+  location = /metrics { proxy_pass http://127.0.0.1:5008/metrics;     }
+
+  # SPA shell + fallback
+  location = /index.html { add_header Cache-Control "no-cache, no-store, must-revalidate"; try_files $uri =404; }
+  location / { add_header Cache-Control "no-cache"; try_files $uri /index.html; }
 }
 ```
-The UI can call this for a tiny badge like “Available / Empty / Not Found”.
 
----
+Apply:
 
-## Tests (please add)
-
-### Server unit (jest)
-- Tail happy path on an existing tmp file.
-- ENOENT → `{available:false,reason:"not_found"}`.
-- Size 0 → `{available:false,reason:"empty"}`.
-- Follow mode opens SSE and streams new lines.
-
-### API integration (supertest)
-- Mock fs to simulate each reason for grafana/prometheus.
-- Assert `text/plain` on success and `application/json` with structured reasons on error.
-
-### Manual smoke (after deploy)
-```bash
-CK=/tmp/pideck.cookies; rm -f "$CK"
-curl -sS -c "$CK" -H 'Content-Type: application/json'   -H 'Origin: https://container.piapps.dev'   -X POST https://container.piapps.dev/api/auth/login   --data '{"password":"<ADMIN_PASSWORD>"}' | jq .
-
-# Confirm files exist and have size
-sudo ls -l /var/log/grafana/grafana.log /var/log/prometheus/prometheus.log
-
-# Read via API
-curl -sS -b "$CK" "https://container.piapps.dev/api/hostlogs/grafana?tail=50" | sed -n '1,10p'
-curl -sS -b "$CK" "https://container.piapps.dev/api/hostlogs/prometheus?tail=50" | sed -n '1,10p'
+```
+sudo nginx -t && sudo systemctl reload nginx
 ```
 
----
+------
 
-## Commit message
-```
-feat(logs): show Grafana/Prometheus logs from /var/log/* and enable file logging in containers
+## 8) End-to-end tests
 
-- Server: allowlist + routes for /api/hostlogs/grafana|prometheus with tail/since/grep/follow
-- Client: open modal even if unavailable; show reason (not_found/permission/empty)
-- Compose: GF_LOG_MODE=file + volume /var/log/grafana; prometheus entrypoint tee → /var/log/prometheus/prometheus.log
-- Perms: ensure web process can read /var/log/grafana and /var/log/prometheus
-- Add minimal diagnostics route for future checks
 ```
+# Direct API
+curl -sS http://127.0.0.1:5008/api/health
+
+# Through TLS & Host locally
+curl -vk --connect-to ::127.0.0.1:443 https://container.piapps.dev/api/health -m 8
+
+# Cloudflare e2e (from LTE in a browser), then on the server:
+tail -n 80 /var/log/nginx/access.log | grep -E '^(104\.|172\.64\.|188\.114\.|162\.158\.)' || echo NO_CF_HITS
+```
+
+------
+
+## 9) Optional: auto-refresh Cloudflare IP ranges daily
+
+```
+sudo tee /usr/local/sbin/update-cloudflare-realip.sh >/dev/null <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+OUT="/etc/nginx/conf.d/cloudflare_real_ip.conf"
+TMP="$(mktemp)"
+{
+  echo "# Generated: $(date -u +%FT%TZ)"
+  echo "# Source: https://www.cloudflare.com/ips-v4 https://www.cloudflare.com/ips-v6"
+  curl -fsSL https://www.cloudflare.com/ips-v4 | sed 's#^#set_real_ip_from #; s#$#;#'
+  curl -fsSL https://www.cloudflare.com/ips-v6 | sed 's#^#set_real_ip_from #; s#$#;#'
+  echo; echo "real_ip_header CF-Connecting-IP;"
+} > "$TMP"
+if ! cmp -s "$TMP" "$OUT"; then
+  install -o root -g root -m 0644 "$TMP" "$OUT"
+  nginx -t && systemctl reload nginx
+fi
+rm -f "$TMP"
+SH
+sudo chmod 755 /usr/local/sbin/update-cloudflare-realip.sh
+( crontab -l 2>/dev/null; echo '17 3 * * * /usr/local/sbin/update-cloudflare-realip.sh' ) | crontab -
+```
+
+------
+
+## 10) Backup working Nginx config
+
+```
+sudo tar -C /etc -czf /root/nginx-config-backup.$(date -u +%Y%m%dT%H%M%SZ).tgz nginx
+ls -lh /root/nginx-config-backup.*.tgz | tail -n 1
+```
+
+------
+
+## Rollback notes
+
+- Revert Cloudflare to **DNS only (grey)** to bypass the edge temporarily.
+- Delete or stop `containeryard-api` in PM2; restart with previous port if needed.
+- Restore Nginx from backup: `sudo tar -xzf /root/nginx-config-backup.<timestamp>.tgz -C /`
+
+------
+
+### Success criteria
+
+- `curl -sS http://127.0.0.1:5008/api/health` returns OK/JSON.
+- `curl -vk --connect-to ::127.0.0.1:443 https://container.piapps.dev/api/health` returns OK.
+- Access log shows Cloudflare IPs (104.*, 172.64.*, 188.114.*, 162.158.*) for remote traffic.
+- No duplicate `real_ip_header` errors on `nginx -t`.

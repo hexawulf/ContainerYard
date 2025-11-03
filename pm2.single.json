@@ -1,0 +1,16 @@
+{
+  "apps": [{
+    "name": "containeryard",
+    "script": "dist/index.js",
+    "cwd": "/home/zk/projects/ContainerYard",
+    "exec_mode": "fork",
+    "instances": 1,
+    "watch": false,
+
+    "env_file": "/home/zk/projects/ContainerYard/.env",
+    "env": {
+      "NODE_ENV": "production",
+      "PORT": "5008"
+    }
+  }]
+}

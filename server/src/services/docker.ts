@@ -69,6 +69,7 @@ function normalizeMounts(mounts: Docker.MountInspectInfo[] | undefined): Contain
 }
 
 function toContainerSummary(info: Docker.ContainerInfo, host: HostConfig): ContainerSummary {
+  const labels = info.Labels ?? {};
   return {
     id: info.Id,
     hostId: host.id,
@@ -79,9 +80,10 @@ function toContainerSummary(info: Docker.ContainerInfo, host: HostConfig): Conta
     status: info.Status ?? info.State,
     node: host.nodeLabel,
     createdAt: new Date(info.Created * 1000).toISOString(),
-    labels: info.Labels ?? {},
+    labels,
     networks: normalizeNetworks(info.NetworkSettings as unknown as NetworkSettingsLike),
     ports: normalizePorts(info.Ports),
+    composeProject: labels["com.docker.compose.project"] ?? null,
   };
 }
 
@@ -117,6 +119,7 @@ export async function getContainerDetail(host: HostConfig, containerId: string):
         })
       : [];
 
+    const labels = inspect.Config?.Labels ?? {};
     const summary: ContainerSummary = {
       id: inspect.Id,
       hostId: host.id,
@@ -129,9 +132,10 @@ export async function getContainerDetail(host: HostConfig, containerId: string):
       createdAt: inspect.Created
         ? new Date(inspect.Created).toISOString()
         : new Date().toISOString(),
-      labels: inspect.Config?.Labels ?? {},
+      labels,
       networks: normalizeNetworks(inspect.NetworkSettings as unknown as NetworkSettingsLike),
       ports,
+      composeProject: labels["com.docker.compose.project"] ?? null,
     };
 
     return {

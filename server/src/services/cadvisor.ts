@@ -112,6 +112,7 @@ function computeStats(host: HostConfig, containerId: string, container: Cadvisor
 }
 
 function toSummary(host: HostConfig, container: CadvisorContainer): ContainerSummary {
+  const labels = container.spec?.labels ?? {};
   return {
     id: extractContainerId(container.name),
     hostId: host.id,
@@ -122,9 +123,10 @@ function toSummary(host: HostConfig, container: CadvisorContainer): ContainerSum
     status: "running",
     node: host.nodeLabel,
     createdAt: container.spec?.creation_time ?? new Date().toISOString(),
-    labels: container.spec?.labels ?? {},
+    labels,
     networks: [],
     ports: [],
+    composeProject: labels["com.docker.compose.project"] ?? null,
   };
 }
 

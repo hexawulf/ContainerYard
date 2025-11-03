@@ -12,9 +12,14 @@ import { authRouter } from "./routes/auth";
 import { hostsRouter } from "./routes/hosts";
 import { hostLogsRouter } from "./routes/hostLogs";
 import { logDownloadRouter } from "./routes/logDownload";
+import { stacksRouter } from "./routes/stacks";
+import { alertsRouter } from "./routes/alerts";
+import { metricsRouter } from "./routes/metrics";
 import { attachUserToResponse, globalRateLimiter, requireAuth } from "./middleware/auth";
 import { log, setupVite } from "../vite";
 import { registerMetrics } from "./metrics";
+import { alertWorker } from "./services/alertWorker";
+import { metricsAggregator } from "./services/metricsAggregator";
 
 export async function createApp() {
   const app = express();
@@ -76,8 +81,11 @@ export async function createApp() {
 
   app.use("/api/auth", authRouter);
   app.use("/api/hosts", requireAuth, hostsRouter);
+  app.use("/api/hosts", requireAuth, stacksRouter);
+  app.use("/api/hosts", requireAuth, metricsRouter);
   app.use("/api/hostlogs", requireAuth, hostLogsRouter);
   app.use("/api/logs/download", logDownloadRouter); // has its own requireAdmin middleware
+  app.use("/api/alerts", requireAuth, alertsRouter);
   registerMetrics(app);
 
   // Hard 404 for any unmatched /api/* routes
@@ -143,10 +151,19 @@ export async function createApp() {
     },
     () => {
       log(`API listening on port ${port}`);
+      // Start background services after server is ready
+      alertWorker.start().catch((error) => {
+        log(`Failed to start alert worker: ${error}`, "error");
+      });
+      metricsAggregator.start().catch((error) => {
+        log(`Failed to start metrics aggregator: ${error}`, "error");
+      });
     },
   );
 
   httpServer.on("close", () => {
+    alertWorker.stop();
+    metricsAggregator.stop();
     redisClient.disconnect();
   });
 

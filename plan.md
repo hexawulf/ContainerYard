@@ -1,184 +1,208 @@
-# Project: ContainerYard → Dozzle++ (Planning Mode Only)
-# Repo: /home/zk/projects/ContainerYard
-# Targets (frontends):
-# - container.piapps.dev  (Nginx → 127.0.0.1:5008, current)
-# - containeryard.org     (legacy route; keep in mind during migration)
+# ContainerYard Phase 1 Relaunch Plan
 
-## Goal
-Design a plan to evolve ContainerYard from “basic host specs + logs” into a **Dozzle-class container log/inspect dashboard** with extra features (multi-host, search, filters, stats, RBAC, downloads, Prometheus/Loki integration). Produce a precise, actionable plan we can hand to an executor model (DeepSeek) for implementation.
+## **Top 3 Phase 1 Features for ContainerYard Relaunch**
 
-## Hard Constraints
-- **Security first**
-  - Use existing **session-cookie auth** and **roles** (viewer/admin). No anonymous access.
-  - Do **NOT** expose the Docker socket over TCP. Use local UNIX socket only on the Pi host.
-  - **No arbitrary file paths** for host logs; strict allowlist only.
-  - Keep CSRF/rate-limits aligned with the current backend defaults.
-- **Infra reality**
-  - Nginx proxies ContainerYard (currently at 127.0.0.1:5008).
-  - Prometheus & Grafana exist; cAdvisor runs for host/container stats (localhost & Synology).
-- **Tech stack**
-  - Node/Express + React/Vite + TypeScript + Tailwind + shadcn/ui.
-  - Redis for sessions; Postgres may be present.
-- **File system conventions**
-  - Host log roots are under **/home/zk/logs** on Pi. Use absolute paths only in code and docs.
+Based on codebase analysis, here are the three functionalities that will **maximize utility and differentiation** for ContainerYard:
 
-## Repository Reconnaissance (what to read first)
-- Root: package manager files, scripts, PM2 config (`ecosystem.*`), `.env*`, `vite.config.ts`, `tsconfig.json`.
-- **Server**: entry (`server/index.ts`), route modules (`server/routes/**`), Docker client usage (dockerode or similar), auth/session middleware, rate-limits, health checks.
-- **Client**: routing, container list/detail pages, any existing `<LogsViewer />` or terminal/xterm components; state management (TanStack Query?).
-- Logging feature drafts (server+client) and any “host logs” allowlist implementation.
-- Nginx vhost notes (ports/domains) as reference only.
+---
 
-## Current State You Must Extract & Summarize
-Produce a compact “Current State” report with file/line anchors:
-1. **Endpoints & Auth**: list all backend routes, auth guards, cookie flags, session store, CSRF, rate limits.
-2. **Logs (today)**: what exists for container logs and host file logs (routes, params, SSE vs snapshot, filtering, limits).
-3. **Container discovery**: how containers are listed (dockerode? cached? labels?), any multi-host hooks.
-4. **Metrics**: where Prometheus/cAdvisor data is available; any app metrics endpoints.
-5. **Client UX**: pages, components, state mgmt (TanStack Query?), existing tabs for container details.
+### **1. Docker Compose Stack Management** 🎯 *Highest Impact*
 
-## Dozzle++ Feature Plan (Design first, no code yet)
-### A) Multi-host model
-- **Hosts map:**
-  - `piapps`: local UNIX `/var/run/docker.sock` (dockerode access via Node).
-  - `synology`: **no socket**; for logs, return a prebuilt “Open in Dozzle” URL to the existing Dozzle on Synology.
-- UI Host Switcher (dropdown). Persist last host in session/localStorage.
+**Why this is critical:**
+- Your current implementation only handles **individual containers**, but real production environments use Docker Compose stacks
+- This is the #1 pain point developers face: managing multi-container applications as a unit
+- **Dozzle doesn't have this** - instant competitive advantage
 
-### B) Container list & details
-- List with **search**, **status filters**, **labels filter**, **sorting** (name, status, CPU, mem).
-- **Details tabs:** Overview | **Logs** | Inspect (JSON) | Stats.
-- “Pin/Bookmark” containers (store minimal metadata in local DB or localStorage; propose schema).
+**What to build:**
+```
+Features:
+- Detect Docker Compose projects (via labels: com.docker.compose.project)
+- Group containers by stack in the UI
+- Bulk operations: start/stop/restart entire stack
+- View compose.yml configuration
+- Stack-level health indicators (how many containers up/down)
+- Combined logs from all stack containers (already have multi-log viewer!)
+```
 
-### C) Logs (Dozzle-class)
-- API: `GET /api/hosts/:hostId/containers/:id/logs`
-  - Query params: `follow, tail, since, stdout, stderr, timestamps, grep`
-  - **SSE** for follow; snapshot for non-follow requests.
-  - **Grep**: safe regex with fallback to case-insensitive substring; guard length and look-back windows.
-  - Limits: tail 1–5000; since ≤ 7d; connection limits per user.
-- UI `<LogsViewer/>`:
-  - Virtualized list, **Follow/Pause**, **Copy**, **Download** (admin only), inline grep, timestamps toggle.
-  - If host = `synology`, show **“Open in Dozzle”** (URL from API) instead of live tail.
+**Technical approach:**
+- Extend `ContainerSummary` schema to include `composeProject` field
+- Add new route: `/api/stacks` that aggregates containers by project label
+- Reuse your existing multi-container log interleaving for stack logs
+- Add "Stack View" toggle to Dashboard (alongside container list)
 
-### D) Host file logs (allowlist)
-- API: `GET /api/hostlogs/:name` with mirrored controls (`follow, tail, since, grep, timestamps`).
-- Strict allowlist (e.g., `nginx`, `pm2`, `grafana`, `prometheus`, `freqtrade`, `pideck`), each mapped to **absolute** paths under `/home/zk/logs`.
-- UI page **/host-logs**: grid of known logs → each opens the viewer.
+**User value:** 
+- Developers can manage their entire app (nginx + api + db + redis) as one unit
+- Reduces clicks from ~12 (managing 4 containers individually) to 2 (one stack action)
 
-### E) Stats
-- For `piapps`: surface CPU/Mem/Net from **docker stats** or from **cAdvisor** (decide one source of truth per metric).
-- For `synology`: show minimal status plus link to Dozzle; consider remote stats in Phase 2.
+---
 
-### F) Downloads (admin only)
-- `GET /api/logs/download` to stream last N lines; set `Content-Disposition`. Enforce role & bounds.
+### **2. Alert Rules & Webhooks** 📢 *High Impact + Monetization*
 
-### G) Security & Ops
-- Reuse session middleware; verify cookie flags (`httpOnly`, `secure`, `sameSite`).
-- Input validation (zod or handcrafted).
-- Rate-limits for non-SSE, per-IP & per-session; 429 responses tested.
-- Headers: `X-Content-Type-Options: nosniff`, `Cache-Control: no-store` for SSE responses.
-- No TCP Docker socket; only local UNIX. No arbitrary file reads.
+**Why this is critical:**
+- Observability without alerting is just "looking" - teams need proactive notifications
+- This transforms ContainerYard from a **viewer** to a **monitoring solution**
+- Clear freemium upsell: basic alerts free, unlimited alerts = paid tier
 
-### H) Optional Phase 2
-- **Loki/Promtail** sidecar compose; searchable logs in Grafana while keeping real-time tails in-app.
-- Saved views (persist grep/tail presets per container), and alert presets on grep patterns.
+**What to build:**
+```
+Features:
+- Define alert rules:
+  * CPU > X% for Y minutes
+  * Memory > X% for Y minutes  
+  * Container restarted > X times in Y minutes
+  * Container status changed (running → exited)
+  * Log pattern matched (e.g., "ERROR", "FATAL", custom regex)
 
-## Acceptance Checklist (the executor must satisfy)
-**API sanity**
-- Snapshot logs, SSE follow, grep, timestamps, tail bounds, since bounds, per-container & host logs.
-- Synology path returns Dozzle URL (no socket access attempted).
+- Notification channels:
+  * Webhook (Slack, Discord, generic HTTP POST)
+  * Email (via SMTP or SendGrid)
+  * Browser push notifications (already have infra)
 
-**Client UX**
-- Container details → Logs tab works (follow/pause/download/copy).
-- Host logs page lists allowlisted sources; opens viewer with controls.
-- Multi-host switcher persists user choice.
+- Alert management UI:
+  * Create/edit/delete rules
+  * Alert history/audit log
+  * Acknowledge/snooze alerts
+  * Test webhook before saving
+```
 
-**Non-functional**
-- SSE stability for sustained tails (≥ 10 min).
-- Rate-limit triggers are observable/testable.
-- Invalid regex falls back safely; no server crash.
-- Admin-only download enforced everywhere.
+**Technical approach:**
+- New DB tables: `alert_rules`, `alert_history`, `notification_channels`
+- Background worker checks rules every 30s against metrics/logs
+- Debouncing to prevent spam (e.g., CPU spike → single alert, not 20)
+- Use existing PostgreSQL + Drizzle ORM
 
-**Security**
-- No TCP docker socket; only local UNIX.
-- No arbitrary file reads; allowlist-only host logs.
+**User value:**
+- Get Slack message when production container crashes
+- Catch memory leaks before they kill the server
+- Track deployment health automatically
 
-## API Spec v1 (first draft)
-### Containers
-- `GET /api/hosts` → list known hosts and capabilities.
-- `GET /api/hosts/:hostId/containers` → list containers (status, image, labels, startedAt, CPU%, Mem%).
-- `GET /api/hosts/:hostId/containers/:id` → container info + inspect JSON.
-- `GET /api/hosts/:hostId/containers/:id/stats` → live stats (SSE or polling JSON).
-- `GET /api/hosts/:hostId/containers/:id/logs[?follow&tail=1000&since=3600&stdout=1&stderr=0&timestamps=0&grep=…]`
-  - SSE when `follow=1`, otherwise snapshot JSON or NDJSON.
-- `POST /api/hosts/:hostId/containers/:id/actions` → optional start/stop/restart (Phase 2, admin only).
+**Monetization path:**
+```
+Free tier:  3 alert rules, 100 notifications/month
+Pro tier:   Unlimited rules, unlimited notifications, priority support
+```
 
-### Host Logs (allowlist)
-- `GET /api/hostlogs` → list allowlisted logs with human names and absolute paths (server-side only).
-- `GET /api/hostlogs/:name[?follow&tail=1000&since=86400&timestamps=1&grep=…]` → stream or snapshot.
+---
 
-### Downloads (admin)
-- `GET /api/logs/download?scope=container|hostlog&id=<cid|name>&tail=5000`
+### **3. Container Health Dashboard with Trends** 📊 *Medium-High Impact*
 
-### Auth/Session
-- Reuse existing login endpoints; confirm cookie flags and CSRF for POST routes.
-- 401/403 behavior clearly documented.
+**Why this is critical:**
+- Your current stats show **real-time only** (30 data points = ~1 minute of history)
+- Teams need to answer: "Was CPU high at 3am?" or "What caused the spike yesterday?"
+- **Historical data = debugging power** - critical for post-mortems
 
-## UI Plan
-- **Pages**
-  - `/` → Containers list (host switcher, filters, search, sort).
-  - `/host-logs` → Allowlisted host logs grid.
-  - `/containers/:hostId/:id` → Tabs: Overview | Logs | Inspect | Stats.
-- **Components**
-  - `HostSwitcher`, `ContainersTable`, `LogsViewer` (virtualized + SSE), `StatsPanel`, `InspectPanel`, `SearchBar`, `FilterChips`, `PinnedBadge`.
-- **Wireframe-as-text**
-  - Topbar: HostSwitcher • Search • Filters • Pinned toggle
-  - Table: Name | Image | Status | CPU | Mem | Uptime | Labels
-  - Row click → Detail view with tabs; Logs tab shows Viewer with Follow/Pause, Tail, Grep, Copy, Download (admin).
+**What to build:**
+```
+Features:
+- Time-series metrics storage (last 7/30/90 days configurable)
+- Historical charts:
+  * CPU/Memory trends over time
+  * Network I/O patterns
+  * Container restart timeline
+  * Log volume heatmap (you already have this idea in README!)
 
-## Data/State Plan
-- **Client**: TanStack Query for lists; URL params for search/filter/sort; localStorage for last host + pinned containers; SSE subscriptions managed per tab (cleanup on unmount).
-- **Server**: dockerode wrapper per-host; hostlogs registry (name → absolute path); rate-limit store; RBAC checkers.
-- **Env**: `PORT`, `SESSION_SECRET`, `REDIS_URL`, `HOSTS_JSON` (optional per-host config), `ALLOWLIST_LOGS_JSON`.
+- Dashboard widgets:
+  * "Top 5 CPU consumers this week"
+  * "Containers with most restarts"
+  * "Healthiest/unhealthiest containers"
+  * Quick stats: uptime %, avg CPU/mem, trend arrows (↑↓)
 
-## Execution Plan
-### Phase 1 (Minimum Dozzle++)
-1. Repo audit & “Current State” report (server, client, nginx notes).
-2. Define host map & allowlist (JSON), add `/api/hosts` route.
-3. Implement `/containers` list + details API per host.
-4. Implement logs API with SSE; build `LogsViewer` (snapshot + follow + grep + tail + timestamps).
-5. Host logs page using allowlist (`/api/hostlogs` + `/api/hostlogs/:name`).
-6. Stats panel baseline from docker stats (piapps only).
-7. RBAC gates & download endpoint (admin only).
-8. E2E cURL smoke tests + UI manual checklist.
+- Exportable reports:
+  * CSV export of metrics
+  * PDF summary for weekly reviews
+```
 
-### Phase 2 (Nice-to-have)
-1. Loki/Promtail pipeline and Grafana dashboard links.
-2. Saved views and alert presets.
-3. Remote stats for Synology; minimal actions (start/stop/restart) behind admin.
+**Technical approach:**
+- **Don't build a time-series DB** - use existing PostgreSQL with partitioning
+- Table: `container_metrics_hourly` (aggregate stats per hour, keep 90 days)
+- Background job: every hour, aggregate last 60min of stats into 1 row
+- Use your existing `NormalizedStats` type but with `aggregatedAt` timestamp
+- Recharts library (already in dependencies) for visualization
 
-## Gaps / Risks / Unknowns (raise questions)
-- Confirm existing session/CSRF/rate-limit middleware and cookie flags.
-- Verify presence of dockerode and current use patterns.
-- Clarify how Synology Dozzle is addressed (exact URL/port) for “Open in Dozzle” links.
-- Confirm allowlist entries and absolute paths under `/home/zk/logs`.
-- Decide single source of truth for stats (docker stats vs cAdvisor) to avoid double-load.
+**User value:**
+- Correlate issues: "Oh, CPU spiked when we deployed at 2pm"
+- Capacity planning: "We'll need more RAM in 2 months at this growth rate"
+- Prove SLAs to stakeholders with uptime reports
 
-## Handoff Requirements (deliverables from Planning Mode)
-1. **Current State** report with file anchors.
-2. **API Spec v1** finalized with examples.
-3. **UI component checklist** with props and event contracts.
-4. **cURL scripts** for smoke testing:
-   - `curl -sS -b "$CK" "$BASE/api/hosts" | jq .`
-   - `curl -sS -b "$CK" "$BASE/api/hosts/piapps/containers" | jq '.[0:5]'`
-   - `curl -N -sS -b "$CK" "$BASE/api/hosts/piapps/containers/<cid>/logs?follow=1&tail=200"`
-   - `curl -sS -b "$CK" "$BASE/api/hostlogs" | jq .`
-   - `curl -N -sS -b "$CK" "$BASE/api/hostlogs/nginx?follow=1&tail=300&timestamps=1"`
+---
 
-### Model & Run Instructions (Opencode / OpenRouter)
-- **Suggested planning model:** `anthropic/claude-3.5-sonnet:latest`
-- **Run example:**
-  ```bash
-  opencode -m anthropic/claude-3.5-sonnet:latest -p plan.md
-  ```
+## **Why NOT These Features:**
 
-# End of planning brief — do not write code. Produce the plan and handoff only.
+**Kubernetes support** - Too complex for Phase 1, smaller market overlap than Docker Compose
+
+**Log parsing plugins** - Interesting but niche; alerts solve the same problem better
+
+**Team/collaboration** - Adds auth complexity; focus on features first, multi-user later
+
+**Browser extension** - Nice-to-have, not core utility
+
+---
+
+## **Implementation Roadmap (Phase 1 = 4-6 weeks)**
+
+### Week 1-2: Docker Compose Stack Management
+- Day 1-3: Backend API for stack detection/grouping
+- Day 4-7: UI for stack view with bulk actions  
+- Day 8-10: Stack logs viewer (reuse multi-container logs)
+- Day 11-14: Polish, testing, docs
+
+### Week 3-4: Alert Rules & Webhooks
+- Day 1-4: Database schema + CRUD API for rules
+- Day 5-8: Background worker + webhook sender
+- Day 9-11: Alert rules UI (create/edit/test)
+- Day 12-14: Alert history viewer + docs
+
+### Week 5-6: Health Dashboard with Trends
+- Day 1-4: Metrics aggregation job + storage
+- Day 5-9: Historical charts implementation
+- Day 10-12: Dashboard widgets + top/worst lists
+- Day 13-14: Export features + polish
+
+---
+
+## **Marketing Positioning After Phase 1:**
+
+**Before:** "Docker log viewer"  
+**After:** "Complete Docker stack monitoring platform"
+
+**Key differentiators:**
+1. ✅ **Stack-aware** - Manage Docker Compose apps as units (Dozzle can't)
+2. ✅ **Proactive alerts** - Know about issues before users complain (Portainer Lite can't)
+3. ✅ **Historical trends** - Debug past incidents, not just current state (Dozzle can't)
+
+This positions you between lightweight viewers (Dozzle) and heavyweight platforms (Datadog, New Relic) - the **Goldilocks zone** for teams running 5-50 containers.
+
+---
+
+## **Bottom Line**
+
+These three features transform ContainerYard from a "nice log viewer" into a **mission-critical monitoring tool** that teams will pay for. They leverage your existing strengths (multi-container logs, clean UI) while filling critical gaps in the Docker tooling ecosystem.
+
+---
+
+## **Current State Analysis**
+
+### Existing Strengths
+- ✅ Multi-provider architecture (MOCK/SIMULATION/REMOTE)
+- ✅ Real-time log streaming with WebSockets
+- ✅ Multi-container log interleaving
+- ✅ Interactive terminal (exec) support
+- ✅ Clean UI with Shadcn/ui components
+- ✅ PostgreSQL for saved searches & bookmarks
+- ✅ Prometheus metrics endpoint
+- ✅ E2E testing with Playwright
+- ✅ Security hardening (rate limiting, CSRF protection)
+
+### Current Limitations
+- ❌ No Docker Compose/stack awareness
+- ❌ No alerting or proactive monitoring
+- ❌ No historical metrics (only last ~1 minute)
+- ❌ No trend analysis or reporting
+- ❌ Limited differentiation from Dozzle
+
+### Market Gap
+ContainerYard sits in the perfect position to fill the gap between:
+- **Too simple**: Dozzle (just logs), docker stats (just CLI)
+- **Too complex**: Datadog ($15-31/host/month), New Relic, Prometheus+Grafana stack
+
+**Target market**: Teams running 5-50 containers who need more than logs but don't want enterprise complexity.
