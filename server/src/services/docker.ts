@@ -1,8 +1,8 @@
-import type { ContainerAction } from "@shared/schema";
 import Docker from "dockerode";
 import { getDockerSocketPath } from "../config/hosts";
 import { parseContainerInstant } from "../lib/parseDockerStats";
-import type { ContainerAction,
+import type { ContainerAction } from "@shared/schema";
+import type {
   ContainerDetail,
   ContainerEnvVar,
   ContainerMount,

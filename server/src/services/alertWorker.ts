@@ -325,14 +325,9 @@ class AlertWorkerService {
         // For now, return 0 (no pattern found)
         return 0;
       } else {
+        // For cAdvisor-only hosts, we don't have log access yet
+        return 0;
       }
-      
-      // Check if pattern exists in recent logs
-      const regex = new RegExp(pattern, "i");
-      const matches = recentLogs.filter(log => regex.test(log));
-      
-      return matches.length;
-      return matches.length;
     } catch (error) {
       console.error(`Error checking log pattern for container ${container.id}:`, error);
       return 0;
