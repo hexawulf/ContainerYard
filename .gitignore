@@ -67,3 +67,6 @@ vite.config.ts.*
 # Env and local
 .env
 .env.*
+
+# Local OpenCode instructions
+plan.md
