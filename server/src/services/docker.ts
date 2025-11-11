@@ -1,8 +1,8 @@
+import type { ContainerAction } from "@shared/schema";
 import Docker from "dockerode";
-import type { HostConfig } from "../config/hosts";
 import { getDockerSocketPath } from "../config/hosts";
 import { parseContainerInstant } from "../lib/parseDockerStats";
-import type {
+import type { ContainerAction,
   ContainerDetail,
   ContainerEnvVar,
   ContainerMount,
@@ -322,6 +322,62 @@ export async function streamContainerLogs(
       const notFound = new Error(`Container ${containerId} not found`);
       (notFound as any).status = 404;
       throw notFound;
+    }
+    throw error;
+  }
+}
+
+export async function performBulkAction(host: HostConfig, containerIds: string[], action: ContainerAction): Promise<void> {
+  const results = await Promise.allSettled(
+    containerIds.map(async (containerId) => {
+      try {
+        await performAction(host, containerId, action);
+      } catch (error) {
+        console.error(`Failed to ${action} container ${containerId}:`, error);
+        throw error;
+      }
+    })
+  );
+
+  const failures = results.filter(result => result.status === "rejected");
+  if (failures.length > 0) {
+    const failureCount = failures.length;
+    const totalCount = containerIds.length;
+    throw new Error(`Failed to ${action} ${failureCount} of ${totalCount} containers`);
+  }
+}
+
+export async function performAction(host: HostConfig, containerId: string, action: ContainerAction): Promise<void> {
+  try {
+    const container = docker.getContainer(containerId);
+    
+    switch (action) {
+      case "start":
+        await container.start();
+        break;
+      case "stop":
+        await container.stop();
+        break;
+      case "restart":
+        await container.restart();
+        break;
+      case "remove":
+        await container.remove({ force: true });
+        break;
+      default:
+        throw new Error(`Unsupported action: ${action}`);
+    }
+  } catch (error: any) {
+    if (error.statusCode === 404) {
+      throw new Error(`Container ${containerId} not found on host ${host.id}`);
+    }
+    if (error.statusCode === 409 && action === "start") {
+      // Container already running, not an error for bulk operations
+      return;
+    }
+    if (error.statusCode === 304 && action === "stop") {
+      // Container already stopped, not an error for bulk operations
+      return;
     }
     throw error;
   }

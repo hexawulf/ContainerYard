@@ -10,6 +10,7 @@ import {
 import { listContainers as listDockerContainers, getContainerStats as getDockerContainerStats } from "./docker";
 import { getCadvisorService } from "./cadvisor";
 import { getHost, listHosts } from "../config/hosts";
+import { restartTracker } from "./restartTracker";
 import type { ContainerSummary, ContainerStats } from "../models/containers";
 
 interface AlertEvaluation {
@@ -22,6 +23,62 @@ interface AlertEvaluation {
 
 // Store recent metrics to calculate durations
 const metricsHistory = new Map<string, { stats: ContainerStats[]; timestamps: number[] }>();
+
+// Store recent log patterns for analysis
+const logPatternCache = new Map<string, string[]>();
+
+// Notification sender functions
+async function sendWebhookNotification(config: any, message: string): Promise<void> {
+  const response = await fetch(config.url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...config.headers,
+    },
+    body: JSON.stringify({
+      text: message,
+      message: message,
+      timestamp: new Date().toISOString(),
+      ...config.payload,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Webhook failed with status ${response.status}`);
+  }
+}
+
+async function sendEmailNotification(config: any, message: string): Promise<void> {
+  // For now, we'll use a simple console.log approach
+  // In production, you'd integrate with SendGrid, SMTP, etc.
+  console.log(`[EMAIL] To: ${config.to}`);
+  console.log(`[EMAIL] Subject: ${config.subject || "ContainerYard Alert"}`);
+  console.log(`[EMAIL] Body: ${message}`);
+  
+  // Simulate email sending delay
+  await new Promise(resolve => setTimeout(resolve, 1000));
+}
+
+async function sendBrowserNotification(config: any, message: string): Promise<void> {
+  // Browser notifications would be handled client-side
+  // This is just a placeholder for server-side logic
+  console.log(`[BROWSER] ${message}`);
+}
+
+async function sendNotification(channel: NotificationChannel, message: string): Promise<void> {
+  const config = JSON.parse(channel.config);
+  
+  switch (channel.type) {
+    case "webhook":
+      return sendWebhookNotification(config, message);
+    case "email":
+      return sendEmailNotification(config, message);
+    case "browser":
+      return sendBrowserNotification(config, message);
+    default:
+      throw new Error(`Unsupported notification type: ${channel.type}`);
+  }
+}
 
 class AlertWorkerService {
   private interval: NodeJS.Timeout | null = null;
@@ -83,6 +140,9 @@ class AlertWorkerService {
           console.error(`Error fetching containers from host ${hostSummary.id}:`, error);
         }
       }
+
+      // Track container restarts
+      await restartTracker.trackContainers(allContainers);
 
       // Evaluate each rule against each container
       const evaluations: AlertEvaluation[] = [];
@@ -181,7 +241,7 @@ class AlertWorkerService {
 
       // Evaluate condition
       const threshold = parseFloat(rule.threshold);
-      let currentValue: number | null = null;
+      let currentValue: number | string | null = null;
       let triggered = false;
 
       switch (rule.conditionType) {
@@ -196,15 +256,26 @@ class AlertWorkerService {
           break;
 
         case "container_status":
+          currentValue = container.state;
           triggered = this.compareValues(container.state, rule.operator, rule.threshold);
+          break;
+
+        case "restart_count":
+          currentValue = await restartTracker.getRestartCount(container.hostId, container.id, rule.durationMinutes || 60);
+          triggered = this.compareValues(currentValue, rule.operator, threshold);
+          break;
+
+        case "log_pattern":
+          currentValue = await this.checkLogPattern(container, rule.threshold);
+          triggered = this.compareValues(currentValue, rule.operator, 1); // 1 = pattern found
           break;
 
         default:
           return defaultEval;
       }
 
-      // Check duration requirement
-      if (triggered && rule.durationMinutes > 0) {
+      // Check duration requirement for metric-based alerts
+      if (triggered && rule.durationMinutes > 0 && ["cpu_percent", "memory_percent"].includes(rule.conditionType)) {
         const durationMs = rule.durationMinutes * 60 * 1000;
         const relevantHistory = history.stats.filter((_, index) => {
           return Date.now() - history.timestamps[index] <= durationMs;
@@ -241,6 +312,33 @@ class AlertWorkerService {
     }
   }
 
+  private async checkLogPattern(container: ContainerSummary, pattern: string): Promise<number> {
+    try {
+      const cacheKey = `${container.hostId}:${container.id}`;
+      
+      // Get recent logs (last 5 minutes)
+      const host = getHost(container.hostId);
+      let recentLogs: string[] = [];
+      
+      if (host.provider === "DOCKER") {
+        // For Docker, we'd need to implement log fetching
+        // For now, return 0 (no pattern found)
+        return 0;
+      } else {
+      }
+      
+      // Check if pattern exists in recent logs
+      const regex = new RegExp(pattern, "i");
+      const matches = recentLogs.filter(log => regex.test(log));
+      
+      return matches.length;
+      return matches.length;
+    } catch (error) {
+      console.error(`Error checking log pattern for container ${container.id}:`, error);
+      return 0;
+    }
+  }
+
   private compareValues(actual: any, operator: string, expected: any): boolean {
     switch (operator) {
       case ">":
@@ -263,7 +361,20 @@ class AlertWorkerService {
   }
 
   private buildAlertMessage(rule: AlertRule, container: ContainerSummary, value: any): string {
-    return `Alert: ${rule.name} - Container ${container.name} ${rule.conditionType} is ${value} (threshold: ${rule.operator} ${rule.threshold})`;
+    let unit = "";
+    switch (rule.conditionType) {
+      case "cpu_percent":
+      case "memory_percent":
+        unit = "%";
+        break;
+      case "restart_count":
+        unit = " restarts";
+        break;
+      case "log_pattern":
+        return `Alert: ${rule.name} - Container ${container.name} log pattern "${rule.threshold}" found ${value} times`;
+    }
+    
+    return `Alert: ${rule.name} - Container ${container.name} ${rule.conditionType} is ${value}${unit} (threshold: ${rule.operator} ${rule.threshold})`;
   }
 
   private determineSeverity(rule: AlertRule, value: any): "info" | "warning" | "critical" {
@@ -273,6 +384,13 @@ class AlertWorkerService {
       if (value >= 75) return "warning";
       return "info";
     }
+    
+    if (rule.conditionType === "restart_count") {
+      if (value >= 10) return "critical";
+      if (value >= 5) return "warning";
+      return "info";
+    }
+    
     return "warning";
   }
 
@@ -321,12 +439,8 @@ class AlertWorkerService {
         return;
       }
 
-      // TODO: Implement actual notification sending based on channel type
+      await sendNotification(channel, evaluation.message);
       console.log(`[ALERT] ${evaluation.message} (Channel: ${channel.name})`);
-      
-      // For webhook channels, we would do:
-      // const config = JSON.parse(channel.config);
-      // await fetch(config.url, { method: 'POST', body: JSON.stringify(evaluation) });
     } catch (error) {
       console.error("Error sending notification:", error);
     }

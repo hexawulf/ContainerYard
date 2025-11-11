@@ -1,10 +1,10 @@
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { getQueryFn } from "@/lib/queryClient";
+import { getQueryFn, queryClient } from "@/lib/queryClient";
 import { 
   Server, 
   Play, 
@@ -15,7 +15,8 @@ import {
   Activity,
   AlertCircle,
   CheckCircle2,
-  Layers
+  Layers,
+  Logs
 } from "lucide-react";
 import type { ContainerSummary } from "@shared/monitoring";
 import {
@@ -23,6 +24,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { useToast } from "@/hooks/use-toast";
 
 interface StackSummary {
   name: string;
@@ -117,18 +119,66 @@ function ContainerRow({
 
 function StackCard({
   stack,
+  hostId,
   onContainerSelect,
   onLogsClick,
   onInspectClick,
   selectedContainerId,
 }: {
   stack: StackSummary;
+  hostId: string;
   onContainerSelect: (containerId: string) => void;
   onLogsClick: (containerId: string) => void;
   onInspectClick: (containerId: string) => void;
   selectedContainerId?: string | null;
 }) {
   const [isOpen, setIsOpen] = useState(true);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const bulkActionMutation = useMutation({
+    mutationFn: async ({ action }: { action: "start" | "stop" | "restart" }) => {
+      const response = await fetch(`/api/hosts/${hostId}/stacks/${stack.name}/action`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ action }),
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || `Failed to ${action} stack`);
+      }
+      
+      return response.json();
+    },
+    onSuccess: (data, { action }) => {
+      toast({
+        title: "Success",
+        description: `${stack.name} stack ${action}ed successfully`,
+      });
+      // Refresh the stacks data
+      queryClient.invalidateQueries({ queryKey: ["/api/hosts", hostId, "stacks"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/hosts", hostId, "containers"] });
+    },
+    onError: (error, { action }) => {
+      toast({
+        title: "Error",
+        description: `Failed to ${action} ${stack.name} stack: ${error.message}`,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const viewStackLogs = () => {
+    // Open stack logs in a new window/tab
+    window.open(`/api/hosts/${hostId}/stacks/${stack.name}/logs?tail=1000`, '_blank');
+  };
+
+  const handleBulkAction = (action: "start" | "stop" | "restart") => {
+    bulkActionMutation.mutate({ action });
+  };
 
   return (
     <Card>
@@ -146,13 +196,39 @@ function StackCard({
               <HealthBadge status={stack.healthStatus} />
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" title="Start all">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                title="View stack logs"
+                onClick={viewStackLogs}
+              >
+                <Logs className="h-4 w-4" />
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                title="Start all"
+                onClick={() => handleBulkAction("start")}
+                disabled={bulkActionMutation.isPending}
+              >
                 <Play className="h-4 w-4" />
               </Button>
-              <Button variant="outline" size="sm" title="Stop all">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                title="Stop all"
+                onClick={() => handleBulkAction("stop")}
+                disabled={bulkActionMutation.isPending}
+              >
                 <Square className="h-4 w-4" />
               </Button>
-              <Button variant="outline" size="sm" title="Restart all">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                title="Restart all"
+                onClick={() => handleBulkAction("restart")}
+                disabled={bulkActionMutation.isPending}
+              >
                 <RotateCw className="h-4 w-4" />
               </Button>
             </div>
@@ -233,6 +309,7 @@ export function StackView({
         <StackCard
           key={stack.name}
           stack={stack}
+          hostId={hostId}
           onContainerSelect={onContainerSelect}
           onLogsClick={onLogsClick}
           onInspectClick={onInspectClick}

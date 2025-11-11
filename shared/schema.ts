@@ -277,3 +277,20 @@ export const insertContainerMetricsHourlySchema = createInsertSchema(containerMe
 });
 export type InsertContainerMetricsHourly = z.infer<typeof insertContainerMetricsHourlySchema>;
 export type ContainerMetricsHourly = typeof containerMetricsHourly.$inferSelect;
+
+// Container Restarts Table (for tracking restart events)
+export const containerRestarts = pgTable("container_restarts", {
+  id: serial("id").primaryKey(),
+  hostId: varchar("host_id", { length: 255 }).notNull(),
+  containerId: varchar("container_id", { length: 255 }).notNull(),
+  containerName: varchar("container_name", { length: 255 }).notNull(),
+  restartReason: text("restart_reason"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertContainerRestartSchema = createInsertSchema(containerRestarts).omit({ 
+  id: true, 
+  createdAt: true 
+});
+export type InsertContainerRestart = z.infer<typeof insertContainerRestartSchema>;
+export type ContainerRestart = typeof containerRestarts.$inferSelect;

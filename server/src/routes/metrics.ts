@@ -193,3 +193,146 @@ router.get("/:hostId/metrics/top-memory", async (req, res, next) => {
 });
 
 export { router as metricsRouter };
+
+// Export metrics as CSV
+router.get("/:hostId/metrics/export/csv", async (req, res, next) => {
+  try {
+    const { hostId } = req.params;
+    const days = req.query.days ? parseInt(String(req.query.days)) : 7;
+    const format = req.query.format || 'csv'; // csv or json
+    
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - days);
+
+    const metrics = await db
+      .select()
+      .from(containerMetricsHourly)
+      .where(
+        and(
+          eq(containerMetricsHourly.hostId, hostId),
+          gte(containerMetricsHourly.aggregatedAt, cutoffDate)
+        )
+      )
+      .orderBy(containerMetricsHourly.aggregatedAt);
+
+    if (format === 'json') {
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Content-Disposition', `attachment; filename="metrics-${hostId}-${Date.now()}.json"`);
+      res.json(metrics);
+      return;
+    }
+
+    // CSV format
+    const csvHeader = [
+      'Container ID',
+      'Container Name',
+      'Timestamp',
+      'Avg CPU %',
+      'Max CPU %',
+      'Avg Memory %',
+      'Max Memory %',
+      'Avg Memory (Bytes)',
+      'Max Memory (Bytes)',
+      'Network Rx',
+      'Network Tx',
+      'Block Read',
+      'Block Write',
+      'Sample Count'
+    ].join(',');
+
+    const csvRows = metrics.map(metric => [
+      `"${metric.containerId}"`,
+      `"${metric.containerName}"`,
+      `"${metric.aggregatedAt.toISOString()}"`,
+      metric.avgCpuPercent,
+      metric.maxCpuPercent,
+      metric.avgMemoryPercent,
+      metric.maxMemoryPercent,
+      metric.avgMemoryBytes,
+      metric.maxMemoryBytes,
+      metric.totalNetworkRx,
+      metric.totalNetworkTx,
+      metric.totalBlockRead,
+      metric.totalBlockWrite,
+      metric.sampleCount
+    ].join(','));
+
+    const csvContent = [csvHeader, ...csvRows].join('\n');
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="metrics-${hostId}-${Date.now()}.csv"`);
+    res.send(csvContent);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Export container-specific metrics as CSV
+router.get("/:hostId/containers/:containerId/metrics/export/csv", async (req, res, next) => {
+  try {
+    const { hostId, containerId } = req.params;
+    const days = req.query.days ? parseInt(String(req.query.days)) : 7;
+    const format = req.query.format || 'csv';
+    
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - days);
+
+    const metrics = await db
+      .select()
+      .from(containerMetricsHourly)
+      .where(
+        and(
+          eq(containerMetricsHourly.hostId, hostId),
+          eq(containerMetricsHourly.containerId, containerId),
+          gte(containerMetricsHourly.aggregatedAt, cutoffDate)
+        )
+      )
+      .orderBy(containerMetricsHourly.aggregatedAt);
+
+    if (format === 'json') {
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Content-Disposition', `attachment; filename="container-metrics-${containerId}-${Date.now()}.json"`);
+      res.json(metrics);
+      return;
+    }
+
+    // CSV format
+    const csvHeader = [
+      'Timestamp',
+      'Avg CPU %',
+      'Max CPU %',
+      'Avg Memory %',
+      'Max Memory %',
+      'Avg Memory (Bytes)',
+      'Max Memory (Bytes)',
+      'Network Rx',
+      'Network Tx',
+      'Block Read',
+      'Block Write',
+      'Sample Count'
+    ].join(',');
+
+    const csvRows = metrics.map(metric => [
+      `"${metric.aggregatedAt.toISOString()}"`,
+      metric.avgCpuPercent,
+      metric.maxCpuPercent,
+      metric.avgMemoryPercent,
+      metric.maxMemoryPercent,
+      metric.avgMemoryBytes,
+      metric.maxMemoryBytes,
+      metric.totalNetworkRx,
+      metric.totalNetworkTx,
+      metric.totalBlockRead,
+      metric.totalBlockWrite,
+      metric.sampleCount
+    ].join(','));
+
+    const csvContent = [csvHeader, ...csvRows].join('\n');
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="container-metrics-${containerId}-${Date.now()}.csv"`);
+    res.send(csvContent);
+  } catch (error) {
+    next(error);
+  }
+});

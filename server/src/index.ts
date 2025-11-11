@@ -20,6 +20,7 @@ import { log, setupVite } from "../vite";
 import { registerMetrics } from "./metrics";
 import { alertWorker } from "./services/alertWorker";
 import { metricsAggregator } from "./services/metricsAggregator";
+import { restartTracker } from "./services/restartTracker";
 
 export async function createApp() {
   const app = express();
@@ -155,6 +156,18 @@ export async function createApp() {
       alertWorker.start().catch((error) => {
         log(`Failed to start alert worker: ${error}`, "error");
       });
+      // Start restart tracker cleanup (daily)
+      setInterval(() => {
+        restartTracker.cleanupOldRestarts().catch((error) => {
+          log(`Failed to cleanup old restart records: ${error}`, "error");
+        });
+      }, 24 * 60 * 60 * 1000); // Daily
+
+      // Initial cleanup
+      restartTracker.cleanupOldRestarts().catch((error) => {
+        log(`Failed to cleanup old restart records: ${error}`, "error");
+      });
+
       metricsAggregator.start().catch((error) => {
         log(`Failed to start metrics aggregator: ${error}`, "error");
       });

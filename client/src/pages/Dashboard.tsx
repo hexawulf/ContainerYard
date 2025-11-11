@@ -20,6 +20,8 @@ import { StatsPanel } from "@/features/monitoring/StatsPanel";
 import { LogsDrawer } from "@/features/monitoring/LogsDrawer";
 import { InspectModal } from "@/features/monitoring/InspectModal";
 import { StatsChips } from "@/features/monitoring/StatsChips";
+import { HistoricalMetricsChart } from "@/features/monitoring/HistoricalMetricsChart";
+import { MetricsWidgets } from "@/features/monitoring/MetricsWidgets";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -43,6 +45,7 @@ export default function Dashboard() {
   const [normalizedStatsHistory, setNormalizedStatsHistory] = useState<Record<string, NormalizedStats[]>>({});
   const [logsContainerId, setLogsContainerId] = useState<string | null>(null);
   const [inspectContainerId, setInspectContainerId] = useState<string | null>(null);
+  const [showHistoricalMetrics, setShowHistoricalMetrics] = useState(false);
   
   // Filter and sort state
   interface FilterState {
@@ -108,14 +111,14 @@ export default function Dashboard() {
     return ["/api/hosts", selectedHostId, "stats"] as const;
   }, [selectedHostId]);
 
-  const hostStats = useQuery({
-    queryKey: hostStatsQueryKey ?? [],
-    queryFn: hostStatsQueryKey ? getQueryFn({ on401: "throw" }) : undefined,
-    enabled: Boolean(hostStatsQueryKey),
-    refetchInterval: 5000,
-    refetchIntervalInBackground: true,
-  });
-
+  // const hostStats = useQuery({
+  // const hostStats = useQuery({
+  //   queryKey: hostStatsQueryKey ?? [],
+  //   queryFn: hostStatsQueryKey ? getQueryFn({ on401: "throw" }) : undefined,
+  //   enabled: Boolean(hostStatsQueryKey),
+  //   refetchInterval: 5000,
+  //   refetchIntervalInBackground: true,
+  // });
   const { data: containersData, isLoading: containersLoading } = useQuery<ContainerSummary[]>({
     queryKey: containersQueryKey ?? [],
     queryFn: containersQueryKey ? getQueryFn<ContainerSummary[]>({ on401: "throw" }) : undefined,
@@ -203,7 +206,7 @@ export default function Dashboard() {
   const normalizedHistory = statsKey ? normalizedStatsHistory[statsKey] ?? [] : [];
   
   const logsContainer = containers.find((c) => c.id === logsContainerId);
-  const inspectContainer = containers.find((c) => c.id === inspectContainerId);
+  // const inspectContainer = containers.find((c) => c.id === inspectContainerId);
 
   const latestStatsByContainer = useMemo(() => {
     const map: Record<string, ContainerStats | undefined> = {};
@@ -287,6 +290,13 @@ export default function Dashboard() {
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-display">Dashboard</h1>
         <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowHistoricalMetrics(!showHistoricalMetrics)}
+          >
+            {showHistoricalMetrics ? "Hide" : "Show"} Historical Metrics
+          </Button>
           <Link href="/host-logs">
             <Button variant="outline" size="sm">
               Host Logs
@@ -302,6 +312,14 @@ export default function Dashboard() {
           </Button>
         </div>
       </div>
+
+      {/* Metrics Widgets */}
+      {selectedHostId && (
+        <div className="mb-6">
+          <MetricsWidgets hostId={selectedHostId} />
+        </div>
+      )}
+
       <div className="grid gap-6 md:grid-cols-[320px_1fr]">
         <Card className="overflow-hidden">
           <CardHeader className="space-y-3">
@@ -461,6 +479,17 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+
+      {/* Historical Metrics Section */}
+      {showHistoricalMetrics && selectedHostId && selectedContainerId && containerDetail && (
+        <div className="mt-6">
+          <HistoricalMetricsChart
+            hostId={selectedHostId}
+            containerId={selectedContainerId}
+            containerName={containerDetail.name}
+          />
+        </div>
+      )}
 
       {logsContainerId && logsContainer && selectedHostId && (
         <LogsDrawer

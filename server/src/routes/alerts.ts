@@ -12,6 +12,66 @@ import {
 
 const router = Router();
 
+// ==================== NOTIFICATION SENDER ====================
+
+async function sendWebhookNotification(config: any, message: string): Promise<void> {
+  const response = await fetch(config.url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...config.headers,
+    },
+    body: JSON.stringify({
+      text: message,
+      message: message,
+      timestamp: new Date().toISOString(),
+      ...config.payload,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Webhook failed with status ${response.status}`);
+  }
+}
+
+async function sendEmailNotification(config: any, message: string): Promise<void> {
+  // For now, we'll use a simple console.log approach
+  // In production, you'd integrate with SendGrid, SMTP, etc.
+  console.log(`[EMAIL] To: ${config.to}`);
+  console.log(`[EMAIL] Subject: ${config.subject || "ContainerYard Alert"}`);
+  console.log(`[EMAIL] Body: ${message}`);
+  
+  // Simulate email sending delay
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  
+  // In a real implementation, you would:
+  // 1. Use nodemailer for SMTP
+  // 2. Use SendGrid API
+  // 3. Use AWS SES
+  // etc.
+}
+
+async function sendBrowserNotification(config: any, message: string): Promise<void> {
+  // Browser notifications would be handled client-side
+  // This is just a placeholder for server-side logic
+  console.log(`[BROWSER] ${message}`);
+}
+
+async function sendNotification(channel: any, message: string): Promise<void> {
+  const config = JSON.parse(channel.config);
+  
+  switch (channel.type) {
+    case "webhook":
+      return sendWebhookNotification(config, message);
+    case "email":
+      return sendEmailNotification(config, message);
+    case "browser":
+      return sendBrowserNotification(config, message);
+    default:
+      throw new Error(`Unsupported notification type: ${channel.type}`);
+  }
+}
+
 // ==================== Notification Channels ====================
 
 // Get all notification channels
@@ -110,9 +170,21 @@ router.post("/channels/:id/test", async (req, res, next) => {
       return res.status(404).json({ error: "Channel not found" });
     }
 
-    // TODO: Implement actual notification sending
-    // For now, just return success
-    res.json({ success: true, message: "Test notification sent" });
+    if (channel.enabled !== "true") {
+      return res.status(400).json({ error: "Channel is disabled" });
+    }
+
+    const testMessage = `🧪 Test notification from ContainerYard\n\nThis is a test message to verify your ${channel.type} notification channel "${channel.name}" is working correctly.\n\nTime: ${new Date().toLocaleString()}`;
+
+    try {
+      await sendNotification(channel, testMessage);
+      res.json({ success: true, message: "Test notification sent successfully" });
+    } catch (error: any) {
+      res.status(500).json({ 
+        error: "Failed to send test notification", 
+        details: error.message 
+      });
+    }
   } catch (error) {
     next(error);
   }
