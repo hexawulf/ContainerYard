@@ -18,6 +18,7 @@ const envSchema = z.object({
   DOCKER_HOST: z.string().default("unix:///var/run/docker.sock"),
   SYNOLOGY_CADVISOR_URL: z.string().url(),
   SYNOLOGY_DOZZLE_URL: z.string().url().optional(),
+  PIAPPS2_CADVISOR_URL: z.string().url(),
   ADMIN_EMAIL: z.string().email(),
   ADMIN_PASSWORD: z.string().min(12),
   METRICS_TOKEN: z.string().optional(),

@@ -1,7 +1,7 @@
 import { env } from "./env";
 import type { HostSummary, HostProvider } from "../models/containers";
 
-export type HostId = "piapps" | "synology";
+export type HostId = "piapps" | "piapps2" | "synology";
 
 export interface HostConfig extends HostSummary {
   id: HostId;
@@ -17,6 +17,13 @@ const hostDefinitions: Record<HostId, HostConfig> = {
     name: "Pi Apps",
     provider: "DOCKER",
     nodeLabel: "piapps",
+  },
+  piapps2: {
+    id: "piapps2",
+    name: "Pi Apps 2",
+    provider: "CADVISOR_ONLY",
+    nodeLabel: "piapps2",
+    cadvisorUrl: env.PIAPPS2_CADVISOR_URL,
   },
   synology: {
     id: "synology",
@@ -39,7 +46,7 @@ export function listHosts(): HostSummary[] {
 }
 
 export function getHost(id: string): HostConfig {
-  if (!Object.hasOwn(hostDefinitions, id as HostId)) {
+  if (!Object.prototype.hasOwnProperty.call(hostDefinitions, id as HostId)) {
     const error = new Error(`Unknown host: ${id}`);
     (error as any).status = 404;
     throw error;
