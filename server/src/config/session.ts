@@ -24,7 +24,7 @@ export const sessionMiddleware: RequestHandler = session({
   secret: env.SESSION_SECRET,
   store,
   resave: false,
-  saveUninitialized: false,
+  saveUninitialized: true, // Allow sessions to be saved even if not modified
   proxy: true,
   cookie: {
     httpOnly: true,

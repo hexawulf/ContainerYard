@@ -1,4 +1,3 @@
-import csurf from "csurf";
 import express from "express";
 import fs from "fs";
 import helmet from "helmet";
@@ -20,7 +19,6 @@ import logsRouter from "./routes/logs";
 import inspectRouter from "./routes/inspect";
 import { health } from "./routes/health";
 import { attachUserToResponse, globalRateLimiter, requireAuth } from "./middleware/auth";
-import { skipCsrf } from "./middleware/skipCsrf";
 import { log, setupVite } from "../vite";
 import { registerMetrics } from "./metrics";
 import { alertWorker } from "./services/alertWorker";
@@ -63,10 +61,7 @@ export async function createApp() {
 
   app.use(globalRateLimiter);
 
-  app.use(express.json({ limit: "1mb" }));
-  app.use(express.urlencoded({ extended: false }));
-
-  // Health endpoint - completely exempt from CSRF and session
+  // Health endpoint - completely exempt from CSRF and session (moved before session)
   app.get("/api/health", async (_req, res) => {
     try {
       // lightweight checks; do NOT hit DB or cAdvisor
@@ -76,22 +71,11 @@ export async function createApp() {
     }
   });
 
+  app.use(express.json({ limit: "1mb" }));
+  app.use(express.urlencoded({ extended: false }));
+
   app.use(sessionMiddleware);
 
-  // CSRF protection using double-submit cookie strategy
-  // Set ignoreMethods to only protect state-changing operations
-  const csrfProtection = csurf({ 
-    cookie: {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: true,
-      key: "XSRF-TOKEN"
-    },
-    ignoreMethods: ["GET", "HEAD", "OPTIONS"]
-  });
-  
-  // @ts-ignore - csurf type mismatch with express versions
-  app.use(csrfProtection);
   app.use(attachUserToResponse);
 
   app.use("/api/auth", authRouter);
@@ -130,8 +114,11 @@ export async function createApp() {
   }
 
   app.use((err: any, req: express.Request, res: express.Response, _next: express.NextFunction) => {
-    if (err.code === "EBADCSRFTOKEN") {
+    if (err && err.code === "EBADCSRFTOKEN") {
       return res.status(403).json({ error: "Invalid CSRF token" });
+    }
+    if (err && /misconfigured csrf/i.test(String(err))) {
+      return res.status(500).json({ error: "server csrf misconfig" });
     }
 
     const status = err.status || err.statusCode || 500;

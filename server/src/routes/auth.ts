@@ -80,20 +80,12 @@ router.get("/me", (req, res) => {
 
 router.get("/csrf", (req, res, next) => {
   try {
-    // Generate CSRF token - csurf middleware should have set req.csrfToken()
-    const token = req.csrfToken?.() ?? "";
+    // Ensure session exists and has CSRF token
+    if (!(req.session as any).csrfToken) {
+      (req.session as any).csrfToken = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    }
     
-    // Set as a cookie that client JS can read (for double-submit pattern)
-    res.cookie(`${env.COOKIE_NAME}.csrf`, token, {
-      httpOnly: false, // Client needs to read this
-      sameSite: "lax",
-      secure: true, // TLS only
-      domain: env.COOKIE_DOMAIN,
-      path: "/",
-      maxAge: 60 * 60 * 1000, // 1 hour
-    });
-    
-    return res.json({ token });
+    return res.json({ csrfToken: (req.session as any).csrfToken });
   } catch (error) {
     return next(error);
   }

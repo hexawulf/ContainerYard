@@ -15,8 +15,8 @@ async function fetchCsrfToken(): Promise<string> {
     return "disabled";
   }
   const res = await apiFetch("/auth/csrf");
-  const data = (await res.json()) as { token: string };
-  csrfTokenCache = data.token;
+  const data = (await res.json()) as { csrfToken: string };
+  csrfTokenCache = data.csrfToken;
   return csrfTokenCache;
 }
 
@@ -71,8 +71,8 @@ export async function apiRequest(
   }
 
   if (!options?.skipCsrf && MUTATING_METHODS.has(upperMethod)) {
-    const token = headers["X-CSRF-Token"] ?? (await ensureCsrfToken());
-    headers["X-CSRF-Token"] = token;
+    const token = headers["x-csrf-token"] ?? (await ensureCsrfToken());
+    headers["x-csrf-token"] = token;
   }
 
   // Use apiFetch for consistent error handling
