@@ -37,7 +37,7 @@ export function KeyboardShortcutsHelp({ isOpen, onClose, shortcuts }: KeyboardSh
           esc: 'Esc',
           space: 'Space',
         };
-        return keyMap[k.toLowerCase()] || k.toUpperCase();
+        return keyMap[k?.toLowerCase()] || k?.toUpperCase() || k;
       })
       .join(' + ');
   };

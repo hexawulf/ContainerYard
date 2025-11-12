@@ -54,7 +54,7 @@ export function HistoricalMetricsChart({
       );
       
       if (!response.ok) {
-        throw new Error(`Failed to export ${format.toUpperCase()}`);
+        throw new Error(`Failed to export ${format?.toUpperCase() || 'DATA'}`);
       }
       
       const blob = await response.blob();
@@ -70,13 +70,13 @@ export function HistoricalMetricsChart({
     onSuccess: (_, format) => {
       toast({
         title: "Success",
-        description: `Exported ${format.toUpperCase()} successfully`,
+        description: `Exported ${format?.toUpperCase() || 'DATA'} successfully`,
       });
     },
     onError: (error, format) => {
       toast({
         title: "Error",
-        description: `Failed to export ${format.toUpperCase()}: ${error.message}`,
+        description: `Failed to export ${format?.toUpperCase() || 'DATA'}: ${error.message}`,
         variant: "destructive",
       });
     },

@@ -15,6 +15,8 @@ import type { ContainerLogsResponse, NormalizedStats, HostStats } from "@shared/
 const router = Router();
 
 router.get("/", (_req, res) => {
+  // Always return hosts array, even for unauthenticated requests
+  // This allows the UI to show available hosts before authentication
   res.json(listHosts());
 });
 

@@ -79,7 +79,7 @@ export async function createApp() {
   app.use(attachUserToResponse);
 
   app.use("/api/auth", authRouter);
-  app.use("/api/hosts", requireAuth, hostsRouter);
+  app.use("/api/hosts", hostsRouter);
   app.use("/api/hosts", requireAuth, stacksRouter);
   app.use("/api/hosts", requireAuth, metricsRouter);
   app.use("/api/hosts", requireAuth, summaryRouter);

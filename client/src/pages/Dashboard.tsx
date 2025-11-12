@@ -27,6 +27,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { X, List, Layers } from "lucide-react";
 import type { NormalizedStats } from "@shared/monitoring";
+import { ensureArray } from "@/lib/utils";
 
 const HOST_STORAGE_KEY = "cy.selectedHost";
 const FILTERS_STORAGE_KEY = "cy.containerFilters";
@@ -74,7 +75,7 @@ export default function Dashboard() {
     queryKey: ["/api/hosts"],
   });
 
-  const hosts = useMemo(() => hostsData ?? [], [hostsData]);
+  const hosts = useMemo(() => ensureArray<HostSummary>(hostsData), [hostsData]);
 
   useEffect(() => {
     if (!hosts.length) {
@@ -125,7 +126,7 @@ export default function Dashboard() {
     enabled: Boolean(containersQueryKey),
   });
 
-  const containers = useMemo(() => containersData ?? [], [containersData]);
+  const containers = useMemo(() => ensureArray<ContainerSummary>(containersData), [containersData]);
 
   useEffect(() => {
     if (!containers.length) {

@@ -55,7 +55,7 @@ export function StatsPanel({ host, detail, statsHistory }: StatsPanelProps) {
             <div className="flex flex-wrap gap-2 items-center">
               <Badge variant="secondary">{detail.provider}</Badge>
               <Badge variant={detail.state === "running" ? "default" : "secondary"}>
-                {detail.state.toUpperCase()}
+                {detail.state?.toUpperCase() || 'UNKNOWN'}
               </Badge>
               <span className="text-xs text-muted-foreground">
                 Started {detail.createdAt ? formatDistanceToNow(new Date(detail.createdAt), { addSuffix: true }) : "unknown"}
@@ -99,7 +99,7 @@ export function StatsPanel({ host, detail, statsHistory }: StatsPanelProps) {
                         {port.privatePort}
                         {port.publicPort ? ` → ${port.publicPort}` : ""}
                       </div>
-                      <div className="text-muted-foreground text-xs">{port.protocol.toUpperCase()}</div>
+                      <div className="text-muted-foreground text-xs">{port.protocol?.toUpperCase() || 'TCP'}</div>
                     </div>
                   ))}
                   {detail.ports.length === 0 ? (

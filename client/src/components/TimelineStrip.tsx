@@ -254,7 +254,7 @@ export function TimelineStrip({ stats, events = [], onSpikeClick }: TimelineStri
                   transform: 'translate(-50%, -50%)',
                 }}
                 onClick={() => onSpikeClick(spike.ts, spike.metric)}
-                title={`${spike.metric.toUpperCase()} spike: ${spike.value.toFixed(1)}${spike.metric === 'net' ? ' KB/s' : '%'}\nClick to view logs`}
+                title={`${spike.metric?.toUpperCase() || 'METRIC'} spike: ${spike.value.toFixed(1)}${spike.metric === 'net' ? ' KB/s' : '%'}\nClick to view logs`}
                 data-testid={`spike-${spike.metric}-${spike.idx}`}
               >
                 <div 

@@ -271,7 +271,7 @@ export function LogTail({
                 )}
                 {log.level && (
                   <Badge variant="outline" className={`shrink-0 h-5 text-xs ${getLevelClass(log.level)}`}>
-                    {log.level.substring(0, 3).toUpperCase()}
+                    {log.level?.substring(0, 3).toUpperCase() || 'LOG'}
                   </Badge>
                 )}
                 <div className={`flex-1 ${getLevelClass(log.level)}`}>

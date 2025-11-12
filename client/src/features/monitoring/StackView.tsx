@@ -305,7 +305,7 @@ export function StackView({
     return null;
   }
 
-  const { stacks, standaloneContainers } = data;
+  const { stacks = [], standaloneContainers = [] } = data;
 
   return (
     <div className="space-y-4">

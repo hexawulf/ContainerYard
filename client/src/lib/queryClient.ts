@@ -61,6 +61,10 @@ export async function apiRequest(
     skipCsrf?: boolean;
   },
 ): Promise<Response> {
+  // Defensive programming: ensure method is defined
+  if (!method || typeof method !== 'string') {
+    throw new Error('apiRequest: method parameter is required and must be a string');
+  }
   const upperMethod = method.toUpperCase();
   const headers: Record<string, string> = {
     ...(options?.headers ?? {}),

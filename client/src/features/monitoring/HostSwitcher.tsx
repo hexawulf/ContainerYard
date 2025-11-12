@@ -28,7 +28,7 @@ export function HostSwitcher({ hosts, selectedHostId, onChange, isLoading }: Hos
           <SelectValue placeholder={isLoading ? "Loading hosts…" : "Select host"} />
         </SelectTrigger>
         <SelectContent>
-          {hosts.map((host) => (
+           {Array.isArray(hosts) && hosts.map((host) => (
             <SelectItem key={host.id} value={host.id}>
               {host.name} ({host.nodeLabel})
             </SelectItem>
