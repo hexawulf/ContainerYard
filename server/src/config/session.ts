@@ -2,7 +2,7 @@ import session from "express-session";
 import RedisStore from "connect-redis";
 import Redis from "ioredis";
 import type { RequestHandler } from "express";
-import { env, isProduction } from "./env";
+import { env } from "./env";
 import { log } from "../../vite";
 
 export const redisClient = new Redis(env.REDIS_URL, {

@@ -2,7 +2,7 @@ import { Router, type Request, type Response, type NextFunction } from "express"
 import bcrypt from "bcrypt";
 import { ZodError } from "zod";
 import { prisma } from "../db/client";
-import { env, isProduction } from "../config/env";
+import { env } from "../config/env";
 import { loginRateLimiter, requireAuth } from "../middleware/auth";
 import { loginSchema } from "../types/zod";
 
