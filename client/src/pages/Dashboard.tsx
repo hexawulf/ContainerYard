@@ -443,6 +443,7 @@ export default function Dashboard() {
               <div className="p-4">
                 <StackView
                   hostId={selectedHostId}
+                  host={hosts.find(h => h.id === selectedHostId) || null}
                   onContainerSelect={setSelectedContainerId}
                   onLogsClick={setLogsContainerId}
                   onInspectClick={setInspectContainerId}

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -18,7 +18,7 @@ import {
   Layers,
   Logs
 } from "lucide-react";
-import type { ContainerSummary } from "@shared/monitoring";
+import type { ContainerSummary, HostSummary } from "@shared/monitoring";
 import {
   Collapsible,
   CollapsibleContent,
@@ -44,6 +44,7 @@ interface StacksResponse {
 
 interface StackViewProps {
   hostId: string;
+  host: HostSummary | null;
   onContainerSelect: (containerId: string) => void;
   onLogsClick: (containerId: string) => void;
   onInspectClick: (containerId: string) => void;
@@ -120,6 +121,7 @@ function ContainerRow({
 function StackCard({
   stack,
   hostId,
+  host,
   onContainerSelect,
   onLogsClick,
   onInspectClick,
@@ -127,6 +129,7 @@ function StackCard({
 }: {
   stack: StackSummary;
   hostId: string;
+  host: HostSummary | null;
   onContainerSelect: (containerId: string) => void;
   onLogsClick: (containerId: string) => void;
   onInspectClick: (containerId: string) => void;
@@ -209,7 +212,7 @@ function StackCard({
                 size="sm" 
                 title="Start all"
                 onClick={() => handleBulkAction("start")}
-                disabled={bulkActionMutation.isPending}
+                disabled={bulkActionMutation.isPending || host?.provider === "CADVISOR_ONLY"}
               >
                 <Play className="h-4 w-4" />
               </Button>
@@ -218,7 +221,7 @@ function StackCard({
                 size="sm" 
                 title="Stop all"
                 onClick={() => handleBulkAction("stop")}
-                disabled={bulkActionMutation.isPending}
+                disabled={bulkActionMutation.isPending || host?.provider === "CADVISOR_ONLY"}
               >
                 <Square className="h-4 w-4" />
               </Button>
@@ -227,7 +230,7 @@ function StackCard({
                 size="sm" 
                 title="Restart all"
                 onClick={() => handleBulkAction("restart")}
-                disabled={bulkActionMutation.isPending}
+                disabled={bulkActionMutation.isPending || host?.provider === "CADVISOR_ONLY"}
               >
                 <RotateCw className="h-4 w-4" />
               </Button>
@@ -266,6 +269,7 @@ function StackCard({
 
 export function StackView({
   hostId,
+  host,
   onContainerSelect,
   onLogsClick,
   onInspectClick,
@@ -310,6 +314,7 @@ export function StackView({
           key={stack.name}
           stack={stack}
           hostId={hostId}
+          host={host}
           onContainerSelect={onContainerSelect}
           onLogsClick={onLogsClick}
           onInspectClick={onInspectClick}

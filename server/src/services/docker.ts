@@ -1,5 +1,6 @@
 import Docker from "dockerode";
 import { getDockerSocketPath } from "../config/hosts";
+import type { HostConfig } from "../config/hosts";
 import { parseContainerInstant } from "../lib/parseDockerStats";
 import type { ContainerAction } from "@shared/schema";
 import type {
@@ -12,9 +13,11 @@ import type {
   NormalizedPort,
 } from "../models/containers";
 
+export function dockerClient(socketPath: string) { return new Docker({ socketPath }); }
+
 const docker = new Docker({ socketPath: getDockerSocketPath() });
 
-function normalizePorts(ports: Docker.PortInfo[] | undefined): NormalizedPort[] {
+function normalizePorts(ports: any[] | undefined): NormalizedPort[] {
   if (!ports) return [];
   return ports.map((port) => ({
     ip: port.IP ?? null,
@@ -58,7 +61,7 @@ function normalizeEnv(env?: string[] | null): ContainerEnvVar[] {
     .filter((entry) => entry.key);
 }
 
-function normalizeMounts(mounts: Docker.MountInspectInfo[] | undefined): ContainerMount[] {
+function normalizeMounts(mounts: any[] | undefined): ContainerMount[] {
   if (!mounts) return [];
   return mounts.map((mount) => ({
     source: mount.Source,
@@ -68,7 +71,7 @@ function normalizeMounts(mounts: Docker.MountInspectInfo[] | undefined): Contain
   }));
 }
 
-function toContainerSummary(info: Docker.ContainerInfo, host: HostConfig): ContainerSummary {
+function toContainerSummary(info: any, host: HostConfig): ContainerSummary {
   const labels = info.Labels ?? {};
   return {
     id: info.Id,
@@ -89,7 +92,7 @@ function toContainerSummary(info: Docker.ContainerInfo, host: HostConfig): Conta
 
 export async function listContainers(host: HostConfig): Promise<ContainerSummary[]> {
   const containers = await docker.listContainers({ all: true });
-  return containers.map((container) => toContainerSummary(container, host));
+  return containers.map((container: any) => toContainerSummary(container, host));
 }
 
 export async function getContainerDetail(host: HostConfig, containerId: string): Promise<ContainerDetail> {
@@ -98,9 +101,9 @@ export async function getContainerDetail(host: HostConfig, containerId: string):
     const inspect = await container.inspect();
 
     const ports: NormalizedPort[] = inspect.NetworkSettings?.Ports
-      ? Object.entries(inspect.NetworkSettings.Ports).flatMap(([containerPort, bindings]) => {
+      ? Object.entries(inspect.NetworkSettings.Ports as any).flatMap(([containerPort, bindings]) => {
           const [privatePort, protocol] = containerPort.split("/");
-          if (!bindings || bindings.length === 0) {
+          if (!bindings || (bindings as any[]).length === 0) {
             return [
               {
                 ip: null,
@@ -110,7 +113,7 @@ export async function getContainerDetail(host: HostConfig, containerId: string):
               },
             ];
           }
-          return bindings.map((binding) => ({
+          return (bindings as any[]).map((binding) => ({
             ip: binding.HostIp ?? null,
             privatePort: Number(privatePort),
             publicPort: binding.HostPort ? Number(binding.HostPort) : null,
@@ -381,4 +384,23 @@ export async function performAction(host: HostConfig, containerId: string, actio
     }
     throw error;
   }
+}
+
+export async function dockerHostSummary(socketPath: string) {
+  const d = dockerClient(socketPath);
+  const infos = await d.listContainers({ all:false });
+  const stats = await Promise.all(infos.map(async (i: any) => {
+    const c = d.getContainer(i.Id);
+    const s: any = await c.stats({ stream:false });
+    const cpuDelta = s.cpu_stats.cpu_usage.total_usage - s.precpu_stats.cpu_usage.total_usage;
+    const sysDelta = s.cpu_stats.system_cpu_usage - s.precpu_stats.system_cpu_usage;
+    const cpuPct = sysDelta > 0 ? (cpuDelta / sysDelta) * (s.cpu_stats.online_cpus||1) * 100 : 0;
+    const memBytes = s.memory_stats?.usage || 0;
+    return { name:i.Names?.[0]?.replace(/^\//,''), id:i.Id, state:i.State, cpuPct, memBytes };
+  }));
+  const topCpu = stats.slice().sort((a,b)=>(b.cpuPct||0)-(a.cpuPct||0)).slice(0,5);
+  const topMem = stats.slice().sort((a,b)=>(b.memBytes||0)-(a.memBytes||0)).slice(0,5);
+  const memUsed = stats.reduce((a,b)=>a+(b.memBytes||0),0);
+  const totalCpu = stats.reduce((a,b)=>a+(b.cpuPct||0),0);
+  return { totalCpu, memUsed, topCpu, topMem, containers: stats.length };
 }

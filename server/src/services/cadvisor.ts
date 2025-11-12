@@ -193,3 +193,55 @@ export function getCadvisorService(host: HostConfig): CadvisorService {
 
   return cadvisorServiceCache.get(host.cadvisorUrl)!;
 }
+
+export type CadStat = {
+  name: string;
+  id: string;
+  image?: string;
+  state?: string;
+  cpuPct?: number;
+  memBytes?: number;
+  memLimitBytes?: number;
+};
+
+function cpuPctFromSamples(prev: any, curr: any): number {
+  // Uses cumulative cpu usage & timestamp ns; clamp to [0, 1000%] for multi-core
+  if (!prev || !curr) return 0;
+  const du = curr.cpu.usage.total - prev.cpu.usage.total;
+  const dt = (curr.timestamp - prev.timestamp) || 1;
+  const pct = (du / dt) * 100; // cAdvisor normalizes to 1 core
+  return Math.max(0, Math.min(pct, 1000));
+}
+
+export async function listContainers(baseUrl: string): Promise<CadStat[]> {
+  const response = await fetch(`${baseUrl}/api/v1.3/subcontainers`);
+  if (!response.ok) throw new Error(`cAdvisor ${baseUrl} ${response.status}`);
+  const data = await response.json() as CadvisorContainer[];
+  const out: CadStat[] = [];
+  for (const c of data) {
+    if (!c.spec || !c.aliases) continue;
+    const name = (c.aliases[0] || c.name || "").replace(/^\/docker\//, "");
+    const id = extractContainerId(c.name);
+    const last = c.stats?.[c.stats.length - 1];
+    const prev = c.stats?.[c.stats.length - 2];
+    const mem = last?.memory?.working_set ?? last?.memory?.usage ?? 0;
+    const lim = c.spec?.memory?.limit ?? 0;
+    out.push({
+      name, id, image: c.spec?.image,
+      state: "running",
+      cpuPct: cpuPctFromSamples(prev, last),
+      memBytes: mem,
+      memLimitBytes: lim
+    });
+  }
+  return out;
+}
+
+export async function hostSummary(baseUrl: string) {
+  const arr = await listContainers(baseUrl);
+  const totalCpu = arr.reduce((a,b)=>a+(b.cpuPct||0),0);
+  const topCpu = arr.slice().sort((a,b)=>(b.cpuPct||0)-(a.cpuPct||0)).slice(0,5);
+  const topMem = arr.slice().sort((a,b)=>(b.memBytes||0)-(a.memBytes||0)).slice(0,5);
+  const memUsed = arr.reduce((a,b)=>a+(b.memBytes||0),0);
+  return { totalCpu, memUsed, topCpu, topMem, containers: arr.length };
+}

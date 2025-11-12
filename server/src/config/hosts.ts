@@ -9,29 +9,34 @@ export interface HostConfig extends HostSummary {
   nodeLabel: string;
   dozzleUrl?: string | null;
   cadvisorUrl?: string;
+  docker?: { socketPath: string };
+  cadvisor?: { baseUrl: string };
 }
 
 const hostDefinitions: Record<HostId, HostConfig> = {
   piapps: {
     id: "piapps",
-    name: "Pi Apps",
+    name: "Pi Apps (piapps)",
     provider: "DOCKER",
     nodeLabel: "piapps",
+    docker: { socketPath: "/var/run/docker.sock" }
   },
   piapps2: {
     id: "piapps2",
-    name: "Pi Apps 2",
+    name: "Pi Apps 2 (piapps2)",
     provider: "CADVISOR_ONLY",
     nodeLabel: "piapps2",
     cadvisorUrl: env.PIAPPS2_CADVISOR_URL,
+    cadvisor: { baseUrl: env.PIAPPS2_CADVISOR_URL! }
   },
   synology: {
     id: "synology",
-    name: "Synology",
+    name: "Synology (synology)",
     provider: "CADVISOR_ONLY",
     nodeLabel: "synology",
     dozzleUrl: env.SYNOLOGY_DOZZLE_URL ?? null,
     cadvisorUrl: env.SYNOLOGY_CADVISOR_URL,
+    cadvisor: { baseUrl: env.SYNOLOGY_CADVISOR_URL! }
   },
 };
 

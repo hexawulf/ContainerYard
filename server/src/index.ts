@@ -15,6 +15,7 @@ import { logDownloadRouter } from "./routes/logDownload";
 import { stacksRouter } from "./routes/stacks";
 import { alertsRouter } from "./routes/alerts";
 import { metricsRouter } from "./routes/metrics";
+import summaryRouter from "./routes/summary";
 import { attachUserToResponse, globalRateLimiter, requireAuth } from "./middleware/auth";
 import { log, setupVite } from "../vite";
 import { registerMetrics } from "./metrics";
@@ -84,6 +85,7 @@ export async function createApp() {
   app.use("/api/hosts", requireAuth, hostsRouter);
   app.use("/api/hosts", requireAuth, stacksRouter);
   app.use("/api/hosts", requireAuth, metricsRouter);
+  app.use("/api/hosts", requireAuth, summaryRouter);
   app.use("/api/hostlogs", requireAuth, hostLogsRouter);
   app.use("/api/logs/download", logDownloadRouter); // has its own requireAdmin middleware
   app.use("/api/alerts", requireAuth, alertsRouter);

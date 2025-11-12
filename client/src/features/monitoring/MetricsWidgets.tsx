@@ -10,6 +10,14 @@ interface MetricsWidgetsProps {
   hostId: string;
 }
 
+function formatBytes(bytes?: number) {
+  if (!bytes || bytes <= 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  const exponent = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+  const value = bytes / Math.pow(1024, exponent);
+  return `${value.toFixed(value >= 10 ? 0 : 1)} ${units[exponent]}`;
+}
+
 interface TopConsumer {
   containerId: string;
   containerName: string;
@@ -91,44 +99,44 @@ function HealthIndicator({ title, value, trend }: { title: string; value: string
   );
 }
 
+interface HostSummaryData {
+  totalCpu: number;
+  memUsed: number;
+  topCpu: Array<{ name: string; cpuPct: number }>;
+  topMem: Array<{ name: string; memBytes: number }>;
+  containers: number;
+}
+
 export function MetricsWidgets({ hostId }: MetricsWidgetsProps) {
-  const { data: topCpuData, isLoading: topCpuLoading } = useQuery<TopConsumer[]>({
-    queryKey: ["/api/hosts", hostId, "metrics", "top-cpu"],
-    queryFn: getQueryFn<TopConsumer[]>({ on401: "throw" }),
+  const { data: summaryData, isLoading: summaryLoading } = useQuery<HostSummaryData>({
+    queryKey: ["/api/hosts", hostId, "summary"],
+    queryFn: getQueryFn<HostSummaryData>({ on401: "throw" }),
     enabled: Boolean(hostId),
+    refetchInterval: 4000,
+    refetchIntervalInBackground: true,
   });
 
-  const { data: topMemoryData, isLoading: topMemoryLoading } = useQuery<TopConsumer[]>({
-    queryKey: ["/api/hosts", hostId, "metrics", "top-memory"],
-    queryFn: getQueryFn<TopConsumer[]>({ on401: "throw" }),
-    enabled: Boolean(hostId),
-  });
-
-  const { data: summaryData, isLoading: summaryLoading } = useQuery<MetricsSummary[]>({
-    queryKey: ["/api/hosts", hostId, "metrics", "summary"],
-    queryFn: getQueryFn<MetricsSummary[]>({ on401: "throw" }),
-    enabled: Boolean(hostId),
-  });
-
-  const overallStats = useMemo(() => {
-    if (!summaryData) return null;
-
-    const totalContainers = summaryData.length;
-    const avgCpu = summaryData.reduce((sum, item) => sum + parseFloat(item.avgCpuPercent), 0) / totalContainers;
-    const avgMemory = summaryData.reduce((sum, item) => sum + parseFloat(item.avgMemoryPercent), 0) / totalContainers;
-    const maxCpu = Math.max(...summaryData.map(item => parseFloat(item.maxCpuPercent)));
-    const maxMemory = Math.max(...summaryData.map(item => parseFloat(item.maxMemoryPercent)));
-
-    return {
-      totalContainers,
-      avgCpu: avgCpu.toFixed(1),
-      avgMemory: avgMemory.toFixed(1),
-      maxCpu: maxCpu.toFixed(1),
-      maxMemory: maxMemory.toFixed(1),
-    };
+  const topCpuData = useMemo(() => {
+    if (!summaryData?.topCpu) return [];
+    return summaryData.topCpu.map((item, index) => ({
+      containerId: `cpu-${index}`,
+      containerName: item.name,
+      avgCpuPercent: item.cpuPct.toFixed(1),
+      avgMemoryPercent: "0",
+    }));
   }, [summaryData]);
 
-  if (topCpuLoading || topMemoryLoading || summaryLoading) {
+  const topMemoryData = useMemo(() => {
+    if (!summaryData?.topMem) return [];
+    return summaryData.topMem.map((item, index) => ({
+      containerId: `mem-${index}`,
+      containerName: item.name,
+      avgCpuPercent: "0",
+      avgMemoryPercent: (item.memBytes / 1024 / 1024).toFixed(1), // Convert to MB for display
+    }));
+  }, [summaryData]);
+
+  if (summaryLoading) {
     return (
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {[...Array(3)].map((_, i) => (
@@ -157,30 +165,30 @@ export function MetricsWidgets({ hostId }: MetricsWidgetsProps) {
 
       <WidgetCard title="Overall Statistics" icon={Activity}>
         <div className="space-y-3">
-          {overallStats ? (
+          {summaryData ? (
             <>
               <HealthIndicator 
-                title="Average CPU" 
-                value={`${overallStats.avgCpu}%`} 
-                trend={parseFloat(overallStats.avgCpu) > 50 ? "up" : "down"} 
+                title="Total CPU" 
+                value={`${summaryData.totalCpu.toFixed(1)}%`} 
+                trend={summaryData.totalCpu > 50 ? "up" : "down"} 
               />
               <HealthIndicator 
-                title="Average Memory" 
-                value={`${overallStats.avgMemory}%`} 
-                trend={parseFloat(overallStats.avgMemory) > 50 ? "up" : "down"} 
+                title="Memory Used" 
+                value={formatBytes(summaryData.memUsed)} 
+                trend={summaryData.memUsed > 1024 * 1024 * 1024 ? "up" : "down"} 
               />
               <div className="pt-2 border-t">
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Containers</span>
-                  <span className="font-semibold">{overallStats.totalContainers}</span>
+                  <span className="font-semibold">{summaryData.containers}</span>
                 </div>
                 <div className="flex justify-between text-sm mt-1">
-                  <span className="text-muted-foreground">Peak CPU</span>
-                  <span className="font-semibold">{overallStats.maxCpu}%</span>
+                  <span className="text-muted-foreground">Top CPU</span>
+                  <span className="font-semibold">{summaryData.topCpu?.[0]?.cpuPct.toFixed(1) ?? 0}%</span>
                 </div>
                 <div className="flex justify-between text-sm mt-1">
-                  <span className="text-muted-foreground">Peak Memory</span>
-                  <span className="font-semibold">{overallStats.maxMemory}%</span>
+                  <span className="text-muted-foreground">Top Memory</span>
+                  <span className="font-semibold">{formatBytes(summaryData.topMem?.[0]?.memBytes ?? 0)}</span>
                 </div>
               </div>
             </>
