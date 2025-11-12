@@ -394,13 +394,16 @@ export async function dockerHostSummary(socketPath: string) {
     const s: any = await c.stats({ stream:false });
     const cpuDelta = s.cpu_stats.cpu_usage.total_usage - s.precpu_stats.cpu_usage.total_usage;
     const sysDelta = s.cpu_stats.system_cpu_usage - s.precpu_stats.system_cpu_usage;
-    const cpuPct = sysDelta > 0 ? (cpuDelta / sysDelta) * (s.cpu_stats.online_cpus||1) * 100 : 0;
+    const online = s.cpu_stats.online_cpus || (s.cpu_stats.cpu_usage?.percpu_usage?.length || 1);
+    const cpuPct = (sysDelta > 0 && online > 0) ? (cpuDelta / sysDelta) * online * 100 : 0;
     const memBytes = s.memory_stats?.usage || 0;
-    return { name:i.Names?.[0]?.replace(/^\//,''), id:i.Id, state:i.State, cpuPct, memBytes };
+    const memLimit = s.memory_stats?.limit || 0;
+    return { name:i.Names?.[0]?.replace(/^\//,''), id:i.Id, state:i.State, cpuPct, memBytes, memLimit };
   }));
+
   const topCpu = stats.slice().sort((a,b)=>(b.cpuPct||0)-(a.cpuPct||0)).slice(0,5);
   const topMem = stats.slice().sort((a,b)=>(b.memBytes||0)-(a.memBytes||0)).slice(0,5);
   const memUsed = stats.reduce((a,b)=>a+(b.memBytes||0),0);
-  const totalCpu = stats.reduce((a,b)=>a+(b.cpuPct||0),0);
-  return { totalCpu, memUsed, topCpu, topMem, containers: stats.length };
+  const avgCpu = stats.length ? stats.reduce((a,b)=>a+(b.cpuPct||0),0) / stats.length : 0;
+  return { totalCpu: avgCpu, memUsed, topCpu, topMem, containers: stats.length };
 }

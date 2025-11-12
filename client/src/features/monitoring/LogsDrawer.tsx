@@ -48,14 +48,15 @@ export function LogsDrawer({
   const scrollRef = useRef<HTMLDivElement>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
 
-  const { data, isLoading, error, refetch } = useQuery<ContainerLogsResponse | DozzleLinkResponse>({
+  const { data, isLoading, error, refetch } = useQuery<string>({
     queryKey: ["/api/hosts", hostId, "containers", containerId, "logs", { tail, since, grep, stdout, stderr }],
     queryFn: async () => {
       const params = new URLSearchParams({
         tail,
-        since,
+        since: since === "0" ? "" : `${since}s`,
         stdout: String(stdout),
         stderr: String(stderr),
+        follow: "false",
       });
       if (grep) params.set("grep", grep);
 
@@ -64,10 +65,15 @@ export function LogsDrawer({
       });
 
       if (!res.ok) {
-        throw new Error(`Failed to fetch logs: ${res.statusText}`);
+        const errorData = await res.json().catch(() => ({ error: "unknown_error", message: res.statusText }));
+        if (errorData.error === "logs_unsupported" && errorData.dozzleUrl) {
+          // Return special marker for unsupported logs
+          return `__DOZZLE_LINK__${errorData.dozzleUrl}`;
+        }
+        throw new Error(errorData.message || `Failed to fetch logs: ${res.statusText}`);
       }
 
-      return res.json();
+      return res.text();
     },
     enabled: open && !isLive,
     refetchOnWindowFocus: false,
@@ -98,7 +104,7 @@ export function LogsDrawer({
     });
     if (grep) params.set("grep", grep);
 
-    const url = `${API_BASE}/hosts/${hostId}/containers/${containerId}/logs/stream?${params}`;
+    const url = `${API_BASE}/hosts/${hostId}/containers/${containerId}/logs?${params}&follow=true`;
     const es = new EventSource(url, { withCredentials: true });
 
     es.addEventListener("line", (event) => {
@@ -181,14 +187,15 @@ export function LogsDrawer({
       return <div className="text-sm text-muted-foreground p-4">No logs available</div>;
     }
 
-    if ("link" in data) {
+    if (data.startsWith("__DOZZLE_LINK__")) {
+      const dozzleUrl = data.replace("__DOZZLE_LINK__", "");
       return (
         <div className="p-4 space-y-3">
           <p className="text-sm text-muted-foreground">
             Logs are not directly accessible for this container. Use Dozzle to view logs.
           </p>
           <Button variant="outline" size="sm" asChild>
-            <a href={data.link} target="_blank" rel="noopener noreferrer">
+            <a href={dozzleUrl} target="_blank" rel="noopener noreferrer">
               <ExternalLink className="mr-2 h-4 w-4" />
               Open in Dozzle
             </a>
@@ -197,7 +204,7 @@ export function LogsDrawer({
       );
     }
 
-    const displayContent = isLive ? liveLines.join("\n") : data.content;
+    const displayContent = isLive ? liveLines.join("\n") : data;
 
     return (
       <ScrollArea className="h-[600px] w-full" ref={scrollRef}>
@@ -309,18 +316,18 @@ export function LogsDrawer({
                    Refresh
                  </Button>
                )}
-               {data && "content" in data && (
-                 <Button size="sm" variant="outline" onClick={handleDownload}>
-                   <Download className="h-4 w-4 mr-1" />
-                   Download
-                 </Button>
-               )}
+                {data && !data.startsWith("__DOZZLE_LINK__") && (
+                  <Button size="sm" variant="outline" onClick={handleDownload}>
+                    <Download className="h-4 w-4 mr-1" />
+                    Download
+                  </Button>
+                )}
              </div>
            </div>
 
-          {data && "truncated" in data && data.truncated && (
-            <Badge variant="destructive">Truncated at 5000 lines</Badge>
-          )}
+           {data && data.length > 5000 && (
+             <Badge variant="destructive">Truncated at 5000 lines</Badge>
+           )}
 
            <div className="border rounded-lg overflow-hidden bg-muted/20">
              {renderContent()}

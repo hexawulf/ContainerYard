@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Copy, Check } from "lucide-react";
 import type { ContainerDetail } from "@shared/monitoring";
 
@@ -31,12 +32,24 @@ export function InspectModal({ open, onOpenChange, container }: InspectModalProp
 
   if (!container) return null;
 
+  // Handle different response formats from inspect API
+  const inspectData = container as any;
+  const isCadvisorOnly = inspectData.provider === "CADVISOR_ONLY";
+  const displayData = isCadvisorOnly && inspectData.spec ? inspectData.spec : inspectData;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[80vh]">
         <DialogHeader>
           <DialogTitle>Inspect Container</DialogTitle>
-          <DialogDescription>{container.name}</DialogDescription>
+          <DialogDescription>
+            {container.name}
+            {isCadvisorOnly && (
+              <Badge variant="secondary" className="ml-2">
+                CADVISOR_ONLY (limited data)
+              </Badge>
+            )}
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3">
@@ -58,7 +71,7 @@ export function InspectModal({ open, onOpenChange, container }: InspectModalProp
 
           <ScrollArea className="h-[500px] w-full rounded-md border">
             <pre className="text-xs font-mono p-4">
-              {JSON.stringify(container, null, 2)}
+              {JSON.stringify(displayData, null, 2)}
             </pre>
           </ScrollArea>
         </div>

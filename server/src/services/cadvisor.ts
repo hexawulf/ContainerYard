@@ -47,10 +47,17 @@ function extractContainerId(name: string): string {
 }
 
 function computeName(container: CadvisorContainer): string {
-  if (container.aliases && container.aliases.length > 0) {
-    return container.aliases[0];
+  // Try aliases first, then name, then fall back to the raw name
+  const name = (container.aliases?.[0] || container.name || "")
+    .replace(/^\/?docker\//, "")
+    .replace(/^\//, "");
+  
+  // If still empty, extract from the raw container name
+  if (!name) {
+    return extractContainerId(container.name);
   }
-  return extractContainerId(container.name);
+  
+  return name;
 }
 
 function computeStats(host: HostConfig, containerId: string, container: CadvisorContainer): ContainerStats {
@@ -151,9 +158,29 @@ class CadvisorService {
 
   async listContainers(host: HostConfig): Promise<ContainerSummary[]> {
     const containers = await this.fetchJson<CadvisorContainer[]>(`/api/v1.3/subcontainers`);
-    return containers
-      .filter((container) => container.name.includes("docker"))
-      .map((container) => toSummary(host, container));
+    
+    // Log debug info if no containers found
+    if (containers.length === 0) {
+      console.warn("cadvisor zero-length payload", { host: host.id, url: this.baseUrl });
+    }
+    
+    const dockerContainers = containers.filter((container) => {
+      // Accept containers with docker in path or aliases
+      const hasDockerPath = container.name.includes("docker");
+      const hasAliases = container.aliases && container.aliases.length > 0;
+      return hasDockerPath || hasAliases;
+    });
+    
+    // Log debug info if filtering removes all containers
+    if (dockerContainers.length === 0 && containers.length > 0) {
+      console.warn("cadvisor filtering removed all containers", { 
+        host: host.id, 
+        total: containers.length, 
+        sample: containers.slice(0, 2).map(c => ({ name: c.name, aliases: c.aliases }))
+      });
+    }
+    
+    return dockerContainers.map((container) => toSummary(host, container));
   }
 
   async getContainer(host: HostConfig, containerId: string): Promise<ContainerDetail> {
@@ -204,44 +231,73 @@ export type CadStat = {
   memLimitBytes?: number;
 };
 
-function cpuPctFromSamples(prev: any, curr: any): number {
-  // Uses cumulative cpu usage & timestamp ns; clamp to [0, 1000%] for multi-core
+function cpuPctFromSamples(prev: any, curr: any, onlineCpus = 1): number {
   if (!prev || !curr) return 0;
-  const du = curr.cpu.usage.total - prev.cpu.usage.total;
-  const dt = (curr.timestamp - prev.timestamp) || 1;
-  const pct = (du / dt) * 100; // cAdvisor normalizes to 1 core
-  return Math.max(0, Math.min(pct, 1000));
+  const du = curr.cpu?.usage?.total || 0;
+  const duPrev = prev.cpu?.usage?.total || 0;
+  const dt = (new Date(curr.timestamp).getTime() - new Date(prev.timestamp).getTime()) / 1000;
+  if (dt <= 0) return 0;
+  const deltaUsage = du - duPrev; // ns
+  const pct = (deltaUsage / (dt * 1e9)) * 100;
+  return Math.max(0, Math.min(pct, 100 * onlineCpus));
 }
 
 export async function listContainers(baseUrl: string): Promise<CadStat[]> {
   const response = await fetch(`${baseUrl}/api/v1.3/subcontainers`);
   if (!response.ok) throw new Error(`cAdvisor ${baseUrl} ${response.status}`);
   const data = await response.json() as CadvisorContainer[];
+  
+  // Log debug info if no containers found
+  if (data.length === 0) {
+    console.warn("cadvisor zero-length payload", { baseUrl, sample: data?.slice?.(0,2) });
+  }
+  
   const out: CadStat[] = [];
   for (const c of data) {
-    if (!c.spec || !c.aliases) continue;
-    const name = (c.aliases[0] || c.name || "").replace(/^\/docker\//, "");
+    // More lenient filtering - accept containers with docker in path or aliases
+    const hasDockerPath = c.name.includes("docker");
+    const hasAliases = c.aliases && c.aliases.length > 0;
+    
+    if (!hasDockerPath && !hasAliases) continue;
+    
+    // Improved name extraction
+    const name = (c.aliases?.[0] || c.name || "")
+      .replace(/^\/?docker\//, "")
+      .replace(/^\//, "");
+    
     const id = extractContainerId(c.name);
     const last = c.stats?.[c.stats.length - 1];
     const prev = c.stats?.[c.stats.length - 2];
+    const online = last?.cpu?.usage?.per_cpu_usage?.length || 1;
     const mem = last?.memory?.working_set ?? last?.memory?.usage ?? 0;
     const lim = c.spec?.memory?.limit ?? 0;
+    
     out.push({
       name, id, image: c.spec?.image,
       state: "running",
-      cpuPct: cpuPctFromSamples(prev, last),
+      cpuPct: cpuPctFromSamples(prev, last, online),
       memBytes: mem,
       memLimitBytes: lim
     });
   }
+  
+  // Log debug info if filtering removes all containers
+  if (out.length === 0 && data.length > 0) {
+    console.warn("cadvisor filtering removed all containers", { 
+      baseUrl, 
+      total: data.length, 
+      sample: data.slice(0, 2).map(c => ({ name: c.name, aliases: c.aliases, hasSpec: !!c.spec }))
+    });
+  }
+  
   return out;
 }
 
 export async function hostSummary(baseUrl: string) {
   const arr = await listContainers(baseUrl);
-  const totalCpu = arr.reduce((a,b)=>a+(b.cpuPct||0),0);
+  const memUsed = arr.reduce((a,b)=>a+(b.memBytes||0),0);
+  const avgCpu = arr.length ? arr.reduce((a,b)=>a+(b.cpuPct||0),0)/arr.length : 0;
   const topCpu = arr.slice().sort((a,b)=>(b.cpuPct||0)-(a.cpuPct||0)).slice(0,5);
   const topMem = arr.slice().sort((a,b)=>(b.memBytes||0)-(a.memBytes||0)).slice(0,5);
-  const memUsed = arr.reduce((a,b)=>a+(b.memBytes||0),0);
-  return { totalCpu, memUsed, topCpu, topMem, containers: arr.length };
+  return { totalCpu: avgCpu, memUsed, topCpu, topMem, containers: arr.length };
 }
