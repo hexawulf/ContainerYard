@@ -66,7 +66,19 @@ export async function createApp() {
 
   app.use(sessionMiddleware);
 
-  const csrfProtection = csurf({ cookie: false });
+  // CSRF protection using double-submit cookie strategy
+  // Set ignoreMethods to only protect state-changing operations
+  const csrfProtection = csurf({ 
+    cookie: {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: true,
+      key: "XSRF-TOKEN"
+    },
+    ignoreMethods: ["GET", "HEAD", "OPTIONS"]
+  });
+  
+  // @ts-ignore - csurf type mismatch with express versions
   app.use(csrfProtection);
   app.use(attachUserToResponse);
 

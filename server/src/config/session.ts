@@ -2,7 +2,7 @@ import session from "express-session";
 import RedisStore from "connect-redis";
 import Redis from "ioredis";
 import type { RequestHandler } from "express";
-import { env, isProduction } from "./env";
+import { env } from "./env";
 import { log } from "../../vite";
 
 export const redisClient = new Redis(env.REDIS_URL, {
@@ -28,9 +28,9 @@ export const sessionMiddleware: RequestHandler = session({
   proxy: true,
   cookie: {
     httpOnly: true,
-    sameSite: env.COOKIE_SAMESITE,
-    secure: env.COOKIE_SAMESITE === "none" ? true : isProduction,
+    sameSite: "lax",
+    secure: true, // TLS at Nginx
     domain: env.COOKIE_DOMAIN ?? undefined,
-    maxAge: 1000 * 60 * 60 * 8,
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   },
 });

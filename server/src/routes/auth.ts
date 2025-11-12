@@ -2,7 +2,7 @@ import { Router, type Request, type Response, type NextFunction } from "express"
 import bcrypt from "bcrypt";
 import { ZodError } from "zod";
 import { prisma } from "../db/client";
-import { env, isProduction } from "../config/env";
+import { env } from "../config/env";
 import { loginRateLimiter, requireAuth } from "../middleware/auth";
 import { loginSchema } from "../types/zod";
 
@@ -78,17 +78,25 @@ router.get("/me", (req, res) => {
   return res.json({ user: req.session.user });
 });
 
-router.get("/csrf", (req, res) => {
-  const token = req.csrfToken();
-  res.cookie(`${env.COOKIE_NAME}.csrf`, token, {
-    httpOnly: false,
-    sameSite: "lax",
-    secure: isProduction,
-    domain: env.COOKIE_DOMAIN,
-    path: "/",
-    maxAge: 60 * 60 * 1000,
-  });
-  return res.json({ token });
+router.get("/csrf", (req, res, next) => {
+  try {
+    // Generate CSRF token - csurf middleware should have set req.csrfToken()
+    const token = req.csrfToken?.() ?? "";
+    
+    // Set as a cookie that client JS can read (for double-submit pattern)
+    res.cookie(`${env.COOKIE_NAME}.csrf`, token, {
+      httpOnly: false, // Client needs to read this
+      sameSite: "lax",
+      secure: true, // TLS only
+      domain: env.COOKIE_DOMAIN,
+      path: "/",
+      maxAge: 60 * 60 * 1000, // 1 hour
+    });
+    
+    return res.json({ token });
+  } catch (error) {
+    return next(error);
+  }
 });
 
 export { router as authRouter };

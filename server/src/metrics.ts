@@ -6,8 +6,14 @@ let initialized = false;
 
 export function registerMetrics(app: Application) {
   if (!initialized) {
-    collectDefaultMetrics();
-    initialized = true;
+    try {
+      collectDefaultMetrics();
+      initialized = true;
+    } catch (err) {
+      console.warn('Failed to initialize Prometheus default metrics:', (err as Error).message);
+      console.warn('Metrics collection disabled. This may happen on some Node versions or platforms.');
+      initialized = true; // Prevent retries
+    }
   }
 
   app.get("/metrics", async (req: Request, res: Response) => {
