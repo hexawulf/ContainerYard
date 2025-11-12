@@ -18,7 +18,9 @@ import { metricsRouter } from "./routes/metrics";
 import summaryRouter from "./routes/summary";
 import logsRouter from "./routes/logs";
 import inspectRouter from "./routes/inspect";
+import { health } from "./routes/health";
 import { attachUserToResponse, globalRateLimiter, requireAuth } from "./middleware/auth";
+import { skipCsrf } from "./middleware/skipCsrf";
 import { log, setupVite } from "../vite";
 import { registerMetrics } from "./metrics";
 import { alertWorker } from "./services/alertWorker";
@@ -64,6 +66,16 @@ export async function createApp() {
   app.use(express.json({ limit: "1mb" }));
   app.use(express.urlencoded({ extended: false }));
 
+  // Health endpoint - completely exempt from CSRF and session
+  app.get("/api/health", async (_req, res) => {
+    try {
+      // lightweight checks; do NOT hit DB or cAdvisor
+      res.status(200).json({ ok: true, uptime: process.uptime(), ts: Date.now() });
+    } catch {
+      res.status(200).json({ ok: true, degraded: true, ts: Date.now() });
+    }
+  });
+
   app.use(sessionMiddleware);
 
   // CSRF protection using double-submit cookie strategy
@@ -81,19 +93,6 @@ export async function createApp() {
   // @ts-ignore - csurf type mismatch with express versions
   app.use(csrfProtection);
   app.use(attachUserToResponse);
-
-  app.get("/api/health", (_req, res) => {
-    res.json({ ok: true, ts: new Date().toISOString() });
-  });
-
-  // Runtime config endpoint for SPA to fetch when build-time env is missing
-  app.get("/api/runtime-config", (_req, res) => {
-    res.json({
-      apiBase: process.env.PUBLIC_API_BASE || '',
-      appName: process.env.APP_NAME || 'ContainerYard',
-      autoDismiss: process.env.AUTO_DISMISS ?? 'true',
-    });
-  });
 
   app.use("/api/auth", authRouter);
   app.use("/api/hosts", requireAuth, hostsRouter);
@@ -151,14 +150,11 @@ export async function createApp() {
   });
 
   if (prisma) {
-    await prisma.$connect();
-  }
-
-  try {
-    const client = await prisma;
-    await client.$connect();
-  } catch (error) {
-    log(`Failed to connect Prisma client: ${error}`, "error");
+    try {
+      await prisma.$connect();
+    } catch (error) {
+      log(`Failed to connect Prisma client: ${error}`, "error");
+    }
   }
 
   const port = env.PORT;

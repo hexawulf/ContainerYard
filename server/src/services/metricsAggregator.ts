@@ -80,7 +80,12 @@ class MetricsAggregatorService {
             containers = await listDockerContainers(host);
           } else {
             const service = getCadvisorService(host);
-            containers = await service.listContainers(host);
+            if (!service) {
+              console.warn(`cAdvisor service unavailable for host ${host.id}`);
+              containers = [];
+            } else {
+              containers = await service.listContainers(host);
+            }
           }
 
           // Only track running containers
@@ -94,7 +99,12 @@ class MetricsAggregatorService {
                 stats = await getDockerContainerStats(host, container.id);
               } else {
                 const service = getCadvisorService(host);
-                stats = await service.getStats(host, container.id);
+                if (!service) {
+                  console.warn(`cAdvisor service unavailable for host ${host.id}`);
+                  stats = null;
+                } else {
+                  stats = await service.getStats(host, container.id);
+                }
               }
 
               if (stats) {

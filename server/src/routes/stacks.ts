@@ -17,6 +17,9 @@ async function getAllContainersForHost(hostId: string): Promise<ContainerSummary
   }
   
   const service = getCadvisorService(host);
+  if (!service) {
+    throw new Error(`cAdvisor service unavailable for host ${hostId}`);
+  }
   return await service.listContainers(host);
 }
 

@@ -209,16 +209,25 @@ class CadvisorService {
 
 const cadvisorServiceCache = new Map<string, CadvisorService>();
 
-export function getCadvisorService(host: HostConfig): CadvisorService {
-  if (!host.cadvisorUrl) {
-    throw new Error(`Host ${host.id} does not have a configured cAdvisor URL`);
+export function getCadvisorService(host: HostConfig): CadvisorService | null {
+  const cadvisorBase = host.cadvisorUrl?.trim();
+  if (!cadvisorBase) {
+    console.warn(`Host ${host.id} does not have a configured cAdvisor URL`);
+    return null;
   }
 
-  if (!cadvisorServiceCache.has(host.cadvisorUrl)) {
-    cadvisorServiceCache.set(host.cadvisorUrl, new CadvisorService(host.cadvisorUrl));
+  try {
+    new URL(cadvisorBase);
+  } catch {
+    console.warn(`Host ${host.id} has invalid cAdvisor URL: ${cadvisorBase}`);
+    return null;
   }
 
-  return cadvisorServiceCache.get(host.cadvisorUrl)!;
+  if (!cadvisorServiceCache.has(cadvisorBase)) {
+    cadvisorServiceCache.set(cadvisorBase, new CadvisorService(cadvisorBase));
+  }
+
+  return cadvisorServiceCache.get(cadvisorBase)!;
 }
 
 export type CadStat = {

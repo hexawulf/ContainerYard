@@ -56,6 +56,9 @@ router.get("/:hostId/containers", async (req, res, next) => {
     }
 
     const service = getCadvisorService(host);
+    if (!service) {
+      return res.status(503).json({ error: "cAdvisor service unavailable for this host" });
+    }
     const containers = await service.listContainers(host);
     return res.json(containers);
   } catch (error) {
@@ -74,6 +77,9 @@ router.get("/:hostId/containers/:containerId", async (req, res, next) => {
     }
 
     const service = getCadvisorService(host);
+    if (!service) {
+      return res.status(503).json({ error: "cAdvisor service unavailable for this host" });
+    }
     const container = await service.getContainer(host, containerId);
     return res.json(container);
   } catch (error) {
@@ -91,6 +97,9 @@ router.get("/:hostId/containers/:containerId/stats", async (req, res, next) => {
       stats = await getDockerContainerStats(host, containerId);
     } else {
       const service = getCadvisorService(host);
+      if (!service) {
+        return res.status(503).json({ error: "cAdvisor service unavailable for this host" });
+      }
       stats = await service.getStats(host, containerId);
     }
 
