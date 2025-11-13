@@ -18,6 +18,7 @@ import summaryRouter from "./routes/summary";
 import logsRouter from "./routes/logs";
 import inspectRouter from "./routes/inspect";
 import { health } from "./routes/health";
+import { registerRuntimeConfigRoute } from "./routes/runtimeConfig";
 import { attachUserToResponse, globalRateLimiter, requireAuth } from "./middleware/auth";
 import { log, setupVite } from "../vite";
 import { registerMetrics } from "./metrics";
@@ -89,6 +90,9 @@ export async function createApp() {
   app.use("/api/logs/download", logDownloadRouter); // has its own requireAdmin middleware
   app.use("/api/alerts", requireAuth, alertsRouter);
   registerMetrics(app);
+
+  // Runtime config endpoint (public)
+  registerRuntimeConfigRoute(app);
 
   // Hard 404 for any unmatched /api/* routes
   app.all("/api/*", (req, res) => {
