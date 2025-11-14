@@ -46,7 +46,7 @@ export function LogTail({
 
   // Parse all logs once
   const parsedLogs = useMemo(() => {
-    return logs.map(log => parseLogLine(log.raw));
+    return Array.isArray(logs) ? logs.map(log => parseLogLine(log.raw)) : [];
   }, [logs]);
 
   // Get current timestamp from most recent log
@@ -80,7 +80,7 @@ export function LogTail({
 
     // If no search query, return all time-filtered logs
     if (!searchQuery.trim()) {
-      return timeFilteredLogs.map((log) => logs.indexOf(log));
+      return Array.isArray(timeFilteredLogs) ? timeFilteredLogs.map((log) => logs.indexOf(log)) : [];
     }
 
     // Apply query filter on time-filtered logs

@@ -35,7 +35,7 @@ interface ChipProps {
 
 function StatChip({ label, value, data, color, tooltip }: ChipProps) {
   const chartData = useMemo(
-    () => data.map((val, idx) => ({ idx, val })),
+    () => Array.isArray(data) ? data.map((val, idx) => ({ idx, val })) : [],
     [data]
   );
 
@@ -81,12 +81,12 @@ export function StatsChips({ statsHistory, className }: StatsChipsProps) {
   const latestStats = statsHistory[statsHistory.length - 1];
 
   const cpuData = useMemo(
-    () => statsHistory.map((s) => s.cpuPct),
+    () => Array.isArray(statsHistory) ? statsHistory.map((s) => s.cpuPct) : [],
     [statsHistory]
   );
 
   const memData = useMemo(
-    () => statsHistory.map((s) => s.memPct),
+    () => Array.isArray(statsHistory) ? statsHistory.map((s) => s.memPct) : [],
     [statsHistory]
   );
 

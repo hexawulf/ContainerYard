@@ -50,7 +50,7 @@ function WidgetCard({ title, icon: Icon, children }: { title: string; icon: any;
 }
 
 function TopConsumersList({ data, type }: { data: TopConsumer[]; type: "cpu" | "memory" }) {
-  if (!data.length) {
+  if (!Array.isArray(data) || !data.length) {
     return (
       <div className="text-sm text-muted-foreground text-center py-4">
         No data available

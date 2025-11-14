@@ -30,10 +30,10 @@ export function StatsPanel({ host, detail, statsHistory }: StatsPanelProps) {
 
   const cpuData = useMemo(
     () =>
-      statsHistory.map((item, index) => ({
+      Array.isArray(statsHistory) ? statsHistory.map((item, index) => ({
         index,
         cpu: Number(item.cpuPercent.toFixed(2)),
-      })),
+      })) : [],
     [statsHistory],
   );
 
@@ -79,7 +79,7 @@ export function StatsPanel({ host, detail, statsHistory }: StatsPanelProps) {
               <div>
                 <h3 className="text-sm font-semibold">Networks</h3>
                 <div className="space-y-2 mt-2">
-                  {detail.networks.map((network) => (
+                  {Array.isArray(detail?.networks) && detail.networks.map((network) => (
                     <div key={network.name} className="text-sm">
                       <div className="font-medium">{network.name}</div>
                       <div className="text-muted-foreground text-xs">{network.ipAddress || "—"}</div>
@@ -93,7 +93,7 @@ export function StatsPanel({ host, detail, statsHistory }: StatsPanelProps) {
               <div>
                 <h3 className="text-sm font-semibold">Ports</h3>
                 <div className="space-y-2 mt-2">
-                  {detail.ports.map((port, idx) => (
+                  {Array.isArray(detail?.ports) && detail.ports.map((port, idx) => (
                     <div key={`${port.privatePort}-${idx}`} className="text-sm">
                       <div className="font-medium">
                         {port.privatePort}

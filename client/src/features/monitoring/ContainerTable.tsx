@@ -60,14 +60,14 @@ export function ContainerTable({
               </TableCell>
             </TableRow>
           ) : null}
-          {!isLoading && containers.length === 0 ? (
+          {!isLoading && Array.isArray(containers) && containers.length === 0 ? (
             <TableRow>
               <TableCell colSpan={7} className="text-center text-sm text-muted-foreground py-8">
                 No containers detected.
               </TableCell>
             </TableRow>
           ) : null}
-          {containers.map((container) => {
+          {Array.isArray(containers) && containers.map((container) => {
             const stats = statsByContainer[container.id];
             const isSelected = container.id === selectedId;
             const networks = container.networks.length
