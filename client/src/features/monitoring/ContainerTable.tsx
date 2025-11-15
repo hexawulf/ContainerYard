@@ -70,10 +70,10 @@ export function ContainerTable({
           {Array.isArray(containers) && containers.map((container) => {
             const stats = statsByContainer[container.id];
             const isSelected = container.id === selectedId;
-            const networks = container.networks.length
+            const networks = Array.isArray(container.networks) && container.networks.length
               ? container.networks.map((net) => net.name).join(", ")
               : "—";
-            const ports = container.ports.length
+            const ports = Array.isArray(container.ports) && container.ports.length
               ? container.ports
                   .map((port) =>
                     port.publicPort

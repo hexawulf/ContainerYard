@@ -78,7 +78,7 @@ function StatChip({ label, value, data, color, tooltip }: ChipProps) {
 }
 
 export function StatsChips({ statsHistory, className }: StatsChipsProps) {
-  const latestStats = statsHistory[statsHistory.length - 1];
+  const latestStats = Array.isArray(statsHistory) && statsHistory.length > 0 ? statsHistory[statsHistory.length - 1] : null;
 
   const cpuData = useMemo(
     () => Array.isArray(statsHistory) ? statsHistory.map((s) => s.cpuPct) : [],
@@ -92,6 +92,8 @@ export function StatsChips({ statsHistory, className }: StatsChipsProps) {
 
   const netRxData = useMemo(() => {
     const data: number[] = [];
+    if (!Array.isArray(statsHistory) || statsHistory.length < 2) return [0];
+    
     for (let i = 1; i < statsHistory.length; i++) {
       const delta = statsHistory[i].netRx - statsHistory[i - 1].netRx;
       const timeDelta = (new Date(statsHistory[i].ts).getTime() - new Date(statsHistory[i - 1].ts).getTime()) / 1000;
@@ -102,6 +104,8 @@ export function StatsChips({ statsHistory, className }: StatsChipsProps) {
 
   const netTxData = useMemo(() => {
     const data: number[] = [];
+    if (!Array.isArray(statsHistory) || statsHistory.length < 2) return [0];
+    
     for (let i = 1; i < statsHistory.length; i++) {
       const delta = statsHistory[i].netTx - statsHistory[i - 1].netTx;
       const timeDelta = (new Date(statsHistory[i].ts).getTime() - new Date(statsHistory[i - 1].ts).getTime()) / 1000;
@@ -112,6 +116,8 @@ export function StatsChips({ statsHistory, className }: StatsChipsProps) {
 
   const blkReadData = useMemo(() => {
     const data: number[] = [];
+    if (!Array.isArray(statsHistory) || statsHistory.length < 2) return [0];
+    
     for (let i = 1; i < statsHistory.length; i++) {
       const delta = statsHistory[i].blkRead - statsHistory[i - 1].blkRead;
       const timeDelta = (new Date(statsHistory[i].ts).getTime() - new Date(statsHistory[i - 1].ts).getTime()) / 1000;
@@ -122,6 +128,8 @@ export function StatsChips({ statsHistory, className }: StatsChipsProps) {
 
   const blkWriteData = useMemo(() => {
     const data: number[] = [];
+    if (!Array.isArray(statsHistory) || statsHistory.length < 2) return [0];
+    
     for (let i = 1; i < statsHistory.length; i++) {
       const delta = statsHistory[i].blkWrite - statsHistory[i - 1].blkWrite;
       const timeDelta = (new Date(statsHistory[i].ts).getTime() - new Date(statsHistory[i - 1].ts).getTime()) / 1000;
@@ -156,28 +164,28 @@ export function StatsChips({ statsHistory, className }: StatsChipsProps) {
       />
       <StatChip
         label="Net RX"
-        value={formatRate(netRxData[netRxData.length - 1] || 0)}
+        value={formatRate(Array.isArray(netRxData) && netRxData.length > 0 ? netRxData[netRxData.length - 1] : 0)}
         data={netRxData}
         color="hsl(var(--chart-3))"
         tooltip="Network receive rate"
       />
       <StatChip
         label="Net TX"
-        value={formatRate(netTxData[netTxData.length - 1] || 0)}
+        value={formatRate(Array.isArray(netTxData) && netTxData.length > 0 ? netTxData[netTxData.length - 1] : 0)}
         data={netTxData}
         color="hsl(var(--chart-4))"
         tooltip="Network transmit rate"
       />
       <StatChip
         label="Disk Read"
-        value={formatRate(blkReadData[blkReadData.length - 1] || 0)}
+        value={formatRate(Array.isArray(blkReadData) && blkReadData.length > 0 ? blkReadData[blkReadData.length - 1] : 0)}
         data={blkReadData}
         color="hsl(var(--chart-5))"
         tooltip="Block I/O read rate"
       />
       <StatChip
         label="Disk Write"
-        value={formatRate(blkWriteData[blkWriteData.length - 1] || 0)}
+        value={formatRate(Array.isArray(blkWriteData) && blkWriteData.length > 0 ? blkWriteData[blkWriteData.length - 1] : 0)}
         data={blkWriteData}
         color="hsl(var(--chart-1))"
         tooltip="Block I/O write rate"

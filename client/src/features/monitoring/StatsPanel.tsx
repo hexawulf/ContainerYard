@@ -85,7 +85,7 @@ export function StatsPanel({ host, detail, statsHistory }: StatsPanelProps) {
                       <div className="text-muted-foreground text-xs">{network.ipAddress || "—"}</div>
                     </div>
                   ))}
-                  {detail.networks.length === 0 ? (
+                   {Array.isArray(detail.networks) && detail.networks.length === 0 ? (
                     <p className="text-sm text-muted-foreground">No networks</p>
                   ) : null}
                 </div>
@@ -102,7 +102,7 @@ export function StatsPanel({ host, detail, statsHistory }: StatsPanelProps) {
                       <div className="text-muted-foreground text-xs">{port.protocol?.toUpperCase() || 'TCP'}</div>
                     </div>
                   ))}
-                  {detail.ports.length === 0 ? (
+                   {Array.isArray(detail.ports) && detail.ports.length === 0 ? (
                     <p className="text-sm text-muted-foreground">No exposed ports</p>
                   ) : null}
                 </div>
@@ -122,7 +122,7 @@ export function StatsPanel({ host, detail, statsHistory }: StatsPanelProps) {
               </div>
             ) : null}
 
-            {statsHistory.length > 0 ? (
+             {Array.isArray(statsHistory) && statsHistory.length > 0 ? (
               <div className="grid gap-4 lg:grid-cols-2">
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">

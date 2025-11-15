@@ -22,7 +22,7 @@ export function HostSwitcher({ hosts, selectedHostId, onChange, isLoading }: Hos
       <Select
         value={selectedHostId ?? undefined}
         onValueChange={onChange}
-        disabled={isLoading || hosts.length === 0}
+        disabled={isLoading || !Array.isArray(hosts) || hosts.length === 0}
       >
         <SelectTrigger id="monitoring-host">
           <SelectValue placeholder={isLoading ? "Loading hosts…" : "Select host"} />

@@ -78,7 +78,7 @@ export default function Dashboard() {
   const hosts = useMemo(() => ensureArray<HostSummary>(hostsData), [hostsData]);
 
   useEffect(() => {
-    if (!hosts.length) {
+    if (!Array.isArray(hosts) || !hosts.length) {
       setSelectedHostId(null);
       return;
     }
@@ -129,7 +129,7 @@ export default function Dashboard() {
   const containers = useMemo(() => ensureArray<ContainerSummary>(containersData), [containersData]);
 
   useEffect(() => {
-    if (!containers.length) {
+    if (!Array.isArray(containers) || !containers.length) {
       setSelectedContainerId(null);
       return;
     }
@@ -456,7 +456,7 @@ export default function Dashboard() {
         </Card>
 
         <div className="space-y-6">
-          {normalizedHistory.length > 0 && (
+           {Array.isArray(normalizedHistory) && normalizedHistory.length > 0 && (
             <Card>
               <CardHeader>
                 <CardTitle>Real-time Metrics</CardTitle>

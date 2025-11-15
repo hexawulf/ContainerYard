@@ -192,12 +192,12 @@ export function TimelineStrip({ stats, events = [], onSpikeClick }: TimelineStri
       </div>
 
       {/* Event Markers */}
-      {eventMarkers.length > 0 && (
+       {Array.isArray(eventMarkers) && eventMarkers.length > 0 && (
         <div className="absolute top-0 left-0 right-0 h-full pointer-events-none">
           {eventMarkers.map((event, idx) => {
-            const percentage = chartData.length > 0 
-              ? ((event.ts - chartData[0].ts) / (chartData[chartData.length - 1].ts - chartData[0].ts)) * 100
-              : 0;
+             const percentage = Array.isArray(chartData) && chartData.length > 0 
+               ? ((event.ts - chartData[0].ts) / (chartData[chartData.length - 1].ts - chartData[0].ts)) * 100
+               : 0;
             
             return (
               <div
@@ -216,15 +216,15 @@ export function TimelineStrip({ stats, events = [], onSpikeClick }: TimelineStri
       )}
 
       {/* Spike Indicators */}
-      {spikes.length > 0 && onSpikeClick && (
+       {Array.isArray(spikes) && spikes.length > 0 && onSpikeClick && (
         <div className="absolute top-0 left-0 right-0 h-full pointer-events-none">
           {spikes.map((spike, idx) => {
             const spikeData = chartData[spike.idx];
             if (!spikeData) return null;
 
-            const percentage = chartData.length > 0 
-              ? ((spikeData.ts - chartData[0].ts) / (chartData[chartData.length - 1].ts - chartData[0].ts)) * 100
-              : 0;
+             const percentage = Array.isArray(chartData) && chartData.length > 0 
+               ? ((spikeData.ts - chartData[0].ts) / (chartData[chartData.length - 1].ts - chartData[0].ts)) * 100
+               : 0;
             
             const getColor = (metric: string) => {
               switch (metric) {

@@ -70,3 +70,4 @@ vite.config.ts.*
 
 # Local OpenCode instructions
 plan.md
+.aider*

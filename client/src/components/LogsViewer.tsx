@@ -68,12 +68,13 @@ export function LogsViewer({
     return params.toString();
   }, [tail, stdout, stderr, timestamps, grep]);
 
-  // Apply client-side filter
-  const filteredLines = useMemo(() => {
-    if (!clientFilter.trim()) return lines;
-    const filter = clientFilter.toLowerCase();
-    return lines.filter(line => line.toLowerCase().includes(filter));
-  }, [lines, clientFilter]);
+   // Apply client-side filter
+   const filteredLines = useMemo(() => {
+     if (!Array.isArray(lines)) return [];
+     if (!clientFilter.trim()) return lines;
+     const filter = clientFilter.toLowerCase();
+     return lines.filter(line => line.toLowerCase().includes(filter));
+   }, [lines, clientFilter]);
 
   const rowVirtualizer = useVirtualizer({
     count: filteredLines.length,
@@ -188,12 +189,12 @@ export function LogsViewer({
     return () => stopStreaming();
   }, [follow, fetchLogs, startStreaming]);
 
-  // Auto-scroll
-  useEffect(() => {
-    if (shouldAutoScroll && follow && filteredLines.length > 0) {
-      rowVirtualizer.scrollToIndex(filteredLines.length - 1, { align: 'end' });
-    }
-  }, [filteredLines.length, shouldAutoScroll, follow, rowVirtualizer]);
+   // Auto-scroll
+   useEffect(() => {
+     if (shouldAutoScroll && follow && Array.isArray(filteredLines) && filteredLines.length > 0) {
+       rowVirtualizer.scrollToIndex(filteredLines.length - 1, { align: 'end' });
+     }
+   }, [filteredLines, shouldAutoScroll, follow, rowVirtualizer]);
 
   const handleScroll = () => {
     if (!parentRef.current) return;
@@ -274,7 +275,7 @@ export function LogsViewer({
             variant="outline"
             size="sm"
             onClick={handleDownload}
-            disabled={filteredLines.length === 0}
+            disabled={!Array.isArray(filteredLines) || filteredLines.length === 0}
           >
             <Download className="h-3 w-3 mr-2" />
             Download
@@ -405,7 +406,7 @@ export function LogsViewer({
       </div>
 
       {/* Auto-scroll Indicator */}
-      {!shouldAutoScroll && follow && filteredLines.length > 0 && (
+       {!shouldAutoScroll && follow && Array.isArray(filteredLines) && filteredLines.length > 0 && (
         <div className="absolute bottom-4 right-4">
           <Button
             variant="default"
@@ -423,10 +424,10 @@ export function LogsViewer({
 
       {/* Line Count */}
       <div className="px-3 py-2 border-t bg-card text-xs text-muted-foreground">
-        {filteredLines.length} {filteredLines.length === 1 ? 'line' : 'lines'}
-        {clientFilter && filteredLines.length !== lines.length && (
-          <span> (filtered from {lines.length})</span>
-        )}
+         {Array.isArray(filteredLines) ? filteredLines.length : 0} {Array.isArray(filteredLines) && filteredLines.length === 1 ? 'line' : 'lines'}
+         {clientFilter && Array.isArray(filteredLines) && Array.isArray(lines) && filteredLines.length !== lines.length && (
+           <span> (filtered from {lines.length})</span>
+         )}
       </div>
     </div>
   );

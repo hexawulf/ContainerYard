@@ -131,7 +131,7 @@ export function HistoricalMetricsChart({
     );
   }
 
-  if (!chartData.length) {
+   if (!Array.isArray(chartData) || !chartData.length) {
     return (
       <Card>
         <CardHeader>

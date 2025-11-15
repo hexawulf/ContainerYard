@@ -50,53 +50,55 @@ export function LogTail({
   }, [logs]);
 
   // Get current timestamp from most recent log
-  const currentTimestamp = useMemo(() => {
-    return logs.length > 0 ? logs[logs.length - 1].ts : undefined;
-  }, [logs]);
+   const currentTimestamp = useMemo(() => {
+     return Array.isArray(logs) && logs.length > 0 ? logs[logs.length - 1].ts : undefined;
+   }, [logs]);
 
   // Parse query once
   const parsedQuery = useMemo(() => parseQuery(searchQuery), [searchQuery]);
 
-  // Filter logs based on advanced query and target timestamp
-  const filteredIndices = useMemo(() => {
-    // If target timestamp is set, apply time window based on scope type
-    let timeFilteredLogs = logs;
-    if (targetTimestamp) {
-      const targetTime = new Date(targetTimestamp).getTime();
-      
-      // Different time windows for spike vs bookmark
-      const beforeWindow = scopeType === 'spike' ? 10 * 1000 : 5 * 60 * 1000; // 10s or 5min
-      const afterWindow = scopeType === 'spike' ? 20 * 1000 : 5 * 60 * 1000; // 20s or 5min
-      
-      timeFilteredLogs = logs.filter((log) => {
-        try {
-          const logTime = new Date(log.ts).getTime();
-          return logTime >= targetTime - beforeWindow && logTime <= targetTime + afterWindow;
-        } catch {
-          return false;
-        }
-      });
-    }
+   // Filter logs based on advanced query and target timestamp
+   const filteredIndices = useMemo(() => {
+     if (!Array.isArray(logs)) return [];
+     
+     // If target timestamp is set, apply time window based on scope type
+     let timeFilteredLogs = logs;
+     if (targetTimestamp) {
+       const targetTime = new Date(targetTimestamp).getTime();
+       
+       // Different time windows for spike vs bookmark
+       const beforeWindow = scopeType === 'spike' ? 10 * 1000 : 5 * 60 * 1000; // 10s or 5min
+       const afterWindow = scopeType === 'spike' ? 20 * 1000 : 5 * 60 * 1000; // 20s or 5min
+       
+       timeFilteredLogs = logs.filter((log) => {
+         try {
+           const logTime = new Date(log.ts).getTime();
+           return logTime >= targetTime - beforeWindow && logTime <= targetTime + afterWindow;
+         } catch {
+           return false;
+         }
+       });
+     }
 
-    // If no search query, return all time-filtered logs
-    if (!searchQuery.trim()) {
-      return Array.isArray(timeFilteredLogs) ? timeFilteredLogs.map((log) => logs.indexOf(log)) : [];
-    }
+     // If no search query, return all time-filtered logs
+     if (!searchQuery.trim()) {
+       return Array.isArray(timeFilteredLogs) ? timeFilteredLogs.map((log) => logs.indexOf(log)) : [];
+     }
 
-    // Apply query filter on time-filtered logs
-    const indices: number[] = [];
-    
-    timeFilteredLogs.forEach((log) => {
-      const logIndex = logs.indexOf(log);
-      const parsed = parsedLogs[logIndex];
-      
-      if (matchesQuery(log.raw, log.level, parsed.fields, parsedQuery)) {
-        indices.push(logIndex);
-      }
-    });
+     // Apply query filter on time-filtered logs
+     const indices: number[] = [];
+     
+     timeFilteredLogs.forEach((log) => {
+       const logIndex = logs.indexOf(log);
+       const parsed = parsedLogs[logIndex];
+       
+       if (matchesQuery(log.raw, log.level, parsed.fields, parsedQuery)) {
+         indices.push(logIndex);
+       }
+     });
 
-    return indices;
-  }, [logs, parsedLogs, searchQuery, parsedQuery, targetTimestamp, scopeType]);
+     return indices;
+   }, [logs, parsedLogs, searchQuery, parsedQuery, targetTimestamp, scopeType]);
 
   const rowVirtualizer = useVirtualizer({
     count: filteredIndices.length,
@@ -135,11 +137,11 @@ export function LogTail({
     return colors[hash % colors.length];
   };
 
-  useEffect(() => {
-    if (shouldAutoScroll && isLive && filteredIndices.length > 0) {
-      rowVirtualizer.scrollToIndex(filteredIndices.length - 1, { align: 'end' });
-    }
-  }, [filteredIndices.length, shouldAutoScroll, isLive, rowVirtualizer]);
+   useEffect(() => {
+     if (shouldAutoScroll && isLive && Array.isArray(filteredIndices) && filteredIndices.length > 0) {
+       rowVirtualizer.scrollToIndex(filteredIndices.length - 1, { align: 'end' });
+     }
+   }, [filteredIndices, shouldAutoScroll, isLive, rowVirtualizer]);
 
   const handleScroll = () => {
     if (!parentRef.current) return;
@@ -278,7 +280,7 @@ export function LogTail({
                   <div className="break-all pointer-events-none">
                     {log.raw}
                   </div>
-                  {parsed.fields.length > 0 && (
+                   {Array.isArray(parsed.fields) && parsed.fields.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-1">
                       {parsed.fields.map((field) => (
                         <Badge
@@ -306,7 +308,7 @@ export function LogTail({
       </div>
 
       {/* Auto-scroll Indicator */}
-      {!shouldAutoScroll && isLive && filteredIndices.length > 0 && (
+       {!shouldAutoScroll && isLive && Array.isArray(filteredIndices) && filteredIndices.length > 0 && (
         <div className="absolute bottom-4 right-4">
           <Button
             variant="default"
