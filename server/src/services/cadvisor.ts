@@ -133,8 +133,10 @@ function computeStats(host: HostConfig, containerId: string, container: Cadvisor
 
 function toSummary(host: HostConfig, container: CadvisorContainer): ContainerSummary {
   const labels = container.spec?.labels ?? {};
+  // For cAdvisor, we use the original container.name as the ID
+  // This is the path that cAdvisor expects (e.g., /docker/{id} or /system.slice/docker-{id}.scope)
   return {
-    id: extractContainerId(container.name),
+    id: container.name,
     hostId: host.id,
     provider: host.provider,
     name: computeName(container),
@@ -211,8 +213,8 @@ class CadvisorService {
 
   async getContainer(host: HostConfig, containerId: string): Promise<ContainerDetail> {
     try {
-      // For cAdvisor, we need to use the full container path from the subcontainers endpoint
-      // The containerId we receive is the full path like "/system.slice/docker-{id}.scope"
+      // For cAdvisor, containerId is the full container path (e.g., /docker/{id} or /system.slice/docker-{id}.scope)
+      // We need to query cAdvisor using this exact path
       const container = await this.fetchJson<CadvisorContainer>(
         `/api/v1.3/containers${containerId}`,
       );
@@ -228,52 +230,20 @@ class CadvisorService {
       };
     } catch (error: any) {
       console.error(`Failed to get container details from cAdvisor for host ${host.id}, container ${containerId}:`, error.message);
-      // Return basic container info when cAdvisor fails
-      return {
-        id: containerId,
-        hostId: host.id,
-        provider: host.provider,
-        name: containerId.replace(/^\/system\.slice\/docker-|\.scope$/g, ''),
-        image: '',
-        state: 'running',
-        status: 'running',
-        node: host.nodeLabel,
-        createdAt: new Date().toISOString(),
-        labels: {},
-        networks: [],
-        ports: [],
-        composeProject: null,
-        env: [],
-        mounts: [],
-        command: null,
-        startedAt: null,
-      };
+      throw error;
     }
   }
 
   async getStats(host: HostConfig, containerId: string): Promise<ContainerStats> {
     try {
+      // containerId is the full cAdvisor path
       const container = await this.fetchJson<CadvisorContainer>(
         `/api/v1.3/containers${containerId}`,
       );
       return computeStats(host, containerId, container);
     } catch (error: any) {
       console.error(`Failed to get container stats from cAdvisor for host ${host.id}, container ${containerId}:`, error.message);
-      // Return basic stats when cAdvisor fails
-      return {
-        id: containerId,
-        hostId: host.id,
-        provider: host.provider,
-        cpuPercent: 0,
-        memoryUsage: 0,
-        memoryLimit: 0,
-        memoryPercent: 0,
-        networkRx: 0,
-        networkTx: 0,
-        blockRead: 0,
-        blockWrite: 0,
-        timestamp: new Date().toISOString(),
-      };
+      throw error;
     }
   }
 }
