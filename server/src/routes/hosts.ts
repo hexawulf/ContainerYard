@@ -10,6 +10,7 @@ import {
 } from "../services/docker";
 import { getDockerHostStats } from "../services/dockerHostStats";
 import { getCadvisorService } from "../services/cadvisor";
+import { requireAuth } from "../middleware/auth";
 import type { ContainerLogsResponse, NormalizedStats, HostStats } from "@shared/monitoring";
 
 const router = Router();
@@ -68,7 +69,7 @@ router.get("/:hostId/containers", async (req, res, next) => {
   }
 });
 
-router.get("/:hostId/containers/:containerId", async (req, res, next) => {
+router.get("/:hostId/containers/:containerId", requireAuth, async (req, res, next) => {
   try {
     const host = getHost(req.params.hostId);
     const containerId = req.params.containerId;

@@ -43,6 +43,19 @@ interface CadvisorStats {
 }
 
 function extractContainerId(name: string): string {
+  // Handle different container ID formats
+  // Format 1: /system.slice/docker-{containerId}.scope
+  // Format 2: /docker/{containerId}
+  // Format 3: {containerId}
+  
+  if (name.includes('/system.slice/docker-') && name.endsWith('.scope')) {
+    return name.replace(/^\/system\.slice\/docker-|\.scope$/g, '');
+  }
+  
+  if (name.startsWith('/docker/')) {
+    return name.replace(/^\/docker\//, '');
+  }
+  
   return name.replace(/^\/?docker\/?/, "");
 }
 
@@ -147,13 +160,20 @@ class CadvisorService {
   }
 
   private async fetchJson<T>(path: string): Promise<T> {
-    const response = await fetch(this.buildUrl(path));
-    if (!response.ok) {
-      const error = new Error(`cAdvisor request failed: ${response.status}`);
-      (error as any).status = response.status;
+    const url = this.buildUrl(path);
+    console.log(`cAdvisor fetch: ${url}`);
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        const error = new Error(`cAdvisor request failed: ${response.status}`);
+        (error as any).status = response.status;
+        throw error;
+      }
+      return (await response.json()) as T;
+    } catch (error: any) {
+      console.error(`cAdvisor fetch failed for URL: ${url}`, error.message);
       throw error;
     }
-    return (await response.json()) as T;
   }
 
   async listContainers(host: HostConfig): Promise<ContainerSummary[]> {
@@ -190,26 +210,71 @@ class CadvisorService {
   }
 
   async getContainer(host: HostConfig, containerId: string): Promise<ContainerDetail> {
-    const container = await this.fetchJson<CadvisorContainer>(
-      `/api/v1.3/containers/docker/${containerId}`,
-    );
+    try {
+      // For cAdvisor, we need to use the full container path from the subcontainers endpoint
+      // The containerId we receive is the full path like "/system.slice/docker-{id}.scope"
+      const container = await this.fetchJson<CadvisorContainer>(
+        `/api/v1.3/containers${containerId}`,
+      );
 
-    const summary = toSummary(host, container);
+      const summary = toSummary(host, container);
 
-    return {
-      ...summary,
-      env: [],
-      mounts: [],
-      command: null,
-      startedAt: container.spec?.creation_time ?? null,
-    };
+      return {
+        ...summary,
+        env: [],
+        mounts: [],
+        command: null,
+        startedAt: container.spec?.creation_time ?? null,
+      };
+    } catch (error: any) {
+      console.error(`Failed to get container details from cAdvisor for host ${host.id}, container ${containerId}:`, error.message);
+      // Return basic container info when cAdvisor fails
+      return {
+        id: containerId,
+        hostId: host.id,
+        provider: host.provider,
+        name: containerId.replace(/^\/system\.slice\/docker-|\.scope$/g, ''),
+        image: '',
+        state: 'running',
+        status: 'running',
+        node: host.nodeLabel,
+        createdAt: new Date().toISOString(),
+        labels: {},
+        networks: [],
+        ports: [],
+        composeProject: null,
+        env: [],
+        mounts: [],
+        command: null,
+        startedAt: null,
+      };
+    }
   }
 
   async getStats(host: HostConfig, containerId: string): Promise<ContainerStats> {
-    const container = await this.fetchJson<CadvisorContainer>(
-      `/api/v1.3/containers/docker/${containerId}`,
-    );
-    return computeStats(host, containerId, container);
+    try {
+      const container = await this.fetchJson<CadvisorContainer>(
+        `/api/v1.3/containers${containerId}`,
+      );
+      return computeStats(host, containerId, container);
+    } catch (error: any) {
+      console.error(`Failed to get container stats from cAdvisor for host ${host.id}, container ${containerId}:`, error.message);
+      // Return basic stats when cAdvisor fails
+      return {
+        id: containerId,
+        hostId: host.id,
+        provider: host.provider,
+        cpuPercent: 0,
+        memoryUsage: 0,
+        memoryLimit: 0,
+        memoryPercent: 0,
+        networkRx: 0,
+        networkTx: 0,
+        blockRead: 0,
+        blockWrite: 0,
+        timestamp: new Date().toISOString(),
+      };
+    }
   }
 }
 

@@ -141,7 +141,7 @@ export default function Dashboard() {
 
   const detailQueryKey = useMemo(() => {
     if (!selectedHostId || !selectedContainerId) return null;
-    return ["/api/hosts", selectedHostId, "containers", selectedContainerId, "inspect"] as const;
+    return ["/api/hosts", selectedHostId, "containers", selectedContainerId] as const;
   }, [selectedHostId, selectedContainerId]);
 
   const { data: containerDetail, isLoading: detailLoading } = useQuery<ContainerDetail | null>({
