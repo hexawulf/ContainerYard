@@ -157,30 +157,36 @@ class CadvisorService {
   }
 
   async listContainers(host: HostConfig): Promise<ContainerSummary[]> {
-    const containers = await this.fetchJson<CadvisorContainer[]>(`/api/v1.3/subcontainers`);
-    
-    // Log debug info if no containers found
-    if (containers.length === 0) {
-      console.warn("cadvisor zero-length payload", { host: host.id, url: this.baseUrl });
-    }
-    
-    const dockerContainers = containers.filter((container) => {
-      // Accept containers with docker in path or aliases
-      const hasDockerPath = container.name.includes("docker");
-      const hasAliases = container.aliases && container.aliases.length > 0;
-      return hasDockerPath || hasAliases;
-    });
-    
-    // Log debug info if filtering removes all containers
-    if (dockerContainers.length === 0 && containers.length > 0) {
-      console.warn("cadvisor filtering removed all containers", { 
-        host: host.id, 
-        total: containers.length, 
-        sample: containers.slice(0, 2).map(c => ({ name: c.name, aliases: c.aliases }))
+    try {
+      const containers = await this.fetchJson<CadvisorContainer[]>(`/api/v1.3/subcontainers`);
+      
+      // Log debug info if no containers found
+      if (containers.length === 0) {
+        console.warn("cadvisor zero-length payload", { host: host.id, url: this.baseUrl });
+      }
+      
+      const dockerContainers = containers.filter((container) => {
+        // Accept containers with docker in path or aliases
+        const hasDockerPath = container.name.includes("docker");
+        const hasAliases = container.aliases && container.aliases.length > 0;
+        return hasDockerPath || hasAliases;
       });
+      
+      // Log debug info if filtering removes all containers
+      if (dockerContainers.length === 0 && containers.length > 0) {
+        console.warn("cadvisor filtering removed all containers", { 
+          host: host.id, 
+          total: containers.length, 
+          sample: containers.slice(0, 2).map(c => ({ name: c.name, aliases: c.aliases }))
+        });
+      }
+      
+      return dockerContainers.map((container) => toSummary(host, container));
+    } catch (error: any) {
+      console.error(`Failed to list containers from cAdvisor for host ${host.id}:`, error.message);
+      // Return empty array instead of throwing to prevent UI from breaking
+      return [];
     }
-    
-    return dockerContainers.map((container) => toSummary(host, container));
   }
 
   async getContainer(host: HostConfig, containerId: string): Promise<ContainerDetail> {

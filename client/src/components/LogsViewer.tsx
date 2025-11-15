@@ -95,6 +95,13 @@ export function LogsViewer({
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
+        if (errorData.error === "logs_unsupported") {
+          if (errorData.dozzleUrl) {
+            throw new Error(`Logs not available - use Dozzle: ${errorData.dozzleUrl}`);
+          } else {
+            throw new Error(errorData.message || "Logs not available for this host");
+          }
+        }
         throw new Error(errorData.error || errorData.message || `HTTP ${response.status}`);
       }
 

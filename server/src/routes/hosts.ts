@@ -151,13 +151,23 @@ router.get("/:hostId/containers/:containerId/logs", async (req, res, next) => {
       return res.json(response);
     }
 
+    // Handle CADVISOR_ONLY hosts
     const dozzleUrl = getDozzleLink(host.id);
-    if (!dozzleUrl) {
-      return res.status(404).json({ message: "Logs not available for this host" });
+    if (dozzleUrl) {
+      // For Synology (has Dozzle), return Dozzle link
+      const link = `${dozzleUrl}/#/container/${containerId}`;
+      return res.status(501).json({ 
+        error: "logs_unsupported", 
+        message: "Logs are not directly accessible for this container. Use Dozzle to view logs.",
+        dozzleUrl: link 
+      });
+    } else {
+      // For piapps2 (no Dozzle), return clear message
+      return res.status(501).json({ 
+        error: "logs_unsupported", 
+        message: "Live logs are not available for this host yet."
+      });
     }
-
-    const link = `${dozzleUrl}/#/container/${containerId}`;
-    return res.status(501).json({ link });
   } catch (error) {
     next(error);
   }

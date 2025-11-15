@@ -66,9 +66,13 @@ export function LogsDrawer({
 
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({ error: "unknown_error", message: res.statusText }));
-        if (errorData.error === "logs_unsupported" && errorData.dozzleUrl) {
+        if (errorData.error === "logs_unsupported") {
           // Return special marker for unsupported logs
-          return `__DOZZLE_LINK__${errorData.dozzleUrl}`;
+          if (errorData.dozzleUrl) {
+            return `__DOZZLE_LINK__${errorData.dozzleUrl}`;
+          } else {
+            return `__LOGS_UNAVAILABLE__${errorData.message || "Logs not available"}`;
+          }
         }
         throw new Error(errorData.message || `Failed to fetch logs: ${res.statusText}`);
       }
@@ -200,6 +204,17 @@ export function LogsDrawer({
               Open in Dozzle
             </a>
           </Button>
+        </div>
+      );
+    }
+
+    if (data.startsWith("__LOGS_UNAVAILABLE__")) {
+      const message = data.replace("__LOGS_UNAVAILABLE__", "");
+      return (
+        <div className="p-4 space-y-3">
+          <p className="text-sm text-muted-foreground">
+            {message}
+          </p>
         </div>
       );
     }
