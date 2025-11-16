@@ -134,6 +134,8 @@ export default function Dashboard() {
       return;
     }
 
+    // Ensure a container is selected when containers are loaded
+    // This fixes the issue where piapps2 containers wouldn't auto-select
     if (!selectedContainerId || !containers.some((container) => container.id === selectedContainerId)) {
       setSelectedContainerId(containers[0].id);
     }
@@ -284,6 +286,10 @@ export default function Dashboard() {
     setSelectedContainerId(null);
     setSelectedHostId(hostId);
     queryClient.removeQueries({ queryKey: ["/api/hosts", hostId, "containers"] });
+    // Clear any cached container details when switching hosts
+    queryClient.removeQueries({ queryKey: ["/api/hosts", "containers"], predicate: (query) => 
+      query.queryKey[2] === "containers" && Boolean(query.queryKey[3])
+    });
   };
 
   return (
