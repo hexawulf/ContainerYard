@@ -3,17 +3,18 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import Dashboard from "@/pages/Dashboard";
-import Login from "@/pages/Login";
-import NotFound from "@/pages/not-found";
-import HostLogs from "@/pages/HostLogs";
 import { useTheme } from "@/hooks/useTheme";
-import { useEffect, useState } from "react";
+import { useEffect, useState, lazy, Suspense } from "react";
 import { AuthProvider, AuthGate } from "@/components/AuthGate";
-import LandingPage from "@/pages/Landing";
 import Layout from "@/components/Layout";
-import StyleGuidePage from "@/pages/StyleGuide";
 import { checkApiHealthSafe, bootstrapRuntimeConfig } from "@/lib/authBootstrap";
+
+const Dashboard = lazy(() => import("@/pages/Dashboard"));
+const Login = lazy(() => import("@/pages/Login"));
+const NotFound = lazy(() => import("@/pages/not-found"));
+const HostLogs = lazy(() => import("@/pages/HostLogs"));
+const LandingPage = lazy(() => import("@/pages/Landing"));
+const StyleGuidePage = lazy(() => import("@/pages/StyleGuide"));
 
 function Router() {
   const ProtectedDashboard = () => (
@@ -33,18 +34,20 @@ function Router() {
   );
 
   return (
-    <Switch>
-      <Route path="/" component={LandingPage} />
-      <Route path="/login">
-        <Layout>
-          <Login />
-        </Layout>
-      </Route>
-      <Route path="/dashboard" component={ProtectedDashboard} />
-      <Route path="/hosts/:hostId/logs" component={ProtectedHostLogs} />
-      <Route path="/styleguide" component={StyleGuidePage} />
-      <Route component={NotFound} />
-    </Switch>
+    <Suspense fallback={<div className="min-h-screen bg-background flex items-center justify-center"><div className="text-muted-foreground">Loading page...</div></div>}>
+      <Switch>
+        <Route path="/" component={LandingPage} />
+        <Route path="/login">
+          <Layout>
+            <Login />
+          </Layout>
+        </Route>
+        <Route path="/dashboard" component={ProtectedDashboard} />
+        <Route path="/hosts/:hostId/logs" component={ProtectedHostLogs} />
+        <Route path="/styleguide" component={StyleGuidePage} />
+        <Route component={NotFound} />
+      </Switch>
+    </Suspense>
   );
 }
 

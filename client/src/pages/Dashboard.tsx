@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, lazy, Suspense } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -14,13 +14,8 @@ import type {
   HostSummary,
 } from "@shared/monitoring";
 import { HostSwitcher } from "@/features/monitoring/HostSwitcher";
-import { ContainerTable } from "@/features/monitoring/ContainerTable";
-import { StackView } from "@/features/monitoring/StackView";
 import { StatsPanel } from "@/features/monitoring/StatsPanel";
-import { LogsDrawer } from "@/features/monitoring/LogsDrawer";
-import { InspectModal } from "@/features/monitoring/InspectModal";
 import { StatsChips } from "@/features/monitoring/StatsChips";
-import { HistoricalMetricsChart } from "@/features/monitoring/HistoricalMetricsChart";
 import { MetricsWidgets } from "@/features/monitoring/MetricsWidgets";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -28,6 +23,12 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { X, List, Layers } from "lucide-react";
 import type { NormalizedStats } from "@shared/monitoring";
 import { ensureArray } from "@/lib/utils";
+
+const ContainerTable = lazy(() => import("@/features/monitoring/ContainerTable"));
+const StackView = lazy(() => import("@/features/monitoring/StackView"));
+const LogsDrawer = lazy(() => import("@/features/monitoring/LogsDrawer"));
+const InspectModal = lazy(() => import("@/features/monitoring/InspectModal"));
+const HistoricalMetricsChart = lazy(() => import("@/features/monitoring/HistoricalMetricsChart"));
 
 const HOST_STORAGE_KEY = "cy.selectedHost";
 const FILTERS_STORAGE_KEY = "cy.containerFilters";
@@ -364,110 +365,112 @@ export default function Dashboard() {
           </CardHeader>
           <Separator />
           <CardContent className="p-0">
-            {viewMode === "containers" && (
-            <>
-            {/* Filter Controls */}
-            <div className="p-4 space-y-3 border-b">
-              <div className="flex flex-wrap gap-2 items-center">
-                <span className="text-sm font-medium">Filters:</span>
-                
-                {/* State Filter */}
-                <Select value={filters.state} onValueChange={(value) => setFilters(prev => ({ ...prev, state: value }))}>
-                  <SelectTrigger className="w-28">
-                    <SelectValue placeholder="State" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All</SelectItem>
-                    <SelectItem value="running">Running</SelectItem>
-                    <SelectItem value="exited">Exited</SelectItem>
-                  </SelectContent>
-                </Select>
+            <Suspense fallback={<div className="p-4 text-sm text-muted-foreground">Loading view...</div>}>
+              {viewMode === "containers" && (
+              <>
+              {/* Filter Controls */}
+              <div className="p-4 space-y-3 border-b">
+                <div className="flex flex-wrap gap-2 items-center">
+                  <span className="text-sm font-medium">Filters:</span>
+                  
+                  {/* State Filter */}
+                  <Select value={filters.state} onValueChange={(value) => setFilters(prev => ({ ...prev, state: value }))}>
+                    <SelectTrigger className="w-28">
+                      <SelectValue placeholder="State" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All</SelectItem>
+                      <SelectItem value="running">Running</SelectItem>
+                      <SelectItem value="exited">Exited</SelectItem>
+                    </SelectContent>
+                  </Select>
 
-                {/* Label Filter */}
-                <Input
-                  placeholder="Label filter"
-                  value={filters.label}
-                  onChange={(e) => setFilters(prev => ({ ...prev, label: e.target.value }))}
-                  className="w-40"
-                />
+                  {/* Label Filter */}
+                  <Input
+                    placeholder="Label filter"
+                    value={filters.label}
+                    onChange={(e) => setFilters(prev => ({ ...prev, label: e.target.value }))}
+                    className="w-40"
+                  />
 
-                {/* Image Filter */}
-                <Input
-                  placeholder="Image filter"
-                  value={filters.image}
-                  onChange={(e) => setFilters(prev => ({ ...prev, image: e.target.value }))}
-                  className="w-40"
-                />
+                  {/* Image Filter */}
+                  <Input
+                    placeholder="Image filter"
+                    value={filters.image}
+                    onChange={(e) => setFilters(prev => ({ ...prev, image: e.target.value }))}
+                    className="w-40"
+                  />
 
-                {/* Clear Filters */}
-                {(filters.state !== "all" || filters.label || filters.image) && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setFilters({ state: "all", label: "", image: "" })}
+                  {/* Clear Filters */}
+                  {(filters.state !== "all" || filters.label || filters.image) && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setFilters({ state: "all", label: "", image: "" })}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+
+                {/* Sort Controls */}
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">Sort by:</span>
+                  <Select 
+                    value={sort.field} 
+                    onValueChange={(field) => setSort(prev => ({ ...prev, field }))}
                   >
-                    <X className="h-4 w-4" />
-                  </Button>
-                )}
+                    <SelectTrigger className="w-32">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="name">Name</SelectItem>
+                      <SelectItem value="cpu">CPU %</SelectItem>
+                      <SelectItem value="memory">Memory %</SelectItem>
+                      <SelectItem value="uptime">Uptime</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  
+                  <Select 
+                    value={sort.direction} 
+                    onValueChange={(direction) => setSort(prev => ({ ...prev, direction }))}
+                  >
+                    <SelectTrigger className="w-24">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="asc">Ascending</SelectItem>
+                      <SelectItem value="desc">Descending</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
-              {/* Sort Controls */}
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium">Sort by:</span>
-                <Select 
-                  value={sort.field} 
-                  onValueChange={(field) => setSort(prev => ({ ...prev, field }))}
-                >
-                  <SelectTrigger className="w-32">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="name">Name</SelectItem>
-                    <SelectItem value="cpu">CPU %</SelectItem>
-                    <SelectItem value="memory">Memory %</SelectItem>
-                    <SelectItem value="uptime">Uptime</SelectItem>
-                  </SelectContent>
-                </Select>
-                
-                <Select 
-                  value={sort.direction} 
-                  onValueChange={(direction) => setSort(prev => ({ ...prev, direction }))}
-                >
-                  <SelectTrigger className="w-24">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="asc">Ascending</SelectItem>
-                    <SelectItem value="desc">Descending</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <ContainerTable
-              containers={filteredAndSortedContainers}
-              host={host}
-              selectedId={selectedContainerId}
-              onSelect={setSelectedContainerId}
-              statsByContainer={latestStatsByContainer}
-              isLoading={containersLoading}
-              onLogsClick={setLogsContainerId}
-              onInspectClick={setInspectContainerId}
-            />
-            </>
-            )}
-            {viewMode === "stacks" && selectedHostId && (
-              <div className="p-4">
-                <StackView
-                  hostId={selectedHostId}
-                  host={hosts.find(h => h.id === selectedHostId) || null}
-                  onContainerSelect={setSelectedContainerId}
-                  onLogsClick={setLogsContainerId}
-                  onInspectClick={setInspectContainerId}
-                  selectedContainerId={selectedContainerId}
-                />
-              </div>
-            )}
+              <ContainerTable
+                containers={filteredAndSortedContainers}
+                host={host}
+                selectedId={selectedContainerId}
+                onSelect={setSelectedContainerId}
+                statsByContainer={latestStatsByContainer}
+                isLoading={containersLoading}
+                onLogsClick={setLogsContainerId}
+                onInspectClick={setInspectContainerId}
+              />
+              </>
+              )}
+              {viewMode === "stacks" && selectedHostId && (
+                <div className="p-4">
+                  <StackView
+                    hostId={selectedHostId}
+                    host={hosts.find(h => h.id === selectedHostId) || null}
+                    onContainerSelect={setSelectedContainerId}
+                    onLogsClick={setLogsContainerId}
+                    onInspectClick={setInspectContainerId}
+                    selectedContainerId={selectedContainerId}
+                  />
+                </div>
+              )}
+            </Suspense>
           </CardContent>
         </Card>
 
@@ -501,30 +504,36 @@ export default function Dashboard() {
       {/* Historical Metrics Section */}
       {showHistoricalMetrics && selectedHostId && selectedContainerId && containerDetail && (
         <div className="mt-6">
-          <HistoricalMetricsChart
-            hostId={selectedHostId}
-            containerId={selectedContainerId}
-            containerName={containerDetail.name}
-          />
+          <Suspense fallback={<div className="text-sm text-muted-foreground">Loading chart...</div>}>
+            <HistoricalMetricsChart
+              hostId={selectedHostId}
+              containerId={selectedContainerId}
+              containerName={containerDetail.name}
+            />
+          </Suspense>
         </div>
       )}
 
       {logsContainerId && logsContainer && selectedHostId && (
-        <LogsDrawer
-          open={Boolean(logsContainerId)}
-          onOpenChange={(open) => !open && setLogsContainerId(null)}
-          hostId={selectedHostId}
-          containerId={logsContainerId}
-          containerName={logsContainer.name}
-        />
+        <Suspense>
+          <LogsDrawer
+            open={Boolean(logsContainerId)}
+            onOpenChange={(open) => !open && setLogsContainerId(null)}
+            hostId={selectedHostId}
+            containerId={logsContainerId}
+            containerName={logsContainer.name}
+          />
+        </Suspense>
       )}
 
       {inspectContainerId && containerDetail && containerDetail.id === inspectContainerId && (
-        <InspectModal
-          open={Boolean(inspectContainerId)}
-          onOpenChange={(open) => !open && setInspectContainerId(null)}
-          container={containerDetail}
-        />
+        <Suspense>
+          <InspectModal
+            open={Boolean(inspectContainerId)}
+            onOpenChange={(open) => !open && setInspectContainerId(null)}
+            container={containerDetail}
+          />
+        </Suspense>
       )}
     </div>
   );
