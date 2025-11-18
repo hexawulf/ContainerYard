@@ -96,7 +96,30 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    const fullPath = queryKey.join("/") as string;
+    // Build path from query key, encoding container IDs that contain slashes
+    const pathSegments: string[] = [];
+    
+    for (const segment of queryKey) {
+      if (typeof segment === 'string') {
+        pathSegments.push(segment);
+      }
+      // Skip non-string segments (like query params objects)
+    }
+    
+    // Join segments with `/`, properly encoding any special characters
+    // For paths like: ["/api/hosts", "piapps2", "containers", "/system.slice/docker-xxx.scope"]
+    // We need to encode the container ID part but not the path structure
+    const fullPath = pathSegments
+      .map((seg, idx) => {
+        // First segment is usually "/api/hosts" - keep as-is
+        if (idx === 0) return seg;
+        // For container IDs that start with /, encode them
+        if (seg.startsWith('/') && idx > 0) {
+          return encodeURIComponent(seg);
+        }
+        return seg;
+      })
+      .join('/');
 
     try {
       const res = await apiFetch(fullPath);

@@ -24,10 +24,10 @@ function Router() {
     </AuthGate>
   );
 
-  const ProtectedHostLogs = () => (
+  const ProtectedHostLogs = ({ params }: { params: { hostId: string } }) => (
     <AuthGate>
       <Layout>
-        <HostLogs />
+        <HostLogs hostId={params.hostId} />
       </Layout>
     </AuthGate>
   );
@@ -41,7 +41,7 @@ function Router() {
         </Layout>
       </Route>
       <Route path="/dashboard" component={ProtectedDashboard} />
-      <Route path="/host-logs" component={ProtectedHostLogs} />
+      <Route path="/hosts/:hostId/logs" component={ProtectedHostLogs} />
       <Route path="/styleguide" component={StyleGuidePage} />
       <Route component={NotFound} />
     </Switch>

@@ -18,7 +18,12 @@ import { Download, Play, Pause, ExternalLink, Search } from "lucide-react";
 import { API_BASE } from "@/lib/api";
 import { SavedSearches } from "@/components/SavedSearches";
 import { LogBookmarks } from "@/components/LogBookmarks";
-import type { ContainerLogsResponse, DozzleLinkResponse } from "@shared/monitoring";
+// import type { DozzleLinkResponse } from "@shared/monitoring";
+
+type LogsResponse =
+  | { mode: "docker"; content: string; truncated: boolean }
+  | { mode: "unsupported"; message: string }
+  | { mode: "dozzle"; message: string; dozzleUrl: string };
 
 interface LogsDrawerProps {
   open: boolean;
@@ -48,7 +53,7 @@ export function LogsDrawer({
   const scrollRef = useRef<HTMLDivElement>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
 
-  const { data, isLoading, error, refetch } = useQuery<string>({
+  const { data, isLoading, error, refetch } = useQuery<LogsResponse>({
     queryKey: ["/api/hosts", hostId, "containers", containerId, "logs", { tail, since, grep, stdout, stderr }],
     queryFn: async () => {
       const params = new URLSearchParams({
@@ -66,18 +71,10 @@ export function LogsDrawer({
 
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({ error: "unknown_error", message: res.statusText }));
-        if (errorData.error === "logs_unsupported") {
-          // Return special marker for unsupported logs
-          if (errorData.dozzleUrl) {
-            return `__DOZZLE_LINK__${errorData.dozzleUrl}`;
-          } else {
-            return `__LOGS_UNAVAILABLE__${errorData.message || "Logs not available"}`;
-          }
-        }
         throw new Error(errorData.message || `Failed to fetch logs: ${res.statusText}`);
       }
 
-      return res.text();
+      return res.json();
     },
     enabled: open && !isLive,
     refetchOnWindowFocus: false,
@@ -191,15 +188,14 @@ export function LogsDrawer({
       return <div className="text-sm text-muted-foreground p-4">No logs available</div>;
     }
 
-    if (data.startsWith("__DOZZLE_LINK__")) {
-      const dozzleUrl = data.replace("__DOZZLE_LINK__", "");
+    if (data.mode === "dozzle") {
       return (
         <div className="p-4 space-y-3">
           <p className="text-sm text-muted-foreground">
-            Logs are not directly accessible for this container. Use Dozzle to view logs.
+            {data.message}
           </p>
           <Button variant="outline" size="sm" asChild>
-            <a href={dozzleUrl} target="_blank" rel="noopener noreferrer">
+            <a href={data.dozzleUrl} target="_blank" rel="noopener noreferrer">
               <ExternalLink className="mr-2 h-4 w-4" />
               Open in Dozzle
             </a>
@@ -208,26 +204,29 @@ export function LogsDrawer({
       );
     }
 
-    if (data.startsWith("__LOGS_UNAVAILABLE__")) {
-      const message = data.replace("__LOGS_UNAVAILABLE__", "");
+    if (data.mode === "unsupported") {
       return (
         <div className="p-4 space-y-3">
           <p className="text-sm text-muted-foreground">
-            {message}
+            {data.message}
           </p>
         </div>
       );
     }
 
-    const displayContent = isLive ? liveLines.join("\n") : data;
+    if (data.mode === "docker") {
+      const displayContent = isLive ? liveLines.join("\n") : data.content;
 
-    return (
-      <ScrollArea className="h-[600px] w-full" ref={scrollRef}>
-        <pre className="text-xs font-mono p-4 whitespace-pre-wrap break-words">
-          {displayContent || "(empty)"}
-        </pre>
-      </ScrollArea>
-    );
+      return (
+        <ScrollArea className="h-[600px] w-full" ref={scrollRef}>
+          <pre className="text-xs font-mono p-4 whitespace-pre-wrap break-words">
+            {displayContent || "(empty)"}
+          </pre>
+        </ScrollArea>
+      );
+    }
+
+    return <div className="text-sm text-muted-foreground p-4">Unknown logs format</div>;
   };
 
   return (
@@ -331,18 +330,18 @@ export function LogsDrawer({
                    Refresh
                  </Button>
                )}
-                {data && !data.startsWith("__DOZZLE_LINK__") && (
-                  <Button size="sm" variant="outline" onClick={handleDownload}>
-                    <Download className="h-4 w-4 mr-1" />
-                    Download
-                  </Button>
-                )}
-             </div>
-           </div>
-
-           {data && data.length > 5000 && (
-             <Badge variant="destructive">Truncated at 5000 lines</Badge>
-           )}
+                 {data && data.mode === "docker" && (
+                   <Button size="sm" variant="outline" onClick={handleDownload}>
+                     <Download className="h-4 w-4 mr-1" />
+                     Download
+                   </Button>
+                 )}
+              </div>
+            </div>
+ 
+            {data && data.mode === "docker" && data.truncated && (
+              <Badge variant="destructive">Truncated at 5000 lines</Badge>
+            )}
 
            <div className="border rounded-lg overflow-hidden bg-muted/20">
              {renderContent()}

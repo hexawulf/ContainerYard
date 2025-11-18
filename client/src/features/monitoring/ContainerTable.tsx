@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { FileText, Info } from "lucide-react";
 import type { ContainerSummary, ContainerStats, HostSummary } from "@shared/monitoring";
+import { Link } from "wouter";
 
 interface ContainerTableProps {
   containers: ContainerSummary[];
@@ -20,7 +21,7 @@ interface ContainerTableProps {
   statsByContainer: Record<string, ContainerStats | undefined>;
   isLoading?: boolean;
   onLogsClick?: (containerId: string) => void;
-  onInspectClick?: (containerId: string) => void;
+  onInspectClick?: (containerId:string) => void;
 }
 
 function formatPercent(value?: number) {
@@ -104,6 +105,20 @@ export function ContainerTable({
                 <TableCell className="text-right text-sm">{formatPercent(stats?.memoryPercent)}</TableCell>
                 <TableCell className="text-right">
                   <div className="flex items-center justify-end gap-1">
+                    {host && (
+                      <Link href={`/hosts/${host.id}/logs`}>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                          }}
+                          title="Host Logs"
+                        >
+                          <FileText className="h-4 w-4" />
+                        </Button>
+                      </Link>
+                    )}
                     {onLogsClick && (
                       <Button
                         size="sm"
