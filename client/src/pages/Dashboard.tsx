@@ -146,11 +146,21 @@ export default function Dashboard() {
     return ["/api/hosts", selectedHostId, "containers", selectedContainerId] as const;
   }, [selectedHostId, selectedContainerId]);
 
-  const { data: containerDetail, isLoading: detailLoading } = useQuery<ContainerDetail | null>({
+  const { data: containerDetail, isLoading: detailLoading, error: detailError } = useQuery<ContainerDetail | null>({
     queryKey: detailQueryKey ?? [],
     queryFn: detailQueryKey ? getQueryFn<ContainerDetail>({ on401: "throw" }) : undefined,
     enabled: Boolean(detailQueryKey),
   });
+
+  // Log detail errors for debugging
+  useEffect(() => {
+    if (detailError) {
+      console.error("Container detail fetch error:", detailError, {
+        hostId: selectedHostId,
+        containerId: selectedContainerId,
+      });
+    }
+  }, [detailError, selectedHostId, selectedContainerId]);
 
   const statsQueryKey = useMemo(() => {
     if (!selectedHostId || !selectedContainerId) return null;

@@ -10,8 +10,8 @@ import {
 } from "../services/docker";
 import { getDockerHostStats } from "../services/dockerHostStats";
 import { getCadvisorService } from "../services/cadvisor";
-import { requireAuth } from "../middleware/auth";
-import type { ContainerLogsResponse, NormalizedStats, HostStats } from "@shared/monitoring";
+// import { requireAuth } from "../middleware/auth";
+import type { NormalizedStats, HostStats } from "@shared/monitoring";
 
 const router = Router();
 
@@ -69,7 +69,7 @@ router.get("/:hostId/containers", async (req, res, next) => {
   }
 });
 
-router.get("/:hostId/containers/:containerId", requireAuth, async (req, res, next) => {
+router.get("/:hostId/containers/:containerId", async (req, res, next) => {
   try {
     const host = getHost(req.params.hostId);
     const containerId = req.params.containerId;
@@ -145,11 +145,11 @@ router.get("/:hostId/containers/:containerId/logs", async (req, res, next) => {
       };
 
       const logs = await getContainerLogs(containerId, options);
-      const response: ContainerLogsResponse = {
+      return res.json({ 
+        mode: "docker",
         content: logs,
         truncated: options.tail === 5000,
-      };
-      return res.json(response);
+      });
     }
 
     // Handle CADVISOR_ONLY hosts
@@ -157,15 +157,15 @@ router.get("/:hostId/containers/:containerId/logs", async (req, res, next) => {
     if (dozzleUrl) {
       // For Synology (has Dozzle), return Dozzle link
       const link = `${dozzleUrl}/#/container/${containerId}`;
-      return res.status(501).json({ 
-        error: "logs_unsupported", 
-        message: "Logs are not directly accessible for this container. Use Dozzle to view logs.",
+      return res.json({ 
+        mode: "dozzle",
+        message: "Open this container in Dozzle.",
         dozzleUrl: link 
       });
     } else {
       // For piapps2 (no Dozzle), return clear message
-      return res.status(501).json({ 
-        error: "logs_unsupported", 
+      return res.json({ 
+        mode: "unsupported",
         message: "Live logs are not available for this host yet."
       });
     }

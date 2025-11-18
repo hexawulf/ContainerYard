@@ -55,13 +55,13 @@ const LOG_DESCRIPTIONS: Record<string, { title: string; description: string }> =
   },
 };
 
-export default function HostLogs() {
+export default function HostLogs({ hostId }: { hostId: string }) {
   const [selectedLog, setSelectedLog] = useState<string | null>(null);
 
   const { data, isLoading, error } = useQuery<HostLogsListResponse>({
-    queryKey: ["/api/hostlogs"],
+    queryKey: ["/api/hosts", hostId, "logs"],
     queryFn: async () => {
-      const res = await fetch(`${API_BASE}/hostlogs`, {
+      const res = await fetch(`${API_BASE}/hosts/${hostId}/logs`, {
         credentials: "include",
       });
 
@@ -102,9 +102,9 @@ export default function HostLogs() {
       <div className="p-6 space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold">Host Logs</h1>
+            <h1 className="text-3xl font-bold">Host Logs for {hostId}</h1>
             <p className="text-muted-foreground mt-2">
-              View system and application logs from the Pi host
+              View system and application logs from the {hostId} host
             </p>
           </div>
           <Link href="/dashboard">
@@ -166,7 +166,7 @@ export default function HostLogs() {
         {logs.length === 0 && (
           <Card>
             <CardContent className="p-6 text-center text-muted-foreground">
-              No host logs configured
+              No host logs configured for {hostId}
             </CardContent>
           </Card>
         )}
@@ -183,7 +183,7 @@ export default function HostLogs() {
           {selectedLog && (
             <div className="flex-1 min-h-0">
               <LogsViewer
-                endpoint={`${API_BASE}/hostlogs/${selectedLog}`}
+                endpoint={`${API_BASE}/hosts/${hostId}/logs/${selectedLog}`}
                 title=""
                 initialFollow={false}
                 initialTail={500}
