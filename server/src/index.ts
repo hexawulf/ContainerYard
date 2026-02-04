@@ -24,6 +24,9 @@ import { registerMetrics } from "./metrics";
 import { alertWorker } from "./services/alertWorker";
 import { metricsAggregator } from "./services/metricsAggregator";
 import { restartTracker } from "./services/restartTracker";
+import { getHost, listHosts } from "./config/hosts";
+import { listContainers as listDockerContainers } from "./services/docker";
+import { getCadvisorService } from "./services/cadvisor";
 
 export async function createApp() {
   const app = express();
@@ -100,6 +103,63 @@ export async function createApp() {
 
   // Runtime config endpoint (public)
   registerRuntimeConfigRoute(app);
+
+  // Backwards-compatible route: GET /api/containers?host=<hostId>
+  // Supports both DOCKER and CADVISOR_ONLY providers
+  app.get("/api/containers", async (req, res) => {
+    try {
+      const hostId = req.query.host as string | undefined;
+
+      // If host query parameter is provided, return containers for that specific host
+      if (hostId) {
+        const host = getHost(hostId);
+
+        if (host.provider === "DOCKER") {
+          const containers = await listDockerContainers(host);
+          return res.json(containers);
+        }
+
+        // CADVISOR_ONLY provider
+        const service = getCadvisorService(host);
+        if (!service) {
+          return res.status(503).json({ error: "cAdvisor service unavailable for this host" });
+        }
+        const containers = await service.listContainers(host);
+        return res.json(containers);
+      }
+
+      // No host parameter - return containers from all hosts (legacy behavior)
+      const allContainers = [];
+      const hosts = listHosts();
+
+      for (const hostSummary of hosts) {
+        try {
+          const host = getHost(hostSummary.id);
+
+          if (host.provider === "DOCKER") {
+            const containers = await listDockerContainers(host);
+            allContainers.push(...containers);
+          } else {
+            const service = getCadvisorService(host);
+            if (service) {
+              const containers = await service.listContainers(host);
+              allContainers.push(...containers);
+            }
+          }
+        } catch (hostError) {
+          console.warn(`Failed to fetch containers from host ${hostSummary.id}:`, hostError);
+          // Continue with other hosts even if one fails
+        }
+      }
+
+      res.json(allContainers);
+    } catch (error: any) {
+      if (error.status === 404) {
+        return res.status(400).json({ error: `Unknown host: ${req.query.host}` });
+      }
+      res.status(500).json({ error: error.message });
+    }
+  });
 
   // Hard 404 for any unmatched /api/* routes
   app.all("/api/*", (req, res) => {

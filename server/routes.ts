@@ -7,16 +7,67 @@ import { containerActionSchema, insertSavedSearchSchema, insertLogBookmarkSchema
 import { db } from "./db";
 import { eq, desc } from "drizzle-orm";
 import { isSQLite, logSQLiteDisabled } from "./src/config/databaseCapabilities";
+import { getHost, listHosts } from "./src/config/hosts";
+import { listContainers as listDockerContainers } from "./src/services/docker";
+import { getCadvisorService } from "./src/services/cadvisor";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
 
   // API Routes
+  // Backwards-compatible route: GET /api/containers?host=<hostId>
+  // Supports both DOCKER and CADVISOR_ONLY providers
   app.get("/api/containers", async (req, res) => {
     try {
-      const containers = await storage.provider.listContainers();
-      res.json(containers);
+      const hostId = req.query.host as string | undefined;
+      
+      // If host query parameter is provided, return containers for that specific host
+      if (hostId) {
+        const host = getHost(hostId);
+        
+        if (host.provider === "DOCKER") {
+          const containers = await listDockerContainers(host);
+          return res.json(containers);
+        }
+        
+        // CADVISOR_ONLY provider
+        const service = getCadvisorService(host);
+        if (!service) {
+          return res.status(503).json({ error: "cAdvisor service unavailable for this host" });
+        }
+        const containers = await service.listContainers(host);
+        return res.json(containers);
+      }
+      
+      // No host parameter - return containers from all hosts (legacy behavior)
+      const allContainers = [];
+      const hosts = listHosts();
+      
+      for (const hostSummary of hosts) {
+        try {
+          const host = getHost(hostSummary.id);
+          
+          if (host.provider === "DOCKER") {
+            const containers = await listDockerContainers(host);
+            allContainers.push(...containers);
+          } else {
+            const service = getCadvisorService(host);
+            if (service) {
+              const containers = await service.listContainers(host);
+              allContainers.push(...containers);
+            }
+          }
+        } catch (hostError) {
+          console.warn(`Failed to fetch containers from host ${hostSummary.id}:`, hostError);
+          // Continue with other hosts even if one fails
+        }
+      }
+      
+      res.json(allContainers);
     } catch (error: any) {
+      if (error.status === 404) {
+        return res.status(400).json({ error: `Unknown host: ${req.query.host}` });
+      }
       res.status(500).json({ error: error.message });
     }
   });
