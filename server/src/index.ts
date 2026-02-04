@@ -71,6 +71,15 @@ export async function createApp() {
     }
   });
 
+  // Also expose /health for frontend health checks (same as /api/health)
+  app.get("/health", async (_req, res) => {
+    try {
+      res.status(200).json({ ok: true, uptime: process.uptime(), ts: Date.now() });
+    } catch {
+      res.status(200).json({ ok: true, degraded: true, ts: Date.now() });
+    }
+  });
+
   app.use(express.json({ limit: "1mb" }));
   app.use(express.urlencoded({ extended: false }));
 
