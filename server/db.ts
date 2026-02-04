@@ -4,7 +4,7 @@ import ws from "ws";
 import * as schema from "@shared/schema";
 
 // Check if using SQLite (file-based database)
-const isSQLite = process.env.DATABASE_URL?.startsWith('file:');
+export const isSQLite = process.env.DATABASE_URL?.startsWith('file:');
 
 // Only configure WebSocket for Neon/PostgreSQL connections
 if (!isSQLite) {
@@ -37,6 +37,8 @@ export const pool = isSQLite
   ? createSQLitePool()
   : new Pool({ connectionString: process.env.DATABASE_URL });
 
+// Create Drizzle database client - only for PostgreSQL
+// For SQLite, this returns a mock that throws helpful errors
 export const db = isSQLite
   ? (new Proxy({} as any, {
       get: (target, prop) => {

@@ -2,16 +2,32 @@ import { Router } from "express";
 import { db } from "../../db";
 import { eq, and, gte, desc } from "drizzle-orm";
 import { containerMetricsHourly } from "@shared/schema";
+import { isSQLite, logSQLiteDisabled } from "../config/databaseCapabilities";
 
 const router = Router();
 
+// Helper to return empty data for SQLite mode
+function emptyMetricsResponse(res: any, format: string = 'json') {
+  if (format === 'csv') {
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="metrics-empty-${Date.now()}.csv"`);
+    res.send('Container ID,Container Name,Timestamp,Avg CPU %,Max CPU %,Avg Memory %,Max Memory %,Avg Memory (Bytes),Max Memory (Bytes),Network Rx,Network Tx,Block Read,Block Write,Sample Count\n');
+    return;
+  }
+  res.json([]);
+}
+
 // Get historical metrics for a specific container
 router.get("/:hostId/containers/:containerId/metrics/history", async (req, res, next) => {
+  if (isSQLite) {
+    logSQLiteDisabled("Container metrics history");
+    return emptyMetricsResponse(res);
+  }
+  
   try {
     const { hostId, containerId } = req.params;
     const days = req.query.days ? parseInt(String(req.query.days)) : 7;
     
-    // Calculate cutoff date
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - days);
 
@@ -35,6 +51,11 @@ router.get("/:hostId/containers/:containerId/metrics/history", async (req, res, 
 
 // Get aggregated metrics summary for all containers
 router.get("/:hostId/metrics/summary", async (req, res, next) => {
+  if (isSQLite) {
+    logSQLiteDisabled("Metrics summary");
+    return emptyMetricsResponse(res);
+  }
+  
   try {
     const { hostId } = req.params;
     const days = req.query.days ? parseInt(String(req.query.days)) : 7;
@@ -53,7 +74,6 @@ router.get("/:hostId/metrics/summary", async (req, res, next) => {
       )
       .orderBy(desc(containerMetricsHourly.aggregatedAt));
 
-    // Group by container and calculate stats
     const containerStats = new Map<string, any>();
     
     for (const metric of metrics) {
@@ -77,8 +97,7 @@ router.get("/:hostId/metrics/summary", async (req, res, next) => {
       stats.dataPoints++;
     }
 
-    // Calculate final averages
-    const summary = Array.from(containerStats.values()).map((stats) => ({
+    const summary = Array.from(containerStats.values()).map((stats: any) => ({
       containerId: stats.containerId,
       containerName: stats.containerName,
       avgCpuPercent: (stats.avgCpu.reduce((a: number, b: number) => a + b, 0) / stats.avgCpu.length).toFixed(2),
@@ -96,6 +115,11 @@ router.get("/:hostId/metrics/summary", async (req, res, next) => {
 
 // Get top CPU consumers
 router.get("/:hostId/metrics/top-cpu", async (req, res, next) => {
+  if (isSQLite) {
+    logSQLiteDisabled("Top CPU consumers");
+    return emptyMetricsResponse(res);
+  }
+  
   try {
     const { hostId } = req.params;
     const limit = req.query.limit ? parseInt(String(req.query.limit)) : 5;
@@ -114,7 +138,6 @@ router.get("/:hostId/metrics/top-cpu", async (req, res, next) => {
         )
       );
 
-    // Group by container and calculate average CPU
     const containerCpu = new Map<string, { name: string; avgCpu: number[] }>();
     
     for (const metric of metrics) {
@@ -127,7 +150,6 @@ router.get("/:hostId/metrics/top-cpu", async (req, res, next) => {
       containerCpu.get(metric.containerId)!.avgCpu.push(parseFloat(metric.avgCpuPercent));
     }
 
-    // Calculate averages and sort
     const topConsumers = Array.from(containerCpu.entries())
       .map(([id, data]) => ({
         containerId: id,
@@ -145,6 +167,11 @@ router.get("/:hostId/metrics/top-cpu", async (req, res, next) => {
 
 // Get top memory consumers
 router.get("/:hostId/metrics/top-memory", async (req, res, next) => {
+  if (isSQLite) {
+    logSQLiteDisabled("Top memory consumers");
+    return emptyMetricsResponse(res);
+  }
+  
   try {
     const { hostId } = req.params;
     const limit = req.query.limit ? parseInt(String(req.query.limit)) : 5;
@@ -163,7 +190,6 @@ router.get("/:hostId/metrics/top-memory", async (req, res, next) => {
         )
       );
 
-    // Group by container and calculate average memory
     const containerMemory = new Map<string, { name: string; avgMemory: number[] }>();
     
     for (const metric of metrics) {
@@ -176,7 +202,6 @@ router.get("/:hostId/metrics/top-memory", async (req, res, next) => {
       containerMemory.get(metric.containerId)!.avgMemory.push(parseFloat(metric.avgMemoryPercent));
     }
 
-    // Calculate averages and sort
     const topConsumers = Array.from(containerMemory.entries())
       .map(([id, data]) => ({
         containerId: id,
@@ -196,10 +221,15 @@ export { router as metricsRouter };
 
 // Export metrics as CSV
 router.get("/:hostId/metrics/export/csv", async (req, res, next) => {
+  if (isSQLite) {
+    logSQLiteDisabled("Metrics CSV export");
+    return emptyMetricsResponse(res, 'csv');
+  }
+  
   try {
     const { hostId } = req.params;
     const days = req.query.days ? parseInt(String(req.query.days)) : 7;
-    const format = req.query.format || 'csv'; // csv or json
+    const format = req.query.format || 'csv';
     
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - days);
@@ -222,7 +252,6 @@ router.get("/:hostId/metrics/export/csv", async (req, res, next) => {
       return;
     }
 
-    // CSV format
     const csvHeader = [
       'Container ID',
       'Container Name',
@@ -240,7 +269,7 @@ router.get("/:hostId/metrics/export/csv", async (req, res, next) => {
       'Sample Count'
     ].join(',');
 
-    const csvRows = metrics.map(metric => [
+    const csvRows = metrics.map((metric: any) => [
       `"${metric.containerId}"`,
       `"${metric.containerName}"`,
       `"${metric.aggregatedAt.toISOString()}"`,
@@ -269,6 +298,11 @@ router.get("/:hostId/metrics/export/csv", async (req, res, next) => {
 
 // Export container-specific metrics as CSV
 router.get("/:hostId/containers/:containerId/metrics/export/csv", async (req, res, next) => {
+  if (isSQLite) {
+    logSQLiteDisabled("Container metrics CSV export");
+    return emptyMetricsResponse(res, 'csv');
+  }
+  
   try {
     const { hostId, containerId } = req.params;
     const days = req.query.days ? parseInt(String(req.query.days)) : 7;
@@ -296,7 +330,6 @@ router.get("/:hostId/containers/:containerId/metrics/export/csv", async (req, re
       return;
     }
 
-    // CSV format
     const csvHeader = [
       'Timestamp',
       'Avg CPU %',
@@ -312,7 +345,7 @@ router.get("/:hostId/containers/:containerId/metrics/export/csv", async (req, re
       'Sample Count'
     ].join(',');
 
-    const csvRows = metrics.map(metric => [
+    const csvRows = metrics.map((metric: any) => [
       `"${metric.aggregatedAt.toISOString()}"`,
       metric.avgCpuPercent,
       metric.maxCpuPercent,

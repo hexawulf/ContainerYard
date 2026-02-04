@@ -12,6 +12,7 @@ import { getCadvisorService } from "./cadvisor";
 import { getHost, listHosts } from "../config/hosts";
 import { restartTracker } from "./restartTracker";
 import type { ContainerSummary, ContainerStats } from "../models/containers";
+import { isSQLite, logSQLiteInfo, requirePostgreSQLAsync } from "../config/databaseCapabilities";
 
 interface AlertEvaluation {
   rule: AlertRule;
@@ -49,19 +50,14 @@ async function sendWebhookNotification(config: any, message: string): Promise<vo
 }
 
 async function sendEmailNotification(config: any, message: string): Promise<void> {
-  // For now, we'll use a simple console.log approach
-  // In production, you'd integrate with SendGrid, SMTP, etc.
   console.log(`[EMAIL] To: ${config.to}`);
   console.log(`[EMAIL] Subject: ${config.subject || "ContainerYard Alert"}`);
   console.log(`[EMAIL] Body: ${message}`);
   
-  // Simulate email sending delay
   await new Promise(resolve => setTimeout(resolve, 1000));
 }
 
 async function sendBrowserNotification(config: any, message: string): Promise<void> {
-  // Browser notifications would be handled client-side
-  // This is just a placeholder for server-side logic
   console.log(`[BROWSER] ${message}`);
 }
 
@@ -83,21 +79,28 @@ async function sendNotification(channel: NotificationChannel, message: string): 
 class AlertWorkerService {
   private interval: NodeJS.Timeout | null = null;
   private checkIntervalMs = 30000; // 30 seconds
+  private isRunning = false;
 
   async start() {
-    if (this.interval) {
+    if (this.isRunning) {
       console.log("Alert worker already running");
       return;
     }
 
+    if (isSQLite) {
+      logSQLiteInfo("Alert worker disabled - alerts require PostgreSQL for persistence");
+      return;
+    }
+
     console.log("Starting alert worker service...");
+    this.isRunning = true;
+    
     this.interval = setInterval(() => {
       this.checkAlerts().catch((error) => {
         console.error("Error checking alerts:", error);
       });
     }, this.checkIntervalMs);
 
-    // Run initial check
     await this.checkAlerts();
   }
 
@@ -105,74 +108,76 @@ class AlertWorkerService {
     if (this.interval) {
       clearInterval(this.interval);
       this.interval = null;
+      this.isRunning = false;
       console.log("Alert worker stopped");
     }
   }
 
   private async checkAlerts() {
-    try {
-      // Get all enabled alert rules
-      const rules = await db
-        .select()
-        .from(alertRules)
-        .where(eq(alertRules.enabled, "true"));
-
-      if (rules.length === 0) {
-        return;
-      }
-
-      // Get all containers from all hosts
-      const hostSummaries = listHosts();
-      const allContainers: ContainerSummary[] = [];
-      
-      for (const hostSummary of hostSummaries) {
+    return requirePostgreSQLAsync(
+      "Alert checking",
+      async () => {
         try {
-          const host = getHost(hostSummary.id);
-          let containers: ContainerSummary[] = [];
-          if (host.provider === "DOCKER") {
-            containers = await listDockerContainers(host);
-          } else {
-            const service = getCadvisorService(host);
-            if (!service) {
-              console.warn(`cAdvisor service unavailable for host ${host.id}`);
-              containers = [];
-            } else {
-              containers = await service.listContainers(host);
+          const rules = await db
+            .select()
+            .from(alertRules)
+            .where(eq(alertRules.enabled, "true"));
+
+          if (rules.length === 0) {
+            return;
+          }
+
+          const hostSummaries = listHosts();
+          const allContainers: ContainerSummary[] = [];
+          
+          for (const hostSummary of hostSummaries) {
+            try {
+              const host = getHost(hostSummary.id);
+              let containers: ContainerSummary[] = [];
+              if (host.provider === "DOCKER") {
+                containers = await listDockerContainers(host);
+              } else {
+                const service = getCadvisorService(host);
+                if (!service) {
+                  console.warn(`cAdvisor service unavailable for host ${host.id}`);
+                  containers = [];
+                } else {
+                  containers = await service.listContainers(host);
+                }
+              }
+              allContainers.push(...containers);
+            } catch (error) {
+              console.error(`Error fetching containers from host ${hostSummary.id}:`, error);
             }
           }
-          allContainers.push(...containers);
+
+          await restartTracker.trackContainers(allContainers);
+
+          const evaluations: AlertEvaluation[] = [];
+          for (const rule of rules) {
+            const containersToCheck = this.filterContainersByRule(allContainers, rule);
+            
+            for (const container of containersToCheck) {
+              try {
+                const evaluation = await this.evaluateRule(rule, container);
+                if (evaluation.triggered) {
+                  evaluations.push(evaluation);
+                }
+              } catch (error) {
+                console.error(`Error evaluating rule ${rule.id} for container ${container.id}:`, error);
+              }
+            }
+          }
+
+          for (const evaluation of evaluations) {
+            await this.handleTriggeredAlert(evaluation);
+          }
         } catch (error) {
-          console.error(`Error fetching containers from host ${hostSummary.id}:`, error);
+          console.error("Error in checkAlerts:", error);
         }
-      }
-
-      // Track container restarts
-      await restartTracker.trackContainers(allContainers);
-
-      // Evaluate each rule against each container
-      const evaluations: AlertEvaluation[] = [];
-      for (const rule of rules) {
-        const containersToCheck = this.filterContainersByRule(allContainers, rule);
-        
-        for (const container of containersToCheck) {
-          try {
-            const evaluation = await this.evaluateRule(rule, container);
-            if (evaluation.triggered) {
-              evaluations.push(evaluation);
-            }
-          } catch (error) {
-            console.error(`Error evaluating rule ${rule.id} for container ${container.id}:`, error);
-          }
-        }
-      }
-
-      // Process triggered alerts
-      for (const evaluation of evaluations) {
-        await this.handleTriggeredAlert(evaluation);
-      }
-    } catch (error) {
-      console.error("Error in checkAlerts:", error);
-    }
+      },
+      undefined
+    );
   }
 
   private filterContainersByRule(containers: ContainerSummary[], rule: AlertRule): ContainerSummary[] {
@@ -213,7 +218,6 @@ class AlertWorkerService {
     };
 
     try {
-      // Get current stats
       const host = getHost(container.hostId);
       let stats: ContainerStats | null = null;
       
@@ -233,7 +237,6 @@ class AlertWorkerService {
         return defaultEval;
       }
 
-      // Store metrics history
       const historyKey = `${container.hostId}:${container.id}`;
       if (!metricsHistory.has(historyKey)) {
         metricsHistory.set(historyKey, { stats: [], timestamps: [] });
@@ -242,14 +245,12 @@ class AlertWorkerService {
       history.stats.push(stats);
       history.timestamps.push(Date.now());
       
-      // Keep only last 10 minutes of data
       const tenMinutesAgo = Date.now() - 10 * 60 * 1000;
       while (history.timestamps.length > 0 && history.timestamps[0] < tenMinutesAgo) {
         history.timestamps.shift();
         history.stats.shift();
       }
 
-      // Evaluate condition
       const threshold = parseFloat(rule.threshold);
       let currentValue: number | string | null = null;
       let triggered = false;
@@ -277,21 +278,19 @@ class AlertWorkerService {
 
         case "log_pattern":
           currentValue = await this.checkLogPattern(container, rule.threshold);
-          triggered = this.compareValues(currentValue, rule.operator, 1); // 1 = pattern found
+          triggered = this.compareValues(currentValue, rule.operator, 1);
           break;
 
         default:
           return defaultEval;
       }
 
-      // Check duration requirement for metric-based alerts
       if (triggered && rule.durationMinutes > 0 && ["cpu_percent", "memory_percent"].includes(rule.conditionType)) {
         const durationMs = rule.durationMinutes * 60 * 1000;
         const relevantHistory = history.stats.filter((_, index) => {
           return Date.now() - history.timestamps[index] <= durationMs;
         });
 
-        // All values in the duration must meet the condition
         triggered = relevantHistory.length > 0 && relevantHistory.every((s) => {
           switch (rule.conditionType) {
             case "cpu_percent":
@@ -324,18 +323,11 @@ class AlertWorkerService {
 
   private async checkLogPattern(container: ContainerSummary, pattern: string): Promise<number> {
     try {
-      const cacheKey = `${container.hostId}:${container.id}`;
-      
-      // Get recent logs (last 5 minutes)
       const host = getHost(container.hostId);
-      let recentLogs: string[] = [];
       
       if (host.provider === "DOCKER") {
-        // For Docker, we'd need to implement log fetching
-        // For now, return 0 (no pattern found)
         return 0;
       } else {
-        // For cAdvisor-only hosts, we don't have log access yet
         return 0;
       }
     } catch (error) {
@@ -383,7 +375,6 @@ class AlertWorkerService {
   }
 
   private determineSeverity(rule: AlertRule, value: any): "info" | "warning" | "critical" {
-    // Simple severity determination - can be enhanced
     if (rule.conditionType === "cpu_percent" || rule.conditionType === "memory_percent") {
       if (value >= 90) return "critical";
       if (value >= 75) return "warning";
@@ -400,57 +391,64 @@ class AlertWorkerService {
   }
 
   private async handleTriggeredAlert(evaluation: AlertEvaluation) {
-    try {
-      // Check if we've already sent this alert recently (debouncing)
-      const recentAlerts = await db
-        .select()
-        .from(alertHistory)
-        .where(eq(alertHistory.ruleId, evaluation.rule.id))
-        .limit(1);
+    return requirePostgreSQLAsync(
+      "Alert handling",
+      async () => {
+        try {
+          const recentAlerts = await db
+            .select()
+            .from(alertHistory)
+            .where(eq(alertHistory.ruleId, evaluation.rule.id))
+            .limit(1);
 
-      if (recentAlerts.length > 0) {
-        const lastAlert = recentAlerts[0];
-        const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-        if (new Date(lastAlert.createdAt) > fiveMinutesAgo) {
-          // Skip if we sent an alert for this rule in the last 5 minutes
-          return;
+          if (recentAlerts.length > 0) {
+            const lastAlert = recentAlerts[0];
+            const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+            if (new Date(lastAlert.createdAt) > fiveMinutesAgo) {
+              return;
+            }
+          }
+
+          await db.insert(alertHistory).values({
+            ruleId: evaluation.rule.id as any,
+            containerId: evaluation.container.id,
+            containerName: evaluation.container.name,
+            message: evaluation.message,
+            severity: evaluation.severity,
+          });
+
+          await this.sendNotification(evaluation);
+        } catch (error) {
+          console.error("Error handling triggered alert:", error);
         }
-      }
-
-      // Create alert history entry
-      await db.insert(alertHistory).values({
-        ruleId: evaluation.rule.id as any,
-        containerId: evaluation.container.id,
-        containerName: evaluation.container.name,
-        message: evaluation.message,
-        severity: evaluation.severity,
-      });
-
-      // Send notification
-      await this.sendNotification(evaluation);
-    } catch (error) {
-      console.error("Error handling triggered alert:", error);
-    }
+      },
+      undefined
+    );
   }
 
   private async sendNotification(evaluation: AlertEvaluation) {
-    try {
-      const [channel] = await db
-        .select()
-        .from(notificationChannels)
-        .where(eq(notificationChannels.id, evaluation.rule.channelId));
+    return requirePostgreSQLAsync(
+      "Notification sending",
+      async () => {
+        try {
+          const [channel] = await db
+            .select()
+            .from(notificationChannels)
+            .where(eq(notificationChannels.id, evaluation.rule.channelId));
 
-      if (!channel || channel.enabled !== "true") {
-        return;
-      }
+          if (!channel || channel.enabled !== "true") {
+            return;
+          }
 
-      await sendNotification(channel, evaluation.message);
-      console.log(`[ALERT] ${evaluation.message} (Channel: ${channel.name})`);
-    } catch (error) {
-      console.error("Error sending notification:", error);
-    }
+          await sendNotification(channel, evaluation.message);
+          console.log(`[ALERT] ${evaluation.message} (Channel: ${channel.name})`);
+        } catch (error) {
+          console.error("Error sending notification:", error);
+        }
+      },
+      undefined
+    );
   }
 }
 
-// Singleton instance
 export const alertWorker = new AlertWorkerService();

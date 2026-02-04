@@ -9,8 +9,18 @@ import {
   insertNotificationChannelSchema,
   insertAlertHistorySchema,
 } from "@shared/schema";
+import { isSQLite, logSQLiteDisabled, requirePostgreSQLAsync } from "../config/databaseCapabilities";
 
 const router = Router();
+
+// Error response helper for SQLite mode
+function sqliteErrorResponse(action: string) {
+  return {
+    error: "Feature unavailable",
+    message: `${action} requires PostgreSQL. SQLite is currently configured.`,
+    sqliteMode: true,
+  };
+}
 
 // ==================== NOTIFICATION SENDER ====================
 
@@ -35,25 +45,14 @@ async function sendWebhookNotification(config: any, message: string): Promise<vo
 }
 
 async function sendEmailNotification(config: any, message: string): Promise<void> {
-  // For now, we'll use a simple console.log approach
-  // In production, you'd integrate with SendGrid, SMTP, etc.
   console.log(`[EMAIL] To: ${config.to}`);
   console.log(`[EMAIL] Subject: ${config.subject || "ContainerYard Alert"}`);
   console.log(`[EMAIL] Body: ${message}`);
   
-  // Simulate email sending delay
   await new Promise(resolve => setTimeout(resolve, 1000));
-  
-  // In a real implementation, you would:
-  // 1. Use nodemailer for SMTP
-  // 2. Use SendGrid API
-  // 3. Use AWS SES
-  // etc.
 }
 
 async function sendBrowserNotification(config: any, message: string): Promise<void> {
-  // Browser notifications would be handled client-side
-  // This is just a placeholder for server-side logic
   console.log(`[BROWSER] ${message}`);
 }
 
@@ -74,8 +73,12 @@ async function sendNotification(channel: any, message: string): Promise<void> {
 
 // ==================== Notification Channels ====================
 
-// Get all notification channels
 router.get("/channels", async (req, res, next) => {
+  if (isSQLite) {
+    logSQLiteDisabled("Notification channels list");
+    return res.json([]);
+  }
+  
   try {
     const channels = await db
       .select()
@@ -87,8 +90,11 @@ router.get("/channels", async (req, res, next) => {
   }
 });
 
-// Get a specific notification channel
 router.get("/channels/:id", async (req, res, next) => {
+  if (isSQLite) {
+    return res.status(503).json(sqliteErrorResponse("Notification channel retrieval"));
+  }
+  
   try {
     const [channel] = await db
       .select()
@@ -105,8 +111,11 @@ router.get("/channels/:id", async (req, res, next) => {
   }
 });
 
-// Create a new notification channel
 router.post("/channels", async (req, res, next) => {
+  if (isSQLite) {
+    return res.status(503).json(sqliteErrorResponse("Notification channel creation"));
+  }
+  
   try {
     const result = insertNotificationChannelSchema.safeParse(req.body);
     if (!result.success) {
@@ -127,8 +136,11 @@ router.post("/channels", async (req, res, next) => {
   }
 });
 
-// Update a notification channel
 router.patch("/channels/:id", async (req, res, next) => {
+  if (isSQLite) {
+    return res.status(503).json(sqliteErrorResponse("Notification channel update"));
+  }
+  
   try {
     const [channel] = await db
       .update(notificationChannels)
@@ -146,8 +158,11 @@ router.patch("/channels/:id", async (req, res, next) => {
   }
 });
 
-// Delete a notification channel
 router.delete("/channels/:id", async (req, res, next) => {
+  if (isSQLite) {
+    return res.status(503).json(sqliteErrorResponse("Notification channel deletion"));
+  }
+  
   try {
     await db
       .delete(notificationChannels)
@@ -158,8 +173,11 @@ router.delete("/channels/:id", async (req, res, next) => {
   }
 });
 
-// Test a notification channel
 router.post("/channels/:id/test", async (req, res, next) => {
+  if (isSQLite) {
+    return res.status(503).json(sqliteErrorResponse("Notification testing"));
+  }
+  
   try {
     const [channel] = await db
       .select()
@@ -192,8 +210,12 @@ router.post("/channels/:id/test", async (req, res, next) => {
 
 // ==================== Alert Rules ====================
 
-// Get all alert rules
 router.get("/rules", async (req, res, next) => {
+  if (isSQLite) {
+    logSQLiteDisabled("Alert rules list");
+    return res.json([]);
+  }
+  
   try {
     const rules = await db
       .select()
@@ -205,8 +227,11 @@ router.get("/rules", async (req, res, next) => {
   }
 });
 
-// Get a specific alert rule
 router.get("/rules/:id", async (req, res, next) => {
+  if (isSQLite) {
+    return res.status(503).json(sqliteErrorResponse("Alert rule retrieval"));
+  }
+  
   try {
     const [rule] = await db
       .select()
@@ -223,8 +248,11 @@ router.get("/rules/:id", async (req, res, next) => {
   }
 });
 
-// Create a new alert rule
 router.post("/rules", async (req, res, next) => {
+  if (isSQLite) {
+    return res.status(503).json(sqliteErrorResponse("Alert rule creation"));
+  }
+  
   try {
     const result = insertAlertRuleSchema.safeParse(req.body);
     if (!result.success) {
@@ -245,8 +273,11 @@ router.post("/rules", async (req, res, next) => {
   }
 });
 
-// Update an alert rule
 router.patch("/rules/:id", async (req, res, next) => {
+  if (isSQLite) {
+    return res.status(503).json(sqliteErrorResponse("Alert rule update"));
+  }
+  
   try {
     const [rule] = await db
       .update(alertRules)
@@ -264,8 +295,11 @@ router.patch("/rules/:id", async (req, res, next) => {
   }
 });
 
-// Delete an alert rule
 router.delete("/rules/:id", async (req, res, next) => {
+  if (isSQLite) {
+    return res.status(503).json(sqliteErrorResponse("Alert rule deletion"));
+  }
+  
   try {
     await db
       .delete(alertRules)
@@ -278,17 +312,17 @@ router.delete("/rules/:id", async (req, res, next) => {
 
 // ==================== Alert History ====================
 
-// Get alert history
 router.get("/history", async (req, res, next) => {
+  if (isSQLite) {
+    logSQLiteDisabled("Alert history");
+    return res.json([]);
+  }
+  
   try {
     const limit = req.query.limit ? parseInt(String(req.query.limit)) : 100;
     const acknowledged = req.query.acknowledged;
     
     let query = db.select().from(alertHistory);
-    
-    // Note: Filtering by acknowledged status requires more complex where clause
-    // For now, we'll return all and let the frontend filter
-    // TODO: Implement proper IS NULL / IS NOT NULL filtering with Drizzle
     
     const history = await query
       .orderBy(desc(alertHistory.createdAt))
@@ -300,8 +334,11 @@ router.get("/history", async (req, res, next) => {
   }
 });
 
-// Acknowledge an alert
 router.post("/history/:id/acknowledge", async (req, res, next) => {
+  if (isSQLite) {
+    return res.status(503).json(sqliteErrorResponse("Alert acknowledgment"));
+  }
+  
   try {
     const { acknowledgedBy } = req.body;
     
@@ -324,13 +361,14 @@ router.post("/history/:id/acknowledge", async (req, res, next) => {
   }
 });
 
-// Clear old alert history
 router.delete("/history", async (req, res, next) => {
+  if (isSQLite) {
+    return res.status(503).json(sqliteErrorResponse("Alert history cleanup"));
+  }
+  
   try {
     const days = req.query.days ? parseInt(String(req.query.days)) : 30;
     
-    // TODO: Implement proper date-based deletion with Drizzle
-    // For now, just return success
     res.json({ success: true, message: `Would delete alerts older than ${days} days` });
   } catch (error) {
     next(error);

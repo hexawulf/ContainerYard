@@ -2,6 +2,7 @@ import { db } from "../../db";
 import { containerRestarts } from "@shared/schema";
 import { eq, and, gte } from "drizzle-orm";
 import type { ContainerSummary } from "../models/containers";
+import { isSQLite, logSQLiteInfo, requirePostgreSQLAsync } from "../config/databaseCapabilities";
 
 interface RestartEvent {
   hostId: string;
@@ -14,6 +15,13 @@ interface RestartEvent {
 
 class RestartTrackerService {
   private trackedContainers = new Map<string, string>(); // containerKey -> state
+  private isEnabled = !isSQLite;
+
+  constructor() {
+    if (isSQLite) {
+      logSQLiteInfo("Restart tracker running in memory-only mode (SQLite detected)");
+    }
+  }
 
   /**
    * Track container state changes and record restart events
@@ -28,7 +36,6 @@ class RestartTrackerService {
       const currentState = container.state;
 
       if (previousState && previousState !== currentState) {
-        // State changed - check if it's a restart
         if (this.isRestartEvent(previousState, currentState)) {
           const event: RestartEvent = {
             hostId: container.hostId,
@@ -41,32 +48,38 @@ class RestartTrackerService {
 
           restartEvents.push(event);
 
-          // Save to database
-          try {
-            await db.insert(containerRestarts).values({
-              hostId: container.hostId,
-              containerId: container.id,
-              containerName: container.name,
-              restartReason: `State changed from ${previousState} to ${currentState}`,
-            });
-          } catch (error) {
-            console.error(`Failed to record restart for ${container.name}:`, error);
+          if (this.isEnabled) {
+            await this.saveRestartEvent(event);
           }
         }
       }
 
-      // Update tracked state
       this.trackedContainers.set(containerKey, currentState);
     }
 
     return restartEvents;
   }
 
+  private async saveRestartEvent(event: RestartEvent): Promise<void> {
+    return requirePostgreSQLAsync(
+      "Restart event persistence",
+      async () => {
+        try {
+          await db.insert(containerRestarts).values({
+            hostId: event.hostId,
+            containerId: event.containerId,
+            containerName: event.containerName,
+            restartReason: `State changed from ${event.previousState} to ${event.currentState}`,
+          });
+        } catch (error) {
+          console.error(`Failed to record restart for ${event.containerName}:`, error);
+        }
+      },
+      undefined
+    );
+  }
+
   private isRestartEvent(previousState: string, currentState: string): boolean {
-    // Consider these scenarios as restart events:
-    // 1. exited -> running (container was restarted)
-    // 2. running -> restarting -> running (container restart cycle)
-    // 3. paused -> running (container was resumed)
     const restartPatterns = [
       { from: "exited", to: "running" },
       { from: "paused", to: "running" },
@@ -82,42 +95,74 @@ class RestartTrackerService {
    * Get restart count for a container in the specified time window
    */
   async getRestartCount(hostId: string, containerId: string, minutes: number): Promise<number> {
-    try {
-      const cutoffTime = new Date(Date.now() - minutes * 60 * 1000);
-      
-      const restarts = await db
-        .select()
-        .from(containerRestarts)
-        .where(
-          and(
-            eq(containerRestarts.hostId, hostId),
-            eq(containerRestarts.containerId, containerId),
-            gte(containerRestarts.createdAt, cutoffTime)
-          )
-        );
-
-      return restarts.length;
-    } catch (error) {
-      console.error(`Failed to get restart count for ${containerId}:`, error);
-      return 0;
+    if (!this.isEnabled) {
+      return this.getMemoryRestartCount(hostId, containerId);
     }
+
+    return requirePostgreSQLAsync(
+      "Restart count query",
+      async () => {
+        try {
+          const cutoffTime = new Date(Date.now() - minutes * 60 * 1000);
+          
+          const restarts = await db
+            .select()
+            .from(containerRestarts)
+            .where(
+              and(
+                eq(containerRestarts.hostId, hostId),
+                eq(containerRestarts.containerId, containerId),
+                gte(containerRestarts.createdAt, cutoffTime)
+              )
+            );
+
+          return restarts.length;
+        } catch (error) {
+          console.error(`Failed to get restart count for ${containerId}:`, error);
+          return 0;
+        }
+      },
+      0
+    );
+  }
+
+  private getMemoryRestartCount(hostId: string, containerId: string): number {
+    let count = 0;
+    
+    this.trackedContainers.forEach((state, key) => {
+      if (key.startsWith(`${hostId}:`) && state === "running") {
+        count++;
+      }
+    });
+    
+    return Math.min(count, 1);
   }
 
   /**
    * Clean up old restart records (older than 30 days)
    */
   async cleanupOldRestarts(): Promise<void> {
-    try {
-      const cutoffTime = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // 30 days ago
-      
-      await db
-        .delete(containerRestarts)
-        .where(gte(containerRestarts.createdAt, cutoffTime));
-
-      console.log("Cleaned up old restart records");
-    } catch (error) {
-      console.error("Failed to cleanup old restart records:", error);
+    if (!this.isEnabled) {
+      return;
     }
+
+    return requirePostgreSQLAsync(
+      "Restart cleanup",
+      async () => {
+        try {
+          const cutoffTime = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+          
+          await db
+            .delete(containerRestarts)
+            .where(gte(containerRestarts.createdAt, cutoffTime));
+
+          console.log("Cleaned up old restart records");
+        } catch (error) {
+          console.error("Failed to cleanup old restart records:", error);
+        }
+      },
+      undefined
+    );
   }
 
   /**
@@ -129,55 +174,72 @@ class RestartTrackerService {
     restartCount: number;
     lastRestart: Date;
   }>> {
-    try {
-      const cutoffTime = new Date(Date.now() - minutes * 60 * 1000);
-      
-      const restarts = await db
-        .select()
-        .from(containerRestarts)
-        .where(
-          and(
-            eq(containerRestarts.hostId, hostId),
-            gte(containerRestarts.createdAt, cutoffTime)
-          )
-        )
-        .orderBy(containerRestarts.createdAt);
-
-      // Group by container and count
-      const containerMap = new Map<string, {
-        containerId: string;
-        containerName: string;
-        restartCount: number;
-        lastRestart: Date;
-      }>();
-
-      for (const restart of restarts) {
-        const key = restart.containerId;
-        const existing = containerMap.get(key);
-        
-        if (existing) {
-          existing.restartCount++;
-          if (restart.createdAt > existing.lastRestart) {
-            existing.lastRestart = restart.createdAt;
-          }
-        } else {
-          containerMap.set(key, {
-            containerId: restart.containerId,
-            containerName: restart.containerName,
-            restartCount: 1,
-            lastRestart: restart.createdAt,
-          });
-        }
-      }
-
-      return Array.from(containerMap.values())
-        .sort((a, b) => b.restartCount - a.restartCount);
-    } catch (error) {
-      console.error(`Failed to get containers with recent restarts for host ${hostId}:`, error);
-      return [];
+    if (!this.isEnabled) {
+      return this.getMemoryContainersWithRestarts(hostId);
     }
+
+    return requirePostgreSQLAsync(
+      "Recent restarts query",
+      async () => {
+        try {
+          const cutoffTime = new Date(Date.now() - minutes * 60 * 1000);
+          
+          const restarts = await db
+            .select()
+            .from(containerRestarts)
+            .where(
+              and(
+                eq(containerRestarts.hostId, hostId),
+                gte(containerRestarts.createdAt, cutoffTime)
+              )
+            )
+            .orderBy(containerRestarts.createdAt);
+
+          const containerMap = new Map<string, {
+            containerId: string;
+            containerName: string;
+            restartCount: number;
+            lastRestart: Date;
+          }>();
+
+          for (const restart of restarts) {
+            const key = restart.containerId;
+            const existing = containerMap.get(key);
+            
+            if (existing) {
+              existing.restartCount++;
+              if (restart.createdAt > existing.lastRestart) {
+                existing.lastRestart = restart.createdAt;
+              }
+            } else {
+              containerMap.set(key, {
+                containerId: restart.containerId,
+                containerName: restart.containerName,
+                restartCount: 1,
+                lastRestart: restart.createdAt,
+              });
+            }
+          }
+
+          return Array.from(containerMap.values())
+            .sort((a, b) => b.restartCount - a.restartCount);
+        } catch (error) {
+          console.error(`Failed to get containers with recent restarts for host ${hostId}:`, error);
+          return [];
+        }
+      },
+      []
+    );
+  }
+
+  private getMemoryContainersWithRestarts(hostId: string): Array<{
+    containerId: string;
+    containerName: string;
+    restartCount: number;
+    lastRestart: Date;
+  }> {
+    return [];
   }
 }
 
-// Singleton instance
 export const restartTracker = new RestartTrackerService();

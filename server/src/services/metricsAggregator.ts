@@ -4,6 +4,7 @@ import { listContainers as listDockerContainers, getContainerStats as getDockerC
 import { getCadvisorService } from "./cadvisor";
 import { getHost, listHosts } from "../config/hosts";
 import type { ContainerSummary, ContainerStats } from "../models/containers";
+import { isSQLite, logSQLiteInfo, requirePostgreSQLAsync } from "../config/databaseCapabilities";
 
 interface MetricsAccumulator {
   hostId: string;
@@ -23,6 +24,13 @@ class MetricsAggregatorService {
   private interval: NodeJS.Timeout | null = null;
   private aggregationIntervalMs = 60 * 60 * 1000; // 1 hour
   private metricsAccumulators = new Map<string, MetricsAccumulator>();
+  private isEnabled = !isSQLite;
+
+  constructor() {
+    if (isSQLite) {
+      logSQLiteInfo("Metrics aggregator disabled - historical metrics require PostgreSQL");
+    }
+  }
 
   async start() {
     if (this.interval) {
@@ -30,12 +38,15 @@ class MetricsAggregatorService {
       return;
     }
 
+    if (!this.isEnabled) {
+      logSQLiteInfo("Metrics aggregator not started - requires PostgreSQL for persistence");
+      return;
+    }
+
     console.log("Starting metrics aggregator service...");
     
-    // Start collecting metrics every minute
     this.startMetricsCollection();
     
-    // Aggregate and save every hour
     this.interval = setInterval(() => {
       this.aggregateAndSave().catch((error) => {
         console.error("Error aggregating metrics:", error);
@@ -54,14 +65,12 @@ class MetricsAggregatorService {
   }
 
   private startMetricsCollection() {
-    // Collect metrics every minute
     setInterval(() => {
       this.collectMetrics().catch((error) => {
         console.error("Error collecting metrics:", error);
       });
     }, 60 * 1000); // 1 minute
 
-    // Run initial collection
     this.collectMetrics().catch((error) => {
       console.error("Error in initial metrics collection:", error);
     });
@@ -88,7 +97,6 @@ class MetricsAggregatorService {
             }
           }
 
-          // Only track running containers
           const runningContainers = containers.filter((c) => c.state === "running");
 
           for (const container of runningContainers) {
@@ -146,7 +154,7 @@ class MetricsAggregatorService {
     accumulator.cpuSamples.push(stats.cpuPercent);
     accumulator.memorySamples.push(stats.memoryPercent);
     accumulator.memoryBytesSamples.push(stats.memoryUsage);
-    accumulator.networkRx = stats.networkRx; // Keep latest value
+    accumulator.networkRx = stats.networkRx;
     accumulator.networkTx = stats.networkTx;
     accumulator.blockRead = stats.blockRead;
     accumulator.blockWrite = stats.blockWrite;
@@ -154,55 +162,61 @@ class MetricsAggregatorService {
   }
 
   private async aggregateAndSave() {
-    try {
-      const now = new Date();
-      const aggregatedAt = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), 0, 0, 0);
-
-      console.log(`Aggregating metrics for ${this.metricsAccumulators.size} containers...`);
-
-      for (const [key, accumulator] of this.metricsAccumulators.entries()) {
-        if (accumulator.sampleCount === 0) {
-          continue;
-        }
-
+    return requirePostgreSQLAsync(
+      "Metrics aggregation",
+      async () => {
         try {
-          const avgCpu = this.average(accumulator.cpuSamples);
-          const maxCpu = Math.max(...accumulator.cpuSamples);
-          const avgMemory = this.average(accumulator.memorySamples);
-          const maxMemory = Math.max(...accumulator.memorySamples);
-          const avgMemoryBytes = this.average(accumulator.memoryBytesSamples);
-          const maxMemoryBytes = Math.max(...accumulator.memoryBytesSamples);
+          const now = new Date();
+          const aggregatedAt = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), 0, 0, 0);
 
-          await db.insert(containerMetricsHourly).values({
-            hostId: accumulator.hostId,
-            containerId: accumulator.containerId,
-            containerName: accumulator.containerName,
-            aggregatedAt,
-            avgCpuPercent: avgCpu.toFixed(2),
-            maxCpuPercent: maxCpu.toFixed(2),
-            avgMemoryPercent: avgMemory.toFixed(2),
-            maxMemoryPercent: maxMemory.toFixed(2),
-            avgMemoryBytes: Math.round(avgMemoryBytes).toString(),
-            maxMemoryBytes: Math.round(maxMemoryBytes).toString(),
-            totalNetworkRx: accumulator.networkRx.toString(),
-            totalNetworkTx: accumulator.networkTx.toString(),
-            totalBlockRead: accumulator.blockRead.toString(),
-            totalBlockWrite: accumulator.blockWrite.toString(),
-            sampleCount: accumulator.sampleCount as any,
-          });
+          console.log(`Aggregating metrics for ${this.metricsAccumulators.size} containers...`);
 
-          console.log(`Saved hourly metrics for ${accumulator.containerName}`);
+          const entries = Array.from(this.metricsAccumulators.entries());
+          for (const [key, accumulator] of entries) {
+            if (accumulator.sampleCount === 0) {
+              continue;
+            }
+
+            try {
+              const avgCpu = this.average(accumulator.cpuSamples);
+              const maxCpu = Math.max(...accumulator.cpuSamples);
+              const avgMemory = this.average(accumulator.memorySamples);
+              const maxMemory = Math.max(...accumulator.memorySamples);
+              const avgMemoryBytes = this.average(accumulator.memoryBytesSamples);
+              const maxMemoryBytes = Math.max(...accumulator.memoryBytesSamples);
+
+              await db.insert(containerMetricsHourly).values({
+                hostId: accumulator.hostId,
+                containerId: accumulator.containerId,
+                containerName: accumulator.containerName,
+                aggregatedAt,
+                avgCpuPercent: avgCpu.toFixed(2),
+                maxCpuPercent: maxCpu.toFixed(2),
+                avgMemoryPercent: avgMemory.toFixed(2),
+                maxMemoryPercent: maxMemory.toFixed(2),
+                avgMemoryBytes: Math.round(avgMemoryBytes).toString(),
+                maxMemoryBytes: Math.round(maxMemoryBytes).toString(),
+                totalNetworkRx: accumulator.networkRx.toString(),
+                totalNetworkTx: accumulator.networkTx.toString(),
+                totalBlockRead: accumulator.blockRead.toString(),
+                totalBlockWrite: accumulator.blockWrite.toString(),
+                sampleCount: accumulator.sampleCount as any,
+              });
+
+              console.log(`Saved hourly metrics for ${accumulator.containerName}`);
+            } catch (error) {
+              console.error(`Error saving metrics for container ${key}:`, error);
+            }
+          }
+
+          this.metricsAccumulators.clear();
+          console.log("Metrics aggregation completed");
         } catch (error) {
-          console.error(`Error saving metrics for container ${key}:`, error);
+          console.error("Error in aggregateAndSave:", error);
         }
-      }
-
-      // Clear accumulators for next hour
-      this.metricsAccumulators.clear();
-      console.log("Metrics aggregation completed");
-    } catch (error) {
-      console.error("Error in aggregateAndSave:", error);
-    }
+      },
+      undefined
+    );
   }
 
   private average(numbers: number[]): number {
@@ -211,5 +225,4 @@ class MetricsAggregatorService {
   }
 }
 
-// Singleton instance
 export const metricsAggregator = new MetricsAggregatorService();

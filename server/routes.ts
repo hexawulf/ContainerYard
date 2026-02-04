@@ -6,6 +6,7 @@ import { z } from "zod";
 import { containerActionSchema, insertSavedSearchSchema, insertLogBookmarkSchema, savedSearches, logBookmarks } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc } from "drizzle-orm";
+import { isSQLite, logSQLiteDisabled } from "./src/config/databaseCapabilities";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
@@ -82,9 +83,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Saved Searches API
+  // Saved Searches API - returns empty array in SQLite mode
   app.get("/api/saved-searches", async (req, res) => {
     try {
+      if (isSQLite) {
+        logSQLiteDisabled("Saved searches");
+        return res.json([]);
+      }
       const searches = await db.select().from(savedSearches).orderBy(desc(savedSearches.createdAt));
       res.json(searches);
     } catch (error: any) {
@@ -94,6 +99,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/saved-searches", async (req, res) => {
     try {
+      if (isSQLite) {
+        return res.status(503).json({ 
+          error: "Feature unavailable",
+          message: "Saved searches require PostgreSQL. SQLite is currently configured.",
+          sqliteMode: true
+        });
+      }
+      
       const result = insertSavedSearchSchema.safeParse(req.body);
       if (!result.success) {
         return res.status(400).json({ error: "Invalid search data", details: result.error });
@@ -108,6 +121,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/saved-searches/:id", async (req, res) => {
     try {
+      if (isSQLite) {
+        return res.status(503).json({ 
+          error: "Feature unavailable",
+          message: "Saved searches require PostgreSQL. SQLite is currently configured.",
+          sqliteMode: true
+        });
+      }
+      
       await db.delete(savedSearches).where(eq(savedSearches.id, parseInt(req.params.id)));
       res.json({ success: true });
     } catch (error: any) {
@@ -115,9 +136,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Log Bookmarks API
+  // Log Bookmarks API - returns empty array in SQLite mode
   app.get("/api/bookmarks", async (req, res) => {
     try {
+      if (isSQLite) {
+        logSQLiteDisabled("Log bookmarks");
+        return res.json([]);
+      }
+      
       const bookmarks = await db.select().from(logBookmarks).orderBy(desc(logBookmarks.createdAt));
       res.json(bookmarks);
     } catch (error: any) {
@@ -127,6 +153,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/bookmarks", async (req, res) => {
     try {
+      if (isSQLite) {
+        return res.status(503).json({ 
+          error: "Feature unavailable",
+          message: "Log bookmarks require PostgreSQL. SQLite is currently configured.",
+          sqliteMode: true
+        });
+      }
+      
       const result = insertLogBookmarkSchema.safeParse(req.body);
       if (!result.success) {
         return res.status(400).json({ error: "Invalid bookmark data", details: result.error });
@@ -141,6 +175,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/bookmarks/:id", async (req, res) => {
     try {
+      if (isSQLite) {
+        return res.status(503).json({ 
+          error: "Feature unavailable",
+          message: "Log bookmarks require PostgreSQL. SQLite is currently configured.",
+          sqliteMode: true
+        });
+      }
+      
       await db.delete(logBookmarks).where(eq(logBookmarks.id, parseInt(req.params.id)));
       res.json({ success: true });
     } catch (error: any) {

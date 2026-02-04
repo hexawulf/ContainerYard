@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { listHosts } from "../config/hosts";
+import { isSQLite, isPostgreSQL } from "../config/databaseCapabilities";
 
 export function registerRuntimeConfigRoute(app: import("express").Express) {
   app.get("/api/runtime-config", (req: Request, res: Response) => {
@@ -17,9 +18,19 @@ export function registerRuntimeConfigRoute(app: import("express").Express) {
     res.json({
       apiBase,
       hosts,
+      database: {
+        type: isSQLite ? 'sqlite' : (isPostgreSQL ? 'postgresql' : 'unknown'),
+        isSQLite,
+        isPostgreSQL,
+      },
       features: {
         logs: true,
         multiHost: true,
+        alerts: !isSQLite,
+        savedSearches: !isSQLite,
+        logBookmarks: !isSQLite,
+        historicalMetrics: !isSQLite,
+        restartTracking: !isSQLite,
       },
     });
   });
