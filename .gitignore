@@ -71,3 +71,9 @@ vite.config.ts.*
 # Local OpenCode instructions
 plan.md
 .aider*
+.claude/
+
+# Generated reports
+playwright-report/
+test-results/
+lighthouse-report.json
