@@ -1,13 +1,6 @@
-import Docker from "dockerode";
 import { parseContainerInstant } from "../lib/parseDockerStats";
-import { getDockerSocketPath } from "../config/hosts";
-
-const docker = new Docker({ socketPath: getDockerSocketPath() });
-
-export interface DockerHostSummary {
-  id: string;
-  provider: string;
-}
+import { getDockerClientForHost } from "./docker";
+import type { HostConfig } from "../config/hosts";
 
 export type HostStats = {
   hostId: string;
@@ -23,8 +16,9 @@ export type HostStats = {
   timestamp: string;
 };
 
-export async function getDockerHostStats(host: DockerHostSummary): Promise<HostStats> {
-  const list = await docker.listContainers({ all: false });
+export async function getDockerHostStats(host: HostConfig): Promise<HostStats> {
+  const client = getDockerClientForHost(host);
+  const list = await client.listContainers({ all: false });
 
   let cpuPercent = 0;
   let memoryUsage = 0;
@@ -36,7 +30,7 @@ export async function getDockerHostStats(host: DockerHostSummary): Promise<HostS
 
   await Promise.all(list.map(async (c: { Id: string }) => {
     try {
-      const container = docker.getContainer(c.Id);
+      const container = client.getContainer(c.Id);
       const raw = await container.stats({ stream: false });
       const s = parseContainerInstant(raw);
 

@@ -1,12 +1,22 @@
+/**
+ * Drizzle client — CANONICAL for monitoring/alerting data (Neon PostgreSQL).
+ *
+ * Schema: shared/schema.ts (metrics, alerts, bookmarks, restarts, saved searches)
+ * Used by: alertWorker, metricsAggregator, restartTracker, alerts routes, metrics routes
+ *
+ * When DATABASE_URL is a SQLite file URL, this module creates safe mock objects
+ * that throw descriptive errors — all Drizzle-dependent features are gated by
+ * the isSQLite checks in server/src/config/databaseCapabilities.ts.
+ *
+ * Auth/user data uses Prisma + SQLite instead (server/src/db/client.ts).
+ */
 import { Pool, neonConfig } from '@neondatabase/serverless';
 import { drizzle } from 'drizzle-orm/neon-serverless';
 import ws from "ws";
 import * as schema from "@shared/schema";
 
-// Check if using SQLite (file-based database)
 export const isSQLite = process.env.DATABASE_URL?.startsWith('file:');
 
-// Only configure WebSocket for Neon/PostgreSQL connections
 if (!isSQLite) {
   neonConfig.webSocketConstructor = ws;
 }

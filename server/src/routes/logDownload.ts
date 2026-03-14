@@ -60,7 +60,7 @@ router.get("/", requireRole('ADMIN'), async (req, res, next) => {
         });
       }
 
-      const logs = await getContainerLogs(options.containerId, {
+      const logs = await getContainerLogs(host, options.containerId!, {
         tail: options.tail,
         since: options.since,
         stdout: true,

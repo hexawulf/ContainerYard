@@ -39,9 +39,12 @@ async function getLogContent(
   if (!host) {
     return { content: [], available: false, reason: "host_not_found" };
   }
+  if (!host.docker?.socketPath) {
+    return { content: [], available: false, reason: "no_docker_socket", details: { hostId, provider: host.provider } };
+  }
 
   try {
-    const d = dockerClient(host.docker!.socketPath);
+    const d = dockerClient(host.docker.socketPath);
     // We need a container to exec into. 'cadvisor' is a good candidate as it runs on all hosts.
     const container = d.getContainer("cadvisor");
 

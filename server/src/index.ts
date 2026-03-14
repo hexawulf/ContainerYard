@@ -106,7 +106,7 @@ export async function createApp() {
 
   // Backwards-compatible route: GET /api/containers?host=<hostId>
   // Supports both DOCKER and CADVISOR_ONLY providers
-  app.get("/api/containers", async (req, res) => {
+  app.get("/api/containers", requireAuth, async (req, res) => {
     try {
       const hostId = req.query.host as string | undefined;
 

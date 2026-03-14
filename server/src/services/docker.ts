@@ -1,5 +1,4 @@
 import Docker from "dockerode";
-import { getDockerSocketPath } from "../config/hosts";
 import type { HostConfig } from "../config/hosts";
 import { parseContainerInstant } from "../lib/parseDockerStats";
 import type { ContainerAction } from "@shared/schema";
@@ -13,9 +12,35 @@ import type {
   NormalizedPort,
 } from "../models/containers";
 
-export function dockerClient(socketPath: string) { return new Docker({ socketPath }); }
+type DockerClient = InstanceType<typeof Docker>;
 
-const docker = new Docker({ socketPath: getDockerSocketPath() });
+// One Dockerode instance per unique socket path, created on first use.
+const clientCache = new Map<string, DockerClient>();
+
+/**
+ * Returns a Dockerode client for the given host config.
+ * Throws 400 if the host has no Docker socket (e.g. CADVISOR_ONLY hosts).
+ */
+export function getDockerClientForHost(host: HostConfig): DockerClient {
+  if (!host.docker?.socketPath) {
+    const err = new Error(
+      `Host "${host.id}" (provider: ${host.provider}) does not have a Docker socket configured`
+    );
+    (err as any).status = 400;
+    throw err;
+  }
+  return dockerClient(host.docker.socketPath);
+}
+
+/** Returns a cached Dockerode client for an explicit socket path. */
+export function dockerClient(socketPath: string): DockerClient {
+  let client = clientCache.get(socketPath);
+  if (!client) {
+    client = new Docker({ socketPath });
+    clientCache.set(socketPath, client);
+  }
+  return client;
+}
 
 function normalizePorts(ports: any[] | undefined): NormalizedPort[] {
   if (!ports) return [];
@@ -92,7 +117,8 @@ function toContainerSummary(info: any, host: HostConfig): ContainerSummary {
 
 export async function listContainers(host: HostConfig): Promise<ContainerSummary[]> {
   try {
-    const containers = await docker.listContainers({ all: true });
+    const client = getDockerClientForHost(host);
+    const containers = await client.listContainers({ all: true });
     return containers.map((container: any) => toContainerSummary(container, host));
   } catch (error: any) {
     // Check for permission errors when accessing docker socket
@@ -125,7 +151,8 @@ export async function listContainers(host: HostConfig): Promise<ContainerSummary
 
 export async function getContainerDetail(host: HostConfig, containerId: string): Promise<ContainerDetail> {
   try {
-    const container = docker.getContainer(containerId);
+    const client = getDockerClientForHost(host);
+    const container = client.getContainer(containerId);
     const inspect = await container.inspect();
 
     const ports: NormalizedPort[] = inspect.NetworkSettings?.Ports
@@ -188,7 +215,8 @@ export async function getContainerDetail(host: HostConfig, containerId: string):
 
 export async function getContainerStats(host: HostConfig, containerId: string): Promise<ContainerStats> {
   try {
-    const container = docker.getContainer(containerId);
+    const client = getDockerClientForHost(host);
+    const container = client.getContainer(containerId);
     const raw = (await container.stats({ stream: false })) as any;
 
     const parsed = parseContainerInstant(raw);
@@ -249,7 +277,8 @@ export interface LogOptions {
 }
 
 export async function getHostStats(host: HostConfig): Promise<ContainerStats> {
-  const info = await docker.info();
+  const client = getDockerClientForHost(host);
+  const info = await client.info();
   const memoryTotal = info.MemTotal ?? 0;
   return {
     id: host.id,
@@ -267,11 +296,11 @@ export async function getHostStats(host: HostConfig): Promise<ContainerStats> {
   };
 }
 
-export async function getContainerLogs(containerId: string, options: LogOptions = {}): Promise<string> {
+export async function getContainerLogs(host: HostConfig, containerId: string, options: LogOptions = {}): Promise<string> {
   try {
     const { tail = 500, since, stdout = true, stderr = true } = options;
-    
-    const container = docker.getContainer(containerId);
+    const client = getDockerClientForHost(host);
+    const container = client.getContainer(containerId);
     const logOpts: any = {
       stdout,
       stderr,
@@ -288,7 +317,7 @@ export async function getContainerLogs(containerId: string, options: LogOptions 
       }
     }
 
-    const raw = (await container.logs(logOpts)) as Buffer;
+    const raw = (await container.logs(logOpts)) as unknown as Buffer;
     let logs = demuxDockerLogs(raw);
 
     if (options.grep) {
@@ -309,6 +338,7 @@ export async function getContainerLogs(containerId: string, options: LogOptions 
 }
 
 export async function streamContainerLogs(
+  host: HostConfig,
   containerId: string,
   options: LogOptions,
   onData: (line: string) => void,
@@ -316,15 +346,16 @@ export async function streamContainerLogs(
 ): Promise<() => void> {
   try {
     const { stdout = true, stderr = true, grep } = options;
-    
-    const container = docker.getContainer(containerId);
+    const client = getDockerClientForHost(host);
+    const container = client.getContainer(containerId);
+    // Dockerode returns a Node.js stream despite the type signature saying ReadableStream
     const stream = await container.logs({
       stdout,
       stderr,
       follow: true,
       tail: 100,
       timestamps: true,
-    });
+    }) as unknown as NodeJS.ReadableStream & { destroy(): void };
 
     const pattern = grep ? new RegExp(grep.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') : null;
     
@@ -380,7 +411,8 @@ export async function performBulkAction(host: HostConfig, containerIds: string[]
 
 export async function performAction(host: HostConfig, containerId: string, action: ContainerAction): Promise<void> {
   try {
-    const container = docker.getContainer(containerId);
+    const client = getDockerClientForHost(host);
+    const container = client.getContainer(containerId);
     
     switch (action) {
       case "start":
@@ -414,24 +446,33 @@ export async function performAction(host: HostConfig, containerId: string, actio
   }
 }
 
+interface ContainerStatSample {
+  name: string;
+  id: string;
+  state: string;
+  cpuPct: number;
+  memBytes: number;
+  memLimit: number;
+}
+
 export async function dockerHostSummary(socketPath: string) {
   const d = dockerClient(socketPath);
-  const infos = await d.listContainers({ all:false });
-  const stats = await Promise.all(infos.map(async (i: any) => {
+  const infos = await d.listContainers({ all: false });
+  const stats: ContainerStatSample[] = await Promise.all(infos.map(async (i: { Id: string; Names?: string[]; State: string }) => {
     const c = d.getContainer(i.Id);
-    const s: any = await c.stats({ stream:false });
+    const s: any = await c.stats({ stream: false });
     const cpuDelta = s.cpu_stats.cpu_usage.total_usage - s.precpu_stats.cpu_usage.total_usage;
     const sysDelta = s.cpu_stats.system_cpu_usage - s.precpu_stats.system_cpu_usage;
     const online = s.cpu_stats.online_cpus || (s.cpu_stats.cpu_usage?.percpu_usage?.length || 1);
     const cpuPct = (sysDelta > 0 && online > 0) ? (cpuDelta / sysDelta) * online * 100 : 0;
-    const memBytes = s.memory_stats?.usage || 0;
-    const memLimit = s.memory_stats?.limit || 0;
-    return { name:i.Names?.[0]?.replace(/^\//,''), id:i.Id, state:i.State, cpuPct, memBytes, memLimit };
+    const memBytes: number = s.memory_stats?.usage || 0;
+    const memLimit: number = s.memory_stats?.limit || 0;
+    return { name: i.Names?.[0]?.replace(/^\//, '') ?? i.Id, id: i.Id, state: i.State, cpuPct, memBytes, memLimit };
   }));
 
-  const topCpu = stats.slice().sort((a,b)=>(b.cpuPct||0)-(a.cpuPct||0)).slice(0,5);
-  const topMem = stats.slice().sort((a,b)=>(b.memBytes||0)-(a.memBytes||0)).slice(0,5);
-  const memUsed = stats.reduce((a,b)=>a+(b.memBytes||0),0);
-  const avgCpu = stats.length ? stats.reduce((a,b)=>a+(b.cpuPct||0),0) / stats.length : 0;
+  const topCpu = stats.slice().sort((a, b) => b.cpuPct - a.cpuPct).slice(0, 5);
+  const topMem = stats.slice().sort((a, b) => b.memBytes - a.memBytes).slice(0, 5);
+  const memUsed = stats.reduce((sum, s) => sum + s.memBytes, 0);
+  const avgCpu = stats.length ? stats.reduce((sum, s) => sum + s.cpuPct, 0) / stats.length : 0;
   return { totalCpu: avgCpu, memUsed, topCpu, topMem, containers: stats.length };
 }

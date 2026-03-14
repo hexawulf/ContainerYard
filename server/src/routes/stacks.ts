@@ -114,7 +114,7 @@ router.get("/:hostId/stacks/:name/logs", async (req, res, next) => {
     const containerLogs = await Promise.allSettled(
       stack.containers.map(async (container) => {
         try {
-          const logs = await getContainerLogs(container.id, {
+          const logs = await getContainerLogs(host, container.id, {
             tail: Math.max(1, Math.floor(tail / stack.containers.length)),
             since: since as string,
           });

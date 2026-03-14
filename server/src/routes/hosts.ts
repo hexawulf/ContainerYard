@@ -10,7 +10,7 @@ import {
 } from "../services/docker";
 import { getDockerHostStats } from "../services/dockerHostStats";
 import { getCadvisorService } from "../services/cadvisor";
-// import { requireAuth } from "../middleware/auth";
+import { requireAuth } from "../middleware/auth";
 import type { NormalizedStats, HostStats } from "@shared/monitoring";
 
 const router = Router();
@@ -21,7 +21,7 @@ router.get("/", (_req, res) => {
   res.json(listHosts());
 });
 
-router.get("/:hostId/stats", async (req, res, next) => {
+router.get("/:hostId/stats", requireAuth, async (req, res, next) => {
   try {
     const host = getHost(req.params.hostId);
 
@@ -49,7 +49,7 @@ router.get("/:hostId/stats", async (req, res, next) => {
   }
 });
 
-router.get("/:hostId/containers", async (req, res, next) => {
+router.get("/:hostId/containers", requireAuth, async (req, res, next) => {
   try {
     const host = getHost(req.params.hostId);
 
@@ -69,7 +69,7 @@ router.get("/:hostId/containers", async (req, res, next) => {
   }
 });
 
-router.get("/:hostId/containers/:containerId", async (req, res, next) => {
+router.get("/:hostId/containers/:containerId", requireAuth, async (req, res, next) => {
   try {
     const host = getHost(req.params.hostId);
     const containerId = req.params.containerId;
@@ -90,7 +90,7 @@ router.get("/:hostId/containers/:containerId", async (req, res, next) => {
   }
 });
 
-router.get("/:hostId/containers/:containerId/stats", async (req, res, next) => {
+router.get("/:hostId/containers/:containerId/stats", requireAuth, async (req, res, next) => {
   try {
     const host = getHost(req.params.hostId);
     const containerId = req.params.containerId;
@@ -124,7 +124,7 @@ router.get("/:hostId/containers/:containerId/stats", async (req, res, next) => {
   }
 });
 
-router.get("/:hostId/containers/:containerId/logs", async (req, res, next) => {
+router.get("/:hostId/containers/:containerId/logs", requireAuth, async (req, res, next) => {
   try {
     const host = getHost(req.params.hostId);
     const containerId = req.params.containerId;
@@ -144,7 +144,7 @@ router.get("/:hostId/containers/:containerId/logs", async (req, res, next) => {
         stderr,
       };
 
-      const logs = await getContainerLogs(containerId, options);
+      const logs = await getContainerLogs(host, containerId, options);
       return res.json({ 
         mode: "docker",
         content: logs,
@@ -174,7 +174,7 @@ router.get("/:hostId/containers/:containerId/logs", async (req, res, next) => {
   }
 });
 
-router.get("/:hostId/containers/:containerId/logs/stream", async (req, res, next) => {
+router.get("/:hostId/containers/:containerId/logs/stream", requireAuth, async (req, res, next) => {
   try {
     const host = getHost(req.params.hostId);
     const containerId = req.params.containerId;
@@ -201,6 +201,7 @@ router.get("/:hostId/containers/:containerId/logs/stream", async (req, res, next
     let cleanup: (() => void) | null = null;
     try {
       cleanup = await streamContainerLogs(
+        host,
         containerId,
         { stdout, stderr, grep },
         (line) => {

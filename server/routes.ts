@@ -1,3 +1,14 @@
+/**
+ * @deprecated DEAD CODE — This file is NOT imported by the production entry point
+ * (server/index.ts → server/src/index.ts). It was the original monolithic routes file
+ * before the codebase was split into per-domain routers under server/src/routes/.
+ *
+ * It contains an UNAUTHENTICATED WebSocket server with exec/terminal access.
+ * DO NOT import or wire this file into the application.
+ *
+ * Kept for reference only. The active route registrations live in server/src/index.ts.
+ */
+
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
@@ -11,6 +22,7 @@ import { getHost, listHosts } from "./src/config/hosts";
 import { listContainers as listDockerContainers } from "./src/services/docker";
 import { getCadvisorService } from "./src/services/cadvisor";
 
+/** @deprecated See file-level deprecation notice. */
 export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
 
