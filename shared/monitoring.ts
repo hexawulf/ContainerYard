@@ -81,10 +81,6 @@ export interface SessionUser {
   role: "ADMIN" | "VIEWER";
 }
 
-export interface DozzleLinkResponse {
-  link: string;
-}
-
 export interface NormalizedStats {
   cpuPct: number;
   memPct: number;

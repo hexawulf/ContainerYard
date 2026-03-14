@@ -62,10 +62,8 @@ server/
 │   └── metrics.ts           Prometheus metrics
 ├── prisma/
 │   └── schema.prisma        Database schema (User, SavedSearch)
-├── tests/                   Server tests (currently minimal)
-├── routes.ts                Centralized route registration
-├── db.ts                    Database connection (legacy)
-├── storage.ts               Session storage config
+├── tests/                   Server integration tests (Jest/supertest)
+├── db.ts                    Drizzle database connection (PostgreSQL monitoring data)
 └── vite.ts                  Vite dev server integration
 ```
 
@@ -107,20 +105,11 @@ router.get("/me", requireAuth, async (req, res) => {
 export default router;
 ```
 
-**✅ DO: Register Routes in routes.ts**
+**✅ DO: Register Routes in server/src/index.ts**
 ```typescript
-// server/routes.ts
-import authRouter from "./src/routes/auth";
-import hostsRouter from "./src/routes/hosts";
-
+// server/src/index.ts
 app.use("/api/auth", authRouter);
 app.use("/api/hosts", hostsRouter);
-```
-
-**❌ DON'T: Define Routes Directly in index.ts**
-```typescript
-// Avoid - use separate route files
-app.get("/api/containers", async (req, res) => { ... });
 ```
 
 ### Service Layer Pattern
@@ -338,15 +327,15 @@ req.session.user = {
 ## Touch Points / Key Files
 
 **Entry & Config**
-- `server/index.ts` - Express app setup, middleware, error handling
-- `server/routes.ts` - Centralized route registration
+- `server/index.ts` - Express app entry point
+- `server/src/index.ts` - App setup, middleware, route mounting
 - `server/src/config/env.ts` - Environment variable validation
 - `server/vite.ts` - Vite dev server integration (dev mode only)
 
 **Database**
-- `server/prisma/schema.prisma` - Database schema (User, SavedSearch models)
-- `server/src/db/client.ts` - Prisma client singleton
-- `server/db.ts` - Legacy database connection (consider removing)
+- `server/prisma/schema.prisma` - Prisma schema (User model, auth only)
+- `server/src/db/client.ts` - Prisma client singleton (auth)
+- `server/db.ts` - Drizzle database connection (monitoring/alerting data)
 
 **Authentication**
 - `server/src/routes/auth.ts` - Login, logout, CSRF, session endpoints
@@ -399,7 +388,7 @@ rg -n "ws:|WebSocket" server/src
 1. **Prisma Client**: Must run `npx prisma generate` after schema changes. Happens automatically on `npm install` (postinstall script).
 2. **Session Storage**: Uses MemoryStore by default (not production-ready). Use Redis for production (see `server/storage.ts`).
 3. **CSRF Protection**: All non-GET requests require CSRF token. Client handles this automatically via `queryClient.ts`.
-4. **Docker Provider**: Set `PROVIDER=MOCK` in `.env` if you don't have Docker daemon. Routes will return mock data.
+4. **Docker Provider**: The app uses the real Docker daemon via unix socket. Ensure Docker is running and the socket is accessible.
 5. **Path Aliases**: Server uses relative imports (no @/ alias). Only client has path aliases.
 6. **ESM Imports**: Server is built as ESM (`type: "module"` in package.json). Use `import` syntax, not `require()`.
 7. **Port Conflicts**: Dev server runs on port 5000 (default). Change via `PORT` env var if needed.
@@ -505,22 +494,21 @@ wss.on("connection", (ws: WebSocket, req: Request) => {
 ## Environment Variables
 
 **Required**
-- `DATABASE_URL` - PostgreSQL connection string
+- `DATABASE_URL` - Database connection string (SQLite file URL or PostgreSQL)
 - `SESSION_SECRET` - Secret for session encryption (min 32 chars)
-- `PROVIDER` - Docker provider (`MOCK`, `SIMULATION`, `REMOTE`)
+- `REDIS_URL` - Redis URL for session storage
 
 **Optional**
 - `PORT` - Server port (default: 5000)
 - `NODE_ENV` - Environment (`development`, `production`)
-- `DOCKER_HOST` - Docker API URL (for REMOTE provider)
-- `DOCKER_AUTH_TOKEN` - Bearer token (for REMOTE provider)
+- `DOCKER_HOST` - Docker socket path (default: unix:///var/run/docker.sock)
 - `ALLOWED_ORIGINS` - CORS origins (comma-separated)
 
 **Example .env**
 ```bash
-DATABASE_URL=postgresql://user:password@localhost:5432/containeryard
+DATABASE_URL=file:./dev.db
 SESSION_SECRET=your-secret-key-min-32-chars-long
-PROVIDER=MOCK
+REDIS_URL=redis://localhost:6379
 NODE_ENV=development
-PORT=5000
+PORT=5008
 ```

@@ -16,7 +16,6 @@ import { alertsRouter } from "./routes/alerts";
 import { metricsRouter } from "./routes/metrics";
 import summaryRouter from "./routes/summary";
 import inspectRouter from "./routes/inspect";
-import { health } from "./routes/health";
 import { registerRuntimeConfigRoute } from "./routes/runtimeConfig";
 import { attachUserToResponse, globalRateLimiter, requireAuth } from "./middleware/auth";
 import { log, setupVite } from "../vite";

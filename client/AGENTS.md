@@ -46,7 +46,6 @@ client/src/
 ├── hooks/              Custom React hooks
 │   ├── useTheme.ts     Dark/light mode toggle
 │   ├── use-toast.ts    Toast notifications (shadcn/ui)
-│   ├── useKeyboardShortcuts.ts  Keyboard navigation
 │   └── use-mobile.tsx  Mobile detection
 ├── lib/                Utilities & clients
 │   ├── queryClient.ts  TanStack Query config + CSRF handling
@@ -264,7 +263,6 @@ import { ContainerStatus } from "@shared/schema";
 
 **Custom Hooks**
 - `client/src/hooks/useTheme.ts` - Dark/light mode (next-themes)
-- `client/src/hooks/useKeyboardShortcuts.ts` - Keyboard navigation (react-hotkeys-hook)
 - `client/src/hooks/use-toast.ts` - Toast notifications (shadcn/ui)
 
 ## JIT Index Hints

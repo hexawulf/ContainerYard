@@ -7,7 +7,6 @@ import {
   alertHistory,
   insertAlertRuleSchema,
   insertNotificationChannelSchema,
-  insertAlertHistorySchema,
 } from "@shared/schema";
 import { isSQLite, logSQLiteDisabled, requirePostgreSQLAsync } from "../config/databaseCapabilities";
 

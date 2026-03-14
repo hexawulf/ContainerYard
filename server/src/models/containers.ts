@@ -77,7 +77,3 @@ export interface SessionUser {
   email: string;
   role: "ADMIN" | "VIEWER";
 }
-
-export interface DozzleLinkResponse {
-  link: string;
-}

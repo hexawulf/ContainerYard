@@ -88,58 +88,9 @@ export type StatsDataPoint = z.infer<typeof statsDataPointSchema>;
 export const containerActionSchema = z.enum(['start', 'stop', 'restart', 'remove']);
 export type ContainerAction = z.infer<typeof containerActionSchema>;
 
-// WebSocket Message Types
-export const execMessageSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('exec:start'), containerId: z.string(), cmd: z.array(z.string()).optional() }),
-  z.object({ type: z.literal('exec:data'), sessionId: z.string(), data: z.string() }),
-  z.object({ type: z.literal('exec:resize'), sessionId: z.string(), cols: z.number(), rows: z.number() }),
-  z.object({ type: z.literal('exec:close'), sessionId: z.string() }),
-  z.object({ type: z.literal('exec:error'), sessionId: z.string(), error: z.string() }),
-]);
-
-export type ExecMessage = z.infer<typeof execMessageSchema>;
-
-export const actionMessageSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('action:request'), containerId: z.string(), action: containerActionSchema }),
-  z.object({ type: z.literal('action:success'), containerId: z.string(), action: z.string() }),
-  z.object({ type: z.literal('action:error'), containerId: z.string(), action: z.string(), error: z.string() }),
-]);
-
-export type ActionMessage = z.infer<typeof actionMessageSchema>;
-
-export const statusMessageSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('container:update'), container: containerSummarySchema }),
-  z.object({ type: z.literal('container:removed'), containerId: z.string() }),
-]);
-
-export type StatusMessage = z.infer<typeof statusMessageSchema>;
-
-// Saved Search Snippet
-export const searchSnippetSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  description: z.string().optional(),
-  query: z.string(),
-  createdAt: z.string(),
-});
-
-export type SearchSnippet = z.infer<typeof searchSnippetSchema>;
-
-// Provider Type
-export const providerTypeSchema = z.enum(['MOCK', 'SIMULATION', 'REMOTE']);
-export type ProviderType = z.infer<typeof providerTypeSchema>;
-
 // Theme
 export const themeSchema = z.enum(['light', 'dark', 'system']);
 export type Theme = z.infer<typeof themeSchema>;
-
-// Keyboard Shortcut
-export interface KeyboardShortcut {
-  key: string;
-  description: string;
-  category: 'navigation' | 'logs' | 'actions' | 'general';
-  action: () => void;
-}
 
 // Database Tables
 
@@ -169,23 +120,6 @@ export const logBookmarks = pgTable("log_bookmarks", {
 export const insertLogBookmarkSchema = createInsertSchema(logBookmarks).omit({ id: true, createdAt: true });
 export type InsertLogBookmark = z.infer<typeof insertLogBookmarkSchema>;
 export type LogBookmark = typeof logBookmarks.$inferSelect;
-
-// Alert Rule Condition Types
-export const alertConditionTypeSchema = z.enum([
-  'cpu_percent',
-  'memory_percent',
-  'restart_count',
-  'container_status',
-  'log_pattern'
-]);
-export type AlertConditionType = z.infer<typeof alertConditionTypeSchema>;
-
-export const alertOperatorSchema = z.enum(['>', '<', '>=', '<=', '==', '!=', 'contains']);
-export type AlertOperator = z.infer<typeof alertOperatorSchema>;
-
-// Notification Channel Types
-export const notificationChannelTypeSchema = z.enum(['webhook', 'email', 'browser']);
-export type NotificationChannelType = z.infer<typeof notificationChannelTypeSchema>;
 
 // Notification Channels Table
 export const notificationChannels = pgTable("notification_channels", {
@@ -243,11 +177,6 @@ export const alertHistory = pgTable("alert_history", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-export const insertAlertHistorySchema = createInsertSchema(alertHistory).omit({ 
-  id: true, 
-  createdAt: true 
-});
-export type InsertAlertHistory = z.infer<typeof insertAlertHistorySchema>;
 export type AlertHistory = typeof alertHistory.$inferSelect;
 
 // Container Metrics Hourly Table (for historical trend analysis)
@@ -271,11 +200,6 @@ export const containerMetricsHourly = pgTable("container_metrics_hourly", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-export const insertContainerMetricsHourlySchema = createInsertSchema(containerMetricsHourly).omit({ 
-  id: true, 
-  createdAt: true 
-});
-export type InsertContainerMetricsHourly = z.infer<typeof insertContainerMetricsHourlySchema>;
 export type ContainerMetricsHourly = typeof containerMetricsHourly.$inferSelect;
 
 // Container Restarts Table (for tracking restart events)
@@ -288,9 +212,4 @@ export const containerRestarts = pgTable("container_restarts", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-export const insertContainerRestartSchema = createInsertSchema(containerRestarts).omit({ 
-  id: true, 
-  createdAt: true 
-});
-export type InsertContainerRestart = z.infer<typeof insertContainerRestartSchema>;
 export type ContainerRestart = typeof containerRestarts.$inferSelect;

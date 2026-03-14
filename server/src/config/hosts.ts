@@ -71,10 +71,3 @@ export function getDozzleLink(hostId: HostId): string | null {
   const host = getHost(hostId);
   return host.dozzleUrl ?? null;
 }
-
-export function getDockerSocketPath(): string {
-  if (env.DOCKER_HOST.startsWith("unix://")) {
-    return env.DOCKER_HOST.replace("unix://", "");
-  }
-  return env.DOCKER_HOST;
-}

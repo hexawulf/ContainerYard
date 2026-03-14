@@ -20,25 +20,6 @@ export function logSQLiteInfo(message: string): void {
   console.log(`[SQLite Mode] ${message}`);
 }
 
-/**
- * Guard function that executes a callback only if PostgreSQL is available
- * Returns a default value if SQLite mode is active
- */
-export function requirePostgreSQL<T>(
-  featureName: string,
-  callback: () => T,
-  defaultValue: T
-): T {
-  if (isSQLite) {
-    logSQLiteDisabled(featureName);
-    return defaultValue;
-  }
-  return callback();
-}
-
-/**
- * Async version of requirePostgreSQL
- */
 export async function requirePostgreSQLAsync<T>(
   featureName: string,
   callback: () => Promise<T>,
@@ -49,17 +30,4 @@ export async function requirePostgreSQLAsync<T>(
     return defaultValue;
   }
   return callback();
-}
-
-/**
- * Check if database persistence is available for a feature
- * Returns true if either:
- * - PostgreSQL is configured (full functionality)
- * - SQLite is configured but the feature supports SQLite
- */
-export function isPersistenceAvailable(requiresPostgreSQL = false): boolean {
-  if (requiresPostgreSQL) {
-    return isPostgreSQL;
-  }
-  return !!process.env.DATABASE_URL;
 }

@@ -18,7 +18,6 @@ import { Download, Play, Pause, ExternalLink, Search } from "lucide-react";
 import { API_BASE } from "@/lib/api";
 import { SavedSearches } from "@/components/SavedSearches";
 import { LogBookmarks } from "@/components/LogBookmarks";
-// import type { DozzleLinkResponse } from "@shared/monitoring";
 
 type LogsResponse =
   | { mode: "docker"; content: string; truncated: boolean }
