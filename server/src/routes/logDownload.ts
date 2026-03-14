@@ -84,12 +84,14 @@ router.get("/", requireRole('ADMIN'), async (req, res, next) => {
         });
       }
 
-      const filePath = HOST_LOG_ALLOWLIST[options.name];
+      const hostId = options.hostId || 'piapps';
+      const hostLogs = HOST_LOG_ALLOWLIST[hostId];
+      const filePath = hostLogs?.[options.name!];
 
       if (!filePath) {
         return res.status(404).json({
           error: "Log not found",
-          message: `Unknown log name: ${options.name}`
+          message: `Unknown log name: ${options.name} for host ${hostId}`
         });
       }
 

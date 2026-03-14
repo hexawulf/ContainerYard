@@ -236,7 +236,11 @@ export class SimulationProvider implements IProvider {
           };
         }
       }
-      return scenarios[0];
+      return {
+        ts: new Date().toISOString(),
+        raw: scenarios[0].messages[0],
+        level: scenarios[0].level as any,
+      };
     };
 
     const interval = setInterval(() => {

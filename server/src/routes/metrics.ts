@@ -6,6 +6,19 @@ import { isSQLite, logSQLiteDisabled } from "../config/databaseCapabilities";
 
 const router = Router();
 
+function safeParseInt(value: string | undefined, fallback: number, max = 10000): number {
+  if (!value) return fallback;
+  const n = parseInt(value, 10);
+  return Number.isNaN(n) ? fallback : Math.min(Math.max(n, 1), max);
+}
+
+function escapeCsvField(value: string): string {
+  if (/[",\n\r]/.test(value)) {
+    return `"${value.replace(/"/g, '""')}"`;
+  }
+  return value;
+}
+
 // Helper to return empty data for SQLite mode
 function emptyMetricsResponse(res: any, format: string = 'json') {
   if (format === 'csv') {
@@ -26,7 +39,7 @@ router.get("/:hostId/containers/:containerId/metrics/history", async (req, res, 
   
   try {
     const { hostId, containerId } = req.params;
-    const days = req.query.days ? parseInt(String(req.query.days)) : 7;
+    const days = safeParseInt(req.query.days as string, 7, 365);
     
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - days);
@@ -58,7 +71,7 @@ router.get("/:hostId/metrics/summary", async (req, res, next) => {
   
   try {
     const { hostId } = req.params;
-    const days = req.query.days ? parseInt(String(req.query.days)) : 7;
+    const days = safeParseInt(req.query.days as string, 7, 365);
     
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - days);
@@ -90,10 +103,10 @@ router.get("/:hostId/metrics/summary", async (req, res, next) => {
       }
       
       const stats = containerStats.get(metric.containerId)!;
-      stats.avgCpu.push(parseFloat(metric.avgCpuPercent));
-      stats.maxCpu.push(parseFloat(metric.maxCpuPercent));
-      stats.avgMemory.push(parseFloat(metric.avgMemoryPercent));
-      stats.maxMemory.push(parseFloat(metric.maxMemoryPercent));
+      stats.avgCpu.push(parseFloat(metric.avgCpuPercent) || 0);
+      stats.maxCpu.push(parseFloat(metric.maxCpuPercent) || 0);
+      stats.avgMemory.push(parseFloat(metric.avgMemoryPercent) || 0);
+      stats.maxMemory.push(parseFloat(metric.maxMemoryPercent) || 0);
       stats.dataPoints++;
     }
 
@@ -122,8 +135,8 @@ router.get("/:hostId/metrics/top-cpu", async (req, res, next) => {
   
   try {
     const { hostId } = req.params;
-    const limit = req.query.limit ? parseInt(String(req.query.limit)) : 5;
-    const days = req.query.days ? parseInt(String(req.query.days)) : 7;
+    const limit = safeParseInt(req.query.limit as string, 5, 100);
+    const days = safeParseInt(req.query.days as string, 7, 365);
     
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - days);
@@ -147,7 +160,7 @@ router.get("/:hostId/metrics/top-cpu", async (req, res, next) => {
           avgCpu: [],
         });
       }
-      containerCpu.get(metric.containerId)!.avgCpu.push(parseFloat(metric.avgCpuPercent));
+      containerCpu.get(metric.containerId)!.avgCpu.push(parseFloat(metric.avgCpuPercent) || 0);
     }
 
     const topConsumers = Array.from(containerCpu.entries())
@@ -174,8 +187,8 @@ router.get("/:hostId/metrics/top-memory", async (req, res, next) => {
   
   try {
     const { hostId } = req.params;
-    const limit = req.query.limit ? parseInt(String(req.query.limit)) : 5;
-    const days = req.query.days ? parseInt(String(req.query.days)) : 7;
+    const limit = safeParseInt(req.query.limit as string, 5, 100);
+    const days = safeParseInt(req.query.days as string, 7, 365);
     
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - days);
@@ -199,7 +212,7 @@ router.get("/:hostId/metrics/top-memory", async (req, res, next) => {
           avgMemory: [],
         });
       }
-      containerMemory.get(metric.containerId)!.avgMemory.push(parseFloat(metric.avgMemoryPercent));
+      containerMemory.get(metric.containerId)!.avgMemory.push(parseFloat(metric.avgMemoryPercent) || 0);
     }
 
     const topConsumers = Array.from(containerMemory.entries())
@@ -217,8 +230,6 @@ router.get("/:hostId/metrics/top-memory", async (req, res, next) => {
   }
 });
 
-export { router as metricsRouter };
-
 // Export metrics as CSV
 router.get("/:hostId/metrics/export/csv", async (req, res, next) => {
   if (isSQLite) {
@@ -228,7 +239,7 @@ router.get("/:hostId/metrics/export/csv", async (req, res, next) => {
   
   try {
     const { hostId } = req.params;
-    const days = req.query.days ? parseInt(String(req.query.days)) : 7;
+    const days = safeParseInt(req.query.days as string, 7, 365);
     const format = req.query.format || 'csv';
     
     const cutoffDate = new Date();
@@ -270,9 +281,9 @@ router.get("/:hostId/metrics/export/csv", async (req, res, next) => {
     ].join(',');
 
     const csvRows = metrics.map((metric: any) => [
-      `"${metric.containerId}"`,
-      `"${metric.containerName}"`,
-      `"${metric.aggregatedAt.toISOString()}"`,
+      escapeCsvField(metric.containerId),
+      escapeCsvField(metric.containerName),
+      escapeCsvField(metric.aggregatedAt.toISOString()),
       metric.avgCpuPercent,
       metric.maxCpuPercent,
       metric.avgMemoryPercent,
@@ -305,7 +316,7 @@ router.get("/:hostId/containers/:containerId/metrics/export/csv", async (req, re
   
   try {
     const { hostId, containerId } = req.params;
-    const days = req.query.days ? parseInt(String(req.query.days)) : 7;
+    const days = safeParseInt(req.query.days as string, 7, 365);
     const format = req.query.format || 'csv';
     
     const cutoffDate = new Date();
@@ -346,7 +357,7 @@ router.get("/:hostId/containers/:containerId/metrics/export/csv", async (req, re
     ].join(',');
 
     const csvRows = metrics.map((metric: any) => [
-      `"${metric.aggregatedAt.toISOString()}"`,
+      escapeCsvField(metric.aggregatedAt.toISOString()),
       metric.avgCpuPercent,
       metric.maxCpuPercent,
       metric.avgMemoryPercent,
@@ -369,3 +380,5 @@ router.get("/:hostId/containers/:containerId/metrics/export/csv", async (req, re
     next(error);
   }
 });
+
+export { router as metricsRouter };

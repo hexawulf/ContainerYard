@@ -24,11 +24,11 @@ export const sessionMiddleware: RequestHandler = session({
   secret: env.SESSION_SECRET,
   store,
   resave: false,
-  saveUninitialized: true, // Allow sessions to be saved even if not modified
+  saveUninitialized: false,
   proxy: true,
   cookie: {
     httpOnly: true,
-    sameSite: "lax",
+    sameSite: env.COOKIE_SAMESITE,
     secure: true, // TLS at Nginx
     domain: env.COOKIE_DOMAIN ?? undefined,
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days

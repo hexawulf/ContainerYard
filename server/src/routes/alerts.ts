@@ -13,6 +13,11 @@ import { isSQLite, logSQLiteDisabled, requirePostgreSQLAsync } from "../config/d
 
 const router = Router();
 
+function parseIntParam(value: string): number | null {
+  const n = parseInt(value, 10);
+  return Number.isNaN(n) ? null : n;
+}
+
 // Error response helper for SQLite mode
 function sqliteErrorResponse(action: string) {
   return {
@@ -57,7 +62,12 @@ async function sendBrowserNotification(config: any, message: string): Promise<vo
 }
 
 async function sendNotification(channel: any, message: string): Promise<void> {
-  const config = JSON.parse(channel.config);
+  let config: any;
+  try {
+    config = JSON.parse(channel.config);
+  } catch {
+    throw new Error(`Invalid JSON in notification channel config for channel ${channel.id}`);
+  }
   
   switch (channel.type) {
     case "webhook":
@@ -96,10 +106,13 @@ router.get("/channels/:id", async (req, res, next) => {
   }
   
   try {
+    const id = parseIntParam(req.params.id);
+    if (id === null) return res.status(400).json({ error: "Invalid channel ID" });
+
     const [channel] = await db
       .select()
       .from(notificationChannels)
-      .where(eq(notificationChannels.id, parseInt(req.params.id)));
+      .where(eq(notificationChannels.id, id));
     
     if (!channel) {
       return res.status(404).json({ error: "Channel not found" });
@@ -142,10 +155,22 @@ router.patch("/channels/:id", async (req, res, next) => {
   }
   
   try {
+    const id = parseInt(req.params.id);
+    if (Number.isNaN(id)) {
+      return res.status(400).json({ error: "Invalid channel ID" });
+    }
+
+    const { name, type, config, enabled } = req.body;
+    const updates: Record<string, any> = { updatedAt: new Date() };
+    if (name !== undefined) updates.name = String(name);
+    if (type !== undefined) updates.type = String(type);
+    if (config !== undefined) updates.config = String(config);
+    if (enabled !== undefined) updates.enabled = String(enabled);
+
     const [channel] = await db
       .update(notificationChannels)
-      .set({ ...req.body, updatedAt: new Date() })
-      .where(eq(notificationChannels.id, parseInt(req.params.id)))
+      .set(updates)
+      .where(eq(notificationChannels.id, id))
       .returning();
     
     if (!channel) {
@@ -164,9 +189,12 @@ router.delete("/channels/:id", async (req, res, next) => {
   }
   
   try {
+    const id = parseIntParam(req.params.id);
+    if (id === null) return res.status(400).json({ error: "Invalid channel ID" });
+
     await db
       .delete(notificationChannels)
-      .where(eq(notificationChannels.id, parseInt(req.params.id)));
+      .where(eq(notificationChannels.id, id));
     res.json({ success: true });
   } catch (error) {
     next(error);
@@ -179,10 +207,13 @@ router.post("/channels/:id/test", async (req, res, next) => {
   }
   
   try {
+    const id = parseIntParam(req.params.id);
+    if (id === null) return res.status(400).json({ error: "Invalid channel ID" });
+
     const [channel] = await db
       .select()
       .from(notificationChannels)
-      .where(eq(notificationChannels.id, parseInt(req.params.id)));
+      .where(eq(notificationChannels.id, id));
     
     if (!channel) {
       return res.status(404).json({ error: "Channel not found" });
@@ -233,10 +264,13 @@ router.get("/rules/:id", async (req, res, next) => {
   }
   
   try {
+    const id = parseIntParam(req.params.id);
+    if (id === null) return res.status(400).json({ error: "Invalid rule ID" });
+
     const [rule] = await db
       .select()
       .from(alertRules)
-      .where(eq(alertRules.id, parseInt(req.params.id)));
+      .where(eq(alertRules.id, id));
     
     if (!rule) {
       return res.status(404).json({ error: "Rule not found" });
@@ -279,10 +313,27 @@ router.patch("/rules/:id", async (req, res, next) => {
   }
   
   try {
+    const id = parseInt(req.params.id);
+    if (Number.isNaN(id)) {
+      return res.status(400).json({ error: "Invalid rule ID" });
+    }
+
+    const { name, description, conditionType, operator, threshold, durationMinutes, containerFilter, channelId, enabled } = req.body;
+    const updates: Record<string, any> = { updatedAt: new Date() };
+    if (name !== undefined) updates.name = String(name);
+    if (description !== undefined) updates.description = String(description);
+    if (conditionType !== undefined) updates.conditionType = String(conditionType);
+    if (operator !== undefined) updates.operator = String(operator);
+    if (threshold !== undefined) updates.threshold = String(threshold);
+    if (durationMinutes !== undefined) updates.durationMinutes = Number(durationMinutes);
+    if (containerFilter !== undefined) updates.containerFilter = String(containerFilter);
+    if (channelId !== undefined) updates.channelId = Number(channelId);
+    if (enabled !== undefined) updates.enabled = String(enabled);
+
     const [rule] = await db
       .update(alertRules)
-      .set({ ...req.body, updatedAt: new Date() })
-      .where(eq(alertRules.id, parseInt(req.params.id)))
+      .set(updates)
+      .where(eq(alertRules.id, id))
       .returning();
     
     if (!rule) {
@@ -301,9 +352,12 @@ router.delete("/rules/:id", async (req, res, next) => {
   }
   
   try {
+    const id = parseIntParam(req.params.id);
+    if (id === null) return res.status(400).json({ error: "Invalid rule ID" });
+
     await db
       .delete(alertRules)
-      .where(eq(alertRules.id, parseInt(req.params.id)));
+      .where(eq(alertRules.id, id));
     res.json({ success: true });
   } catch (error) {
     next(error);
@@ -319,12 +373,12 @@ router.get("/history", async (req, res, next) => {
   }
   
   try {
-    const limit = req.query.limit ? parseInt(String(req.query.limit)) : 100;
-    const acknowledged = req.query.acknowledged;
+    const rawLimit = req.query.limit ? parseInt(String(req.query.limit), 10) : 100;
+    const limit = Number.isNaN(rawLimit) ? 100 : Math.min(Math.max(rawLimit, 1), 1000);
     
-    let query = db.select().from(alertHistory);
-    
-    const history = await query
+    const history = await db
+      .select()
+      .from(alertHistory)
       .orderBy(desc(alertHistory.createdAt))
       .limit(limit);
     
@@ -340,6 +394,9 @@ router.post("/history/:id/acknowledge", async (req, res, next) => {
   }
   
   try {
+    const id = parseIntParam(req.params.id);
+    if (id === null) return res.status(400).json({ error: "Invalid alert ID" });
+
     const { acknowledgedBy } = req.body;
     
     const [alert] = await db
@@ -348,7 +405,7 @@ router.post("/history/:id/acknowledge", async (req, res, next) => {
         acknowledgedAt: new Date(),
         acknowledgedBy: acknowledgedBy || "system"
       })
-      .where(eq(alertHistory.id, parseInt(req.params.id)))
+      .where(eq(alertHistory.id, id))
       .returning();
     
     if (!alert) {

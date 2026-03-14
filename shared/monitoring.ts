@@ -35,6 +35,7 @@ export interface ContainerSummary {
   labels: Record<string, string>;
   networks: NormalizedNetwork[];
   ports: NormalizedPort[];
+  composeProject?: string | null;
 }
 
 export interface ContainerEnvVar {
@@ -56,7 +57,7 @@ export interface ContainerDetail extends ContainerSummary {
   startedAt?: string | null;
 }
 
-export interface HostStats {
+interface BaseStats {
   id: string;
   hostId: string;
   provider: HostProvider;
@@ -71,30 +72,13 @@ export interface HostStats {
   timestamp: string;
 }
 
-export interface ContainerStats {
-  id: string;
-  hostId: string;
-  provider: HostProvider;
-  cpuPercent: number;
-  memoryUsage: number;
-  memoryLimit: number;
-  memoryPercent: number;
-  networkRx: number;
-  networkTx: number;
-  blockRead: number;
-  blockWrite: number;
-  timestamp: string;
-}
+export interface HostStats extends BaseStats {}
+export interface ContainerStats extends BaseStats {}
 
 export interface SessionUser {
   id: string;
   email: string;
   role: "ADMIN" | "VIEWER";
-}
-
-export interface ContainerLogsResponse {
-  content: string;
-  truncated: boolean;
 }
 
 export interface DozzleLinkResponse {

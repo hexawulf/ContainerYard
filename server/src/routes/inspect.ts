@@ -12,18 +12,24 @@ const r = Router();
  */
 r.get("/api/hosts/:hostId/containers/:id/inspect", requireAuth, async (req, res) => {
   const { hostId, id } = req.params;
-  const host = getHost(hostId as any);
+  const host = getHost(hostId);
 
   try {
     if (host.provider === "DOCKER") {
-      const d = dockerClient(host.docker!.socketPath);
+      if (!host.docker?.socketPath) {
+        return res.status(500).json({ error: "Docker socket path not configured for this host" });
+      }
+      const d = dockerClient(host.docker.socketPath);
       const info = await d.getContainer(id).inspect();
       return res.json(info);
     } else {
-      const base = host.cadvisor!.baseUrl.replace(/\/+$/, "");
-      // Try both docker/<id> and <id> forms
-      let resp = await fetch(`${base}/api/v1.3/containers/docker/${id}`);
-      if (!resp.ok) resp = await fetch(`${base}/api/v1.3/containers/${id}`);
+      if (!host.cadvisor?.baseUrl) {
+        return res.status(500).json({ error: "cAdvisor URL not configured for this host" });
+      }
+      const base = host.cadvisor.baseUrl.replace(/\/+$/, "");
+      const safeId = encodeURIComponent(id);
+      let resp = await fetch(`${base}/api/v1.3/containers/docker/${safeId}`);
+      if (!resp.ok) resp = await fetch(`${base}/api/v1.3/containers/${safeId}`);
       if (!resp.ok) return res.status(404).json({ error: "not_found" });
       const data: any = await resp.json();
       const last = data?.stats?.[data.stats.length - 1];

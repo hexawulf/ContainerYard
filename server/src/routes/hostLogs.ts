@@ -35,7 +35,7 @@ async function getLogContent(
   filePath: string,
   options: LogQuery
 ): Promise<{ content: string[]; available: boolean; reason?: string; details?: any }> {
-  const host = getHost(hostId as any);
+  const host = getHost(hostId);
   if (!host) {
     return { content: [], available: false, reason: "host_not_found" };
   }
@@ -55,19 +55,31 @@ async function getLogContent(
     
     return new Promise((resolve) => {
       let output = "";
-      let errorOutput = "";
+
+      const timeout = setTimeout(() => {
+        stream.destroy();
+        resolve({ content: [], available: false, reason: "timeout", details: { stderr: "Exec stream timed out after 30s" } });
+      }, 30000);
 
       stream.on('data', (chunk: Buffer) => {
         output += chunk.toString('utf8');
-      });
-
-      stream.on('end', () => {
-        if (errorOutput) {
-          resolve({ content: [], available: false, reason: "exec_error", details: { stderr: errorOutput } });
-        } else {
+        if (output.length > 10 * 1024 * 1024) {
+          clearTimeout(timeout);
+          stream.destroy();
           const lines = output.split('\n').filter(line => line.length > 0);
           resolve({ content: lines, available: true });
         }
+      });
+
+      stream.on('error', (err: Error) => {
+        clearTimeout(timeout);
+        resolve({ content: [], available: false, reason: "exec_error", details: { stderr: err.message } });
+      });
+
+      stream.on('end', () => {
+        clearTimeout(timeout);
+        const lines = output.split('\n').filter(line => line.length > 0);
+        resolve({ content: lines, available: true });
       });
     });
   } catch (error: any) {

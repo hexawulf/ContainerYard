@@ -12,14 +12,18 @@ const r = Router();
 r.get("/api/hosts/:hostId/containers/:id/logs", requireAuth, async (req, res) => {
   const { hostId, id } = req.params;
   const { tail = "500", since = "", stdout = "true", stderr = "true", follow = "false" } = req.query as Record<string,string>;
-  const host = getHost(hostId as any);
+  const host = getHost(hostId);
 
   if (host.provider !== "DOCKER") {
     return res.status(400).json({ error: "logs_unsupported", message: "Logs not available for CADVISOR_ONLY", dozzleUrl: host.dozzleUrl || null });
   }
 
+  if (!host.docker?.socketPath) {
+    return res.status(500).json({ error: "Docker socket path not configured" });
+  }
+
   try {
-    const d = dockerClient(host.docker!.socketPath);
+    const d = dockerClient(host.docker.socketPath);
     const container = d.getContainer(id);
     const options: any = {
       stdout: stdout === "true",

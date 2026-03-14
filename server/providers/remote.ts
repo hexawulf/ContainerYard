@@ -20,11 +20,10 @@ export class RemoteProvider implements IProvider {
 
   private async dockerRequest(path: string, options: RequestInit = {}): Promise<Response> {
     const url = `${this.dockerHost}${path}`;
-    const headers: HeadersInit = {
-      ...options.headers,
+    const headers: Record<string, string> = {
+      ...(options.headers as Record<string, string>),
     };
 
-    // Add bearer token authentication if configured
     if (this.authToken) {
       headers['Authorization'] = `Bearer ${this.authToken}`;
     }

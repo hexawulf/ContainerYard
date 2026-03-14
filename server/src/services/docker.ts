@@ -91,8 +91,36 @@ function toContainerSummary(info: any, host: HostConfig): ContainerSummary {
 }
 
 export async function listContainers(host: HostConfig): Promise<ContainerSummary[]> {
-  const containers = await docker.listContainers({ all: true });
-  return containers.map((container: any) => toContainerSummary(container, host));
+  try {
+    const containers = await docker.listContainers({ all: true });
+    return containers.map((container: any) => toContainerSummary(container, host));
+  } catch (error: any) {
+    // Check for permission errors when accessing docker socket
+    if (error.code === 'EACCES' || error.code === 'EPERM') {
+      const permissionError = new Error(
+        `Docker access denied: Cannot read from ${host.docker?.socketPath || '/var/run/docker.sock'}. ` +
+        `Please ensure the user has permission to access the Docker socket. ` +
+        `Try: sudo usermod -aG docker $USER && newgrp docker, or adjust socket permissions.`
+      );
+      (permissionError as any).status = 503;
+      (permissionError as any).code = 'DOCKER_PERMISSION_DENIED';
+      throw permissionError;
+    }
+    
+    // Check if docker daemon is not running or socket doesn't exist
+    if (error.code === 'ECONNREFUSED' || error.code === 'ENOENT') {
+      const connectionError = new Error(
+        `Docker daemon unreachable: Cannot connect to ${host.docker?.socketPath || '/var/run/docker.sock'}. ` +
+        `Please ensure Docker is running and the socket path is correct.`
+      );
+      (connectionError as any).status = 503;
+      (connectionError as any).code = 'DOCKER_UNAVAILABLE';
+      throw connectionError;
+    }
+    
+    // Re-throw other errors
+    throw error;
+  }
 }
 
 export async function getContainerDetail(host: HostConfig, containerId: string): Promise<ContainerDetail> {
@@ -227,7 +255,7 @@ export async function getHostStats(host: HostConfig): Promise<ContainerStats> {
     id: host.id,
     hostId: host.id,
     provider: host.provider,
-    cpuPercent: info.NCPU ? (info.NCPU / (info.NCPU || 1)) * 100 : 0,
+    cpuPercent: 0,
     memoryUsage: 0,
     memoryLimit: memoryTotal,
     memoryPercent: 0,

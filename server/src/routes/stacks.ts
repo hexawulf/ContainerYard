@@ -94,7 +94,9 @@ router.post("/:hostId/stacks/:name/action", async (req, res, next) => {
 // Get stack logs (combined logs from all containers in the stack)
 router.get("/:hostId/stacks/:name/logs", async (req, res, next) => {
   try {
-    const { tail = 500, since } = req.query;
+    const rawTail = Number(req.query.tail);
+    const tail = Number.isNaN(rawTail) || rawTail <= 0 ? 500 : Math.min(rawTail, 5000);
+    const since = req.query.since;
     
     const host = getHost(req.params.hostId);
     if (host.provider !== "DOCKER") {
@@ -113,7 +115,7 @@ router.get("/:hostId/stacks/:name/logs", async (req, res, next) => {
       stack.containers.map(async (container) => {
         try {
           const logs = await getContainerLogs(container.id, {
-            tail: Math.floor(Number(tail) / stack.containers.length),
+            tail: Math.max(1, Math.floor(tail / stack.containers.length)),
             since: since as string,
           });
           
@@ -144,7 +146,7 @@ router.get("/:hostId/stacks/:name/logs", async (req, res, next) => {
         if (!timeA || !timeB) return 0;
         return new Date(timeA[1]).getTime() - new Date(timeB[1]).getTime();
       })
-      .slice(-Number(tail)) // Take only the requested number of lines
+      .slice(-tail)
       .join('\n');
 
     res.setHeader('Content-Type', 'text/plain');

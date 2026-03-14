@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { pgTable, varchar, text, timestamp, serial } from "drizzle-orm/pg-core";
+import { pgTable, varchar, text, timestamp, serial, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 
 // Container State & Health
@@ -10,8 +10,8 @@ export const protocolSchema = z.enum(['tcp', 'udp']);
 
 // Port Mapping
 export const portMappingSchema = z.object({
-  container: z.number(),
-  host: z.number(),
+  container: z.number().int().min(0).max(65535),
+  host: z.number().int().min(0).max(65535),
   protocol: protocolSchema,
 });
 
@@ -214,9 +214,9 @@ export const alertRules = pgTable("alert_rules", {
   conditionType: varchar("condition_type", { length: 50 }).notNull(), // cpu_percent, memory_percent, etc.
   operator: varchar("operator", { length: 10 }).notNull(), // >, <, >=, <=, ==, !=, contains
   threshold: varchar("threshold", { length: 255 }).notNull(), // stored as string, can be number or pattern
-  durationMinutes: serial("duration_minutes").notNull(), // how long condition must be true
-  containerFilter: text("container_filter"), // JSON string with container selection criteria
-  channelId: serial("channel_id").notNull(), // foreign key to notification_channels
+  durationMinutes: integer("duration_minutes").notNull().default(0),
+  containerFilter: text("container_filter"),
+  channelId: integer("channel_id").notNull(),
   enabled: varchar("enabled", { length: 10 }).notNull().default("true"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -233,7 +233,7 @@ export type AlertRule = typeof alertRules.$inferSelect;
 // Alert History Table
 export const alertHistory = pgTable("alert_history", {
   id: serial("id").primaryKey(),
-  ruleId: serial("rule_id").notNull(), // foreign key to alert_rules
+  ruleId: integer("rule_id").notNull(),
   containerId: varchar("container_id", { length: 255 }).notNull(),
   containerName: varchar("container_name", { length: 255 }).notNull(),
   message: text("message").notNull(),
@@ -267,7 +267,7 @@ export const containerMetricsHourly = pgTable("container_metrics_hourly", {
   totalNetworkTx: varchar("total_network_tx", { length: 50 }).notNull(),
   totalBlockRead: varchar("total_block_read", { length: 50 }).notNull(),
   totalBlockWrite: varchar("total_block_write", { length: 50 }).notNull(),
-  sampleCount: serial("sample_count").notNull(), // number of data points aggregated
+  sampleCount: integer("sample_count").notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

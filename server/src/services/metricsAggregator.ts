@@ -22,6 +22,7 @@ interface MetricsAccumulator {
 
 class MetricsAggregatorService {
   private interval: NodeJS.Timeout | null = null;
+  private collectionInterval: NodeJS.Timeout | null = null;
   private aggregationIntervalMs = 60 * 60 * 1000; // 1 hour
   private metricsAccumulators = new Map<string, MetricsAccumulator>();
   private isEnabled = !isSQLite;
@@ -57,19 +58,23 @@ class MetricsAggregatorService {
   }
 
   stop() {
+    if (this.collectionInterval) {
+      clearInterval(this.collectionInterval);
+      this.collectionInterval = null;
+    }
     if (this.interval) {
       clearInterval(this.interval);
       this.interval = null;
-      console.log("Metrics aggregator stopped");
     }
+    console.log("Metrics aggregator stopped");
   }
 
   private startMetricsCollection() {
-    setInterval(() => {
+    this.collectionInterval = setInterval(() => {
       this.collectMetrics().catch((error) => {
         console.error("Error collecting metrics:", error);
       });
-    }, 60 * 1000); // 1 minute
+    }, 60 * 1000);
 
     this.collectMetrics().catch((error) => {
       console.error("Error in initial metrics collection:", error);
@@ -154,10 +159,10 @@ class MetricsAggregatorService {
     accumulator.cpuSamples.push(stats.cpuPercent);
     accumulator.memorySamples.push(stats.memoryPercent);
     accumulator.memoryBytesSamples.push(stats.memoryUsage);
-    accumulator.networkRx = stats.networkRx;
-    accumulator.networkTx = stats.networkTx;
-    accumulator.blockRead = stats.blockRead;
-    accumulator.blockWrite = stats.blockWrite;
+    accumulator.networkRx += stats.networkRx;
+    accumulator.networkTx += stats.networkTx;
+    accumulator.blockRead += stats.blockRead;
+    accumulator.blockWrite += stats.blockWrite;
     accumulator.sampleCount++;
   }
 
@@ -200,7 +205,7 @@ class MetricsAggregatorService {
                 totalNetworkTx: accumulator.networkTx.toString(),
                 totalBlockRead: accumulator.blockRead.toString(),
                 totalBlockWrite: accumulator.blockWrite.toString(),
-                sampleCount: accumulator.sampleCount as any,
+                sampleCount: accumulator.sampleCount,
               });
 
               console.log(`Saved hourly metrics for ${accumulator.containerName}`);

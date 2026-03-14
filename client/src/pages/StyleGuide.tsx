@@ -29,7 +29,7 @@ const StyleGuidePage: React.FC = () => {
             <Button variant="destructive">Destructive</Button>
             <Button variant="outline">Outline</Button>
             <Button variant="ghost">Ghost</Button>
-            <Button variant="link">Link</Button>
+            <Button variant="ghost">Link Style</Button>
           </div>
         </section>
 

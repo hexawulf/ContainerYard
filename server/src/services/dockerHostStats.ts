@@ -34,7 +34,7 @@ export async function getDockerHostStats(host: DockerHostSummary): Promise<HostS
   let blockRead = 0;
   let blockWrite = 0;
 
-  await Promise.all(list.map(async (c) => {
+  await Promise.all(list.map(async (c: { Id: string }) => {
     try {
       const container = docker.getContainer(c.Id);
       const raw = await container.stats({ stream: false });

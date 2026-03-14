@@ -17,8 +17,15 @@ export default defineConfig(async () => {
         ]
       : [];
 
+  const isReplit = process.env.REPL_ID !== undefined;
+
   return {
-    plugins: [react(), svgr(), runtimeErrorOverlay(), ...replPlugins],
+    plugins: [
+      react(),
+      svgr(),
+      ...(isReplit ? [runtimeErrorOverlay()] : []),
+      ...replPlugins,
+    ],
     resolve: {
       alias: {
         "@": path.resolve(import.meta.dirname, "client", "src"),
@@ -29,7 +36,7 @@ export default defineConfig(async () => {
     build: {
       outDir: path.resolve(import.meta.dirname, "dist", "public"),
       emptyOutDir: true,
-      sourcemap: true, // Enable source maps for production debugging
+      sourcemap: false,
     },
     server: {
       fs: {

@@ -1,6 +1,6 @@
 import { db } from "../../db";
 import { containerRestarts } from "@shared/schema";
-import { eq, and, gte } from "drizzle-orm";
+import { eq, and, gte, lte } from "drizzle-orm";
 import type { ContainerSummary } from "../models/containers";
 import { isSQLite, logSQLiteInfo, requirePostgreSQLAsync } from "../config/databaseCapabilities";
 
@@ -154,7 +154,7 @@ class RestartTrackerService {
           
           await db
             .delete(containerRestarts)
-            .where(gte(containerRestarts.createdAt, cutoffTime));
+            .where(lte(containerRestarts.createdAt, cutoffTime));
 
           console.log("Cleaned up old restart records");
         } catch (error) {

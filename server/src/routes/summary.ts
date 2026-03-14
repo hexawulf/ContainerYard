@@ -6,16 +6,22 @@ import { requireAuth } from "../middleware/auth";
 
 const r = Router();
 r.get("/:hostId/summary", requireAuth, async (req, res) => {
-  const host = getHost(req.params.hostId as any);
+  const host = getHost(req.params.hostId);
   try {
     if (host.provider === "DOCKER") {
-      return res.json(await dockerHostSummary(host.docker!.socketPath));
+      if (!host.docker?.socketPath) {
+        return res.status(500).json({ error: "Docker socket path not configured" });
+      }
+      return res.json(await dockerHostSummary(host.docker.socketPath));
     }
     if (host.provider === "CADVISOR_ONLY") {
-      return res.json(await cadSummary(host.cadvisor!.baseUrl));
+      if (!host.cadvisor?.baseUrl) {
+        return res.status(500).json({ error: "cAdvisor URL not configured" });
+      }
+      return res.json(await cadSummary(host.cadvisor.baseUrl));
     }
     res.status(400).json({ error: "Unknown provider" });
-  } catch (e:any) {
+  } catch (e: any) {
     res.status(502).json({ error: e.message || "summary failed" });
   }
 });

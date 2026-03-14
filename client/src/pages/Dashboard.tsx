@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, lazy, Suspense } from "react";
+import { useEffect, useMemo, useState, lazy, Suspense, Component, type ErrorInfo, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -24,11 +24,90 @@ import { X, List, Layers } from "lucide-react";
 import type { NormalizedStats } from "@shared/monitoring";
 import { ensureArray } from "@/lib/utils";
 
-const ContainerTable = lazy(() => import("@/features/monitoring/ContainerTable"));
-const StackView = lazy(() => import("@/features/monitoring/StackView"));
-const LogsDrawer = lazy(() => import("@/features/monitoring/LogsDrawer"));
-const InspectModal = lazy(() => import("@/features/monitoring/InspectModal"));
-const HistoricalMetricsChart = lazy(() => import("@/features/monitoring/HistoricalMetricsChart"));
+// Lazy load components with error handling
+const ContainerTable = lazy(() => 
+  import("@/features/monitoring/ContainerTable").then(m => ({ 
+    default: m.ContainerTable 
+  }))
+);
+const StackView = lazy(() => 
+  import("@/features/monitoring/StackView").then(m => ({ 
+    default: m.StackView 
+  }))
+);
+const LogsDrawer = lazy(() => 
+  import("@/features/monitoring/LogsDrawer").then(m => ({ 
+    default: m.LogsDrawer 
+  }))
+);
+const InspectModal = lazy(() => 
+  import("@/features/monitoring/InspectModal").then(m => ({ 
+    default: m.InspectModal 
+  }))
+);
+const HistoricalMetricsChart = lazy(() => 
+  import("@/features/monitoring/HistoricalMetricsChart").then(m => ({ 
+    default: m.HistoricalMetricsChart 
+  }))
+);
+
+// Error Boundary Component for Dashboard
+interface DashboardErrorBoundaryState {
+  hasError: boolean;
+  error?: Error;
+}
+
+interface DashboardErrorBoundaryProps {
+  children: ReactNode;
+  fallback?: ReactNode;
+}
+
+class DashboardErrorBoundary extends Component<DashboardErrorBoundaryProps, DashboardErrorBoundaryState> {
+  constructor(props: DashboardErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error: Error): DashboardErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error('[DashboardErrorBoundary] Caught error:', error);
+    console.error('[DashboardErrorBoundary] Component stack:', errorInfo.componentStack);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      if (this.props.fallback) {
+        return this.props.fallback;
+      }
+      return (
+        <div className="p-6 border border-destructive/50 bg-destructive/10 rounded-lg">
+          <h3 className="text-lg font-semibold text-destructive mb-2">Dashboard Error</h3>
+          <p className="text-sm text-muted-foreground mb-4">
+            Something went wrong while rendering the dashboard. Please refresh the page.
+          </p>
+          <details className="text-xs text-muted-foreground">
+            <summary>Error details</summary>
+            <pre className="mt-2 p-2 bg-muted rounded overflow-auto">
+              {this.state.error?.message}
+            </pre>
+          </details>
+          <Button 
+            onClick={() => window.location.reload()} 
+            className="mt-4"
+            variant="outline"
+          >
+            Refresh Page
+          </Button>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
 
 const HOST_STORAGE_KEY = "cy.selectedHost";
 const FILTERS_STORAGE_KEY = "cy.containerFilters";
@@ -108,19 +187,7 @@ export default function Dashboard() {
     return ["/api/hosts", selectedHostId, "containers"] as const;
   }, [selectedHostId]);
 
-  const hostStatsQueryKey = useMemo(() => {
-    if (!selectedHostId) return null;
-    return ["/api/hosts", selectedHostId, "stats"] as const;
-  }, [selectedHostId]);
 
-  // const hostStats = useQuery({
-  // const hostStats = useQuery({
-  //   queryKey: hostStatsQueryKey ?? [],
-  //   queryFn: hostStatsQueryKey ? getQueryFn({ on401: "throw" }) : undefined,
-  //   enabled: Boolean(hostStatsQueryKey),
-  //   refetchInterval: 5000,
-  //   refetchIntervalInBackground: true,
-  // });
   const { data: containersData, isLoading: containersLoading } = useQuery<ContainerSummary[]>({
     queryKey: containersQueryKey ?? [],
     queryFn: containersQueryKey ? getQueryFn<ContainerSummary[]>({ on401: "throw" }) : undefined,
@@ -220,7 +287,6 @@ export default function Dashboard() {
   const normalizedHistory = statsKey ? normalizedStatsHistory[statsKey] ?? [] : [];
   
   const logsContainer = containers.find((c) => c.id === logsContainerId);
-  // const inspectContainer = containers.find((c) => c.id === inspectContainerId);
 
   const latestStatsByContainer = useMemo(() => {
     const map: Record<string, ContainerStats | undefined> = {};
@@ -304,6 +370,7 @@ export default function Dashboard() {
   };
 
   return (
+    <DashboardErrorBoundary>
     <div className="container max-w-container py-6">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-display">Dashboard</h1>
@@ -536,5 +603,6 @@ export default function Dashboard() {
         </Suspense>
       )}
     </div>
+    </DashboardErrorBoundary>
   );
 }

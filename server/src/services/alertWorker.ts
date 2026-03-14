@@ -1,5 +1,5 @@
 import { db } from "../../db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import {
   alertRules,
   notificationChannels,
@@ -62,7 +62,12 @@ async function sendBrowserNotification(config: any, message: string): Promise<vo
 }
 
 async function sendNotification(channel: NotificationChannel, message: string): Promise<void> {
-  const config = JSON.parse(channel.config);
+  let config: any;
+  try {
+    config = JSON.parse(channel.config);
+  } catch {
+    throw new Error(`Invalid JSON in notification channel config for channel ${channel.id}`);
+  }
   
   switch (channel.type) {
     case "webhook":
@@ -347,9 +352,9 @@ class AlertWorkerService {
       case "<=":
         return actual <= expected;
       case "==":
-        return actual == expected;
+        return String(actual) === String(expected);
       case "!=":
-        return actual != expected;
+        return String(actual) !== String(expected);
       case "contains":
         return String(actual).includes(String(expected));
       default:
@@ -398,7 +403,10 @@ class AlertWorkerService {
           const recentAlerts = await db
             .select()
             .from(alertHistory)
-            .where(eq(alertHistory.ruleId, evaluation.rule.id))
+            .where(and(
+              eq(alertHistory.ruleId, evaluation.rule.id),
+              eq(alertHistory.containerId, evaluation.container.id)
+            ))
             .limit(1);
 
           if (recentAlerts.length > 0) {
@@ -410,7 +418,7 @@ class AlertWorkerService {
           }
 
           await db.insert(alertHistory).values({
-            ruleId: evaluation.rule.id as any,
+            ruleId: evaluation.rule.id,
             containerId: evaluation.container.id,
             containerName: evaluation.container.name,
             message: evaluation.message,

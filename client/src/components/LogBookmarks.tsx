@@ -42,7 +42,7 @@ export function LogBookmarks({
 
   const createMutation = useMutation({
     mutationFn: async (data: { containerId: string; timestamp: string; note?: string; filters?: string }) => {
-      return apiRequest<LogBookmark>('POST', '/api/bookmarks', data);
+      return apiRequest('POST', '/api/bookmarks', data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/bookmarks'] });

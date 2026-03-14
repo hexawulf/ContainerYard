@@ -42,6 +42,35 @@ interface CadvisorStats {
   };
 }
 
+// Possible cAdvisor API endpoints to try, in order of preference
+const CADVISOR_ENDPOINTS = [
+  "/api/v1.3/subcontainers",
+  "/api/v1.0/subcontainers", 
+  "/api/v2.0/subcontainers",
+  "/subcontainers",
+];
+
+// Error tracking for rate limiting
+const errorLogTimestamps = new Map<string, number[]>();
+const ERROR_LOG_WINDOW_MS = 60000; // 1 minute window
+const MAX_ERRORS_PER_WINDOW = 3; // Max 3 errors per window
+
+function shouldLogError(hostId: string): boolean {
+  const now = Date.now();
+  const timestamps = errorLogTimestamps.get(hostId) || [];
+  
+  // Remove old timestamps outside the window
+  const recentTimestamps = timestamps.filter(ts => now - ts < ERROR_LOG_WINDOW_MS);
+  
+  if (recentTimestamps.length >= MAX_ERRORS_PER_WINDOW) {
+    return false; // Rate limit exceeded
+  }
+  
+  recentTimestamps.push(now);
+  errorLogTimestamps.set(hostId, recentTimestamps);
+  return true;
+}
+
 function extractContainerId(name: string): string {
   // Handle different container ID formats
   // Format 1: /system.slice/docker-{containerId}.scope
@@ -153,6 +182,9 @@ function toSummary(host: HostConfig, container: CadvisorContainer): ContainerSum
 }
 
 class CadvisorService {
+  private workingEndpoint: string | null = null;
+  private endpointProbePromise: Promise<string> | null = null;
+
   constructor(private readonly baseUrl: string) {}
 
   private buildUrl(path: string): string {
@@ -163,29 +195,72 @@ class CadvisorService {
 
   private async fetchJson<T>(path: string): Promise<T> {
     const url = this.buildUrl(path);
-    console.log(`cAdvisor fetch: ${url}`);
     try {
-      const response = await fetch(url);
+      const response = await fetch(url, { 
+        signal: AbortSignal.timeout(10000) // 10 second timeout
+      });
       if (!response.ok) {
-        const error = new Error(`cAdvisor request failed: ${response.status}`);
+        const error = new Error(`cAdvisor request failed: ${response.status} ${response.statusText}`);
         (error as any).status = response.status;
         throw error;
       }
       return (await response.json()) as T;
     } catch (error: any) {
-      console.error(`cAdvisor fetch failed for URL: ${url}`, error.message);
+      if (error.name === 'AbortError' || error.name === 'TimeoutError') {
+        const timeoutError = new Error(`cAdvisor request timed out: ${url}`);
+        (timeoutError as any).status = 504;
+        throw timeoutError;
+      }
       throw error;
     }
   }
 
+  /**
+   * Probe cAdvisor endpoints to find a working one
+   */
+  private async probeEndpoint(): Promise<string> {
+    if (this.workingEndpoint) {
+      return this.workingEndpoint;
+    }
+
+    if (this.endpointProbePromise) {
+      return this.endpointProbePromise;
+    }
+
+    this.endpointProbePromise = (async () => {
+      const errors: string[] = [];
+      
+      for (const endpoint of CADVISOR_ENDPOINTS) {
+        try {
+          const url = this.buildUrl(endpoint);
+          const response = await fetch(url, { 
+            method: 'HEAD',
+            signal: AbortSignal.timeout(5000)
+          });
+          
+          if (response.ok) {
+            this.workingEndpoint = endpoint;
+            console.log(`[cAdvisor] Found working endpoint: ${endpoint} for ${this.baseUrl}`);
+            return endpoint;
+          }
+        } catch (err: any) {
+          errors.push(`${endpoint}: ${err.message}`);
+        }
+      }
+
+      // If none worked, default to the first one and let it fail with proper error
+      console.warn(`[cAdvisor] No working endpoint found for ${this.baseUrl}. Tried: ${errors.join(', ')}`);
+      this.workingEndpoint = CADVISOR_ENDPOINTS[0];
+      return this.workingEndpoint;
+    })();
+
+    return this.endpointProbePromise;
+  }
+
   async listContainers(host: HostConfig): Promise<ContainerSummary[]> {
     try {
-      const containers = await this.fetchJson<CadvisorContainer[]>(`/api/v1.3/subcontainers`);
-      
-      // Log debug info if no containers found
-      if (containers.length === 0) {
-        console.warn("cadvisor zero-length payload", { host: host.id, url: this.baseUrl });
-      }
+      const endpoint = await this.probeEndpoint();
+      const containers = await this.fetchJson<CadvisorContainer[]>(endpoint);
       
       const dockerContainers = containers.filter((container) => {
         // Accept containers with docker in path or aliases
@@ -194,20 +269,42 @@ class CadvisorService {
         return hasDockerPath || hasAliases;
       });
       
-      // Log debug info if filtering removes all containers
-      if (dockerContainers.length === 0 && containers.length > 0) {
-        console.warn("cadvisor filtering removed all containers", { 
-          host: host.id, 
-          total: containers.length, 
-          sample: containers.slice(0, 2).map(c => ({ name: c.name, aliases: c.aliases }))
-        });
-      }
-      
       return dockerContainers.map((container) => toSummary(host, container));
     } catch (error: any) {
-      console.error(`Failed to list containers from cAdvisor for host ${host.id}:`, error.message);
-      // Return empty array instead of throwing to prevent UI from breaking
-      return [];
+      if (shouldLogError(host.id)) {
+        console.error(`[cAdvisor] Failed to list containers for host ${host.id}:`, error.message);
+      }
+      
+      // Create appropriate error based on the failure
+      if (error.status === 404) {
+        const notFoundError = new Error(
+          `cAdvisor endpoint not found (404). The cAdvisor API path may have changed or cAdvisor may not be running at ${this.baseUrl}`
+        );
+        (notFoundError as any).status = 502;
+        (notFoundError as any).code = 'CADVISOR_ENDPOINT_NOT_FOUND';
+        (notFoundError as any).hostId = host.id;
+        throw notFoundError;
+      }
+      
+      if (error.status === 504 || error.message?.includes('timed out')) {
+        const timeoutError = new Error(
+          `cAdvisor request timed out. The cAdvisor service at ${this.baseUrl} is not responding.`
+        );
+        (timeoutError as any).status = 504;
+        (timeoutError as any).code = 'CADVISOR_TIMEOUT';
+        (timeoutError as any).hostId = host.id;
+        throw timeoutError;
+      }
+      
+      // Generic cAdvisor error
+      const cadvisorError = new Error(
+        `cAdvisor service error for host ${host.id}: ${error.message}`
+      );
+      (cadvisorError as any).status = 502;
+      (cadvisorError as any).code = 'CADVISOR_ERROR';
+      (cadvisorError as any).hostId = host.id;
+      (cadvisorError as any).originalError = error.message;
+      throw cadvisorError;
     }
   }
 
@@ -229,7 +326,9 @@ class CadvisorService {
         startedAt: container.spec?.creation_time ?? null,
       };
     } catch (error: any) {
-      console.error(`Failed to get container details from cAdvisor for host ${host.id}, container ${containerId}:`, error.message);
+      if (shouldLogError(host.id)) {
+        console.error(`[cAdvisor] Failed to get container details for host ${host.id}, container ${containerId}:`, error.message);
+      }
       throw error;
     }
   }
@@ -242,7 +341,9 @@ class CadvisorService {
       );
       return computeStats(host, containerId, container);
     } catch (error: any) {
-      console.error(`Failed to get container stats from cAdvisor for host ${host.id}, container ${containerId}:`, error.message);
+      if (shouldLogError(host.id)) {
+        console.error(`[cAdvisor] Failed to get container stats for host ${host.id}, container ${containerId}:`, error.message);
+      }
       throw error;
     }
   }
@@ -292,15 +393,12 @@ function cpuPctFromSamples(prev: any, curr: any, onlineCpus = 1): number {
   return Math.max(0, Math.min(pct, 100 * onlineCpus));
 }
 
-export async function listContainers(baseUrl: string): Promise<CadStat[]> {
-  const response = await fetch(`${baseUrl}/api/v1.3/subcontainers`);
+export async function listContainersOld(baseUrl: string): Promise<CadStat[]> {
+  const response = await fetch(`${baseUrl}/api/v1.3/subcontainers`, {
+    signal: AbortSignal.timeout(10000),
+  });
   if (!response.ok) throw new Error(`cAdvisor ${baseUrl} ${response.status}`);
   const data = await response.json() as CadvisorContainer[];
-  
-  // Log debug info if no containers found
-  if (data.length === 0) {
-    console.warn("cadvisor zero-length payload", { baseUrl, sample: data?.slice?.(0,2) });
-  }
   
   const out: CadStat[] = [];
   for (const c of data) {
@@ -331,20 +429,11 @@ export async function listContainers(baseUrl: string): Promise<CadStat[]> {
     });
   }
   
-  // Log debug info if filtering removes all containers
-  if (out.length === 0 && data.length > 0) {
-    console.warn("cadvisor filtering removed all containers", { 
-      baseUrl, 
-      total: data.length, 
-      sample: data.slice(0, 2).map(c => ({ name: c.name, aliases: c.aliases, hasSpec: !!c.spec }))
-    });
-  }
-  
   return out;
 }
 
 export async function hostSummary(baseUrl: string) {
-  const arr = await listContainers(baseUrl);
+  const arr = await listContainersOld(baseUrl);
   const memUsed = arr.reduce((a,b)=>a+(b.memBytes||0),0);
   const avgCpu = arr.length ? arr.reduce((a,b)=>a+(b.cpuPct||0),0)/arr.length : 0;
   const topCpu = arr.slice().sort((a,b)=>(b.cpuPct||0)-(a.cpuPct||0)).slice(0,5);

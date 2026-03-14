@@ -1,4 +1,5 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
+import { randomBytes } from "crypto";
 import bcrypt from "bcrypt";
 import { ZodError } from "zod";
 import { prisma } from "../db/client";
@@ -82,7 +83,7 @@ router.get("/csrf", (req, res, next) => {
   try {
     // Ensure session exists and has CSRF token
     if (!(req.session as any).csrfToken) {
-      (req.session as any).csrfToken = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+      (req.session as any).csrfToken = randomBytes(24).toString("hex");
     }
     
     return res.json({ csrfToken: (req.session as any).csrfToken });

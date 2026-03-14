@@ -198,25 +198,43 @@ router.get("/:hostId/containers/:containerId/logs/stream", async (req, res, next
       res.write(':heartbeat\n\n');
     }, 15000);
 
-    const cleanup = await streamContainerLogs(
-      containerId,
-      { stdout, stderr, grep },
-      (line) => {
-        res.write(`event: line\ndata: ${line}\n\n`);
-      },
-      (err) => {
+    let cleanup: (() => void) | null = null;
+    try {
+      cleanup = await streamContainerLogs(
+        containerId,
+        { stdout, stderr, grep },
+        (line) => {
+          if (!res.writableEnded) {
+            res.write(`event: line\ndata: ${line}\n\n`);
+          }
+        },
+        (err) => {
+          if (!res.writableEnded) {
+            res.write(`event: error\ndata: ${err.message}\n\n`);
+            res.end();
+          }
+        }
+      );
+    } catch (err: any) {
+      clearInterval(heartbeat);
+      if (!res.writableEnded) {
         res.write(`event: error\ndata: ${err.message}\n\n`);
         res.end();
       }
-    );
+      return;
+    }
 
     req.on('close', () => {
       clearInterval(heartbeat);
-      cleanup();
-      res.end();
+      cleanup?.();
+      if (!res.writableEnded) {
+        res.end();
+      }
     });
   } catch (error) {
-    next(error);
+    if (!res.headersSent) {
+      next(error);
+    }
   }
 });
 
