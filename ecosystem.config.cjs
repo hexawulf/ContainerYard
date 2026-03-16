@@ -7,7 +7,6 @@ module.exports = {
       args: 'start',
       env: {
         NODE_ENV: 'production',
-        PIAPPS2_CADVISOR_URL: 'http://192.168.50.120:18082'
       },
       autorestart: true,
       max_restarts: 10,

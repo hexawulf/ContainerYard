@@ -26,6 +26,7 @@ const hostDefinitions: Record<HostId, HostConfig> = {
     name: "Pi Apps 2 (piapps2)",
     provider: "CADVISOR_ONLY",
     nodeLabel: "piapps2",
+    dozzleUrl: env.PIAPPS2_DOZZLE_URL ?? null,
     cadvisorUrl: env.PIAPPS2_CADVISOR_URL,
     cadvisor: { baseUrl: env.PIAPPS2_CADVISOR_URL! }
   },
