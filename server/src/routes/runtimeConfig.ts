@@ -4,9 +4,10 @@ import { isSQLite, isPostgreSQL } from "../config/databaseCapabilities";
 
 export function registerRuntimeConfigRoute(app: import("express").Express) {
   app.get("/api/runtime-config", (req: Request, res: Response) => {
+    const protocol = req.protocol || "https";
     const apiBase =
       process.env.PUBLIC_API_BASE ??
-      `https://${req.headers.host ?? "container.piapps.dev"}`;
+      `${protocol}://${req.headers.host ?? "container.piapps.dev"}`;
 
     const hosts = listHosts().map((h) => ({
       id: h.id,

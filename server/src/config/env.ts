@@ -10,7 +10,7 @@ const envSchema = z.object({
   PORT: z.coerce.number().default(5008),
   LOG_LEVEL: z.string().default("info"),
   SESSION_SECRET: z.string().min(32),
-  COOKIE_NAME: z.string().default("cy.sid"),
+  COOKIE_NAME: z.string().default("__Secure-cy.sid"),
   COOKIE_DOMAIN: z.string().optional(),
   COOKIE_SAMESITE: z.enum(["lax", "strict", "none"]).default("none"),
   ALLOWED_ORIGINS: z.string().min(1),

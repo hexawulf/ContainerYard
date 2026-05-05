@@ -1,15 +1,54 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="transition-colors duration-200">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+    
+    <!-- SEO and Open Graph -->
+    <title>ContainerYard - Docker Observability Dashboard</title>
+    <meta name="description" content="Fast, log-first Docker container observability with live tail, status visualization, and debugging tools" />
+    <link rel="canonical" href="https://containeryard.piapps.dev/" />
+    <meta property="og:title" content="ContainerYard - Docker Observability Dashboard" />
+    <meta property="og:description" content="Fast, log-first Docker container observability with live tail, status visualization, and debugging tools" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://containeryard.piapps.dev/" />
+    <meta property="og:image" content="https://containeryard.piapps.dev/screenshot.png" />
+    <meta property="og:locale" content="en_US" />
+    
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="ContainerYard - Docker Observability Dashboard" />
+    <meta name="twitter:description" content="Fast, log-first Docker container observability with live tail, status visualization, and debugging tools" />
+    <meta name="twitter:image" content="https://containeryard.piapps.dev/screenshot.png" />
+    
+    <!-- Fonts (Non-render-blocking) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-    <title>ContainerYard - Docker Observability Dashboard</title>
-    <meta name="description" content="Fast, log-first Docker container observability with live tail, status visualization, and debugging tools">
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" media="print" onload="this.media='all'">
+    <noscript>
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
+    </noscript>
+
+    <!-- Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "ContainerYard",
+      "description": "Fast, log-first Docker container observability with live tail, status visualization, and debugging tools",
+      "url": "https://containeryard.piapps.dev/",
+      "applicationCategory": "DeveloperTools",
+      "operatingSystem": "Linux",
+      "offers": {
+        "@type": "Offer",
+        "price": "0"
+      }
+    }
+    </script>
   </head>
   <body>
+    <a href="#main-content" class="sr-only focus:not-sr-only">Skip to content</a>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

@@ -1,4 +1,5 @@
 import { Router, Request, Response, NextFunction } from "express";
+import { log } from "../../vite";
 import { getHost } from "../config/hosts";
 import { getContainerLogs } from "../services/docker";
 import { HOST_LOGS } from "../config/hostlogs";
@@ -123,11 +124,11 @@ router.get("/", requireRole('ADMIN'), async (req, res, next) => {
       tail.stdout.pipe(res);
 
       tail.stderr.on('data', (data) => {
-        console.error('tail stderr:', data.toString());
+        log(`tail stderr: ${data.toString()}`, "error");
       });
 
       tail.on('error', (err) => {
-        console.error('tail error:', err);
+        log(`tail error: ${err}`, "error");
         if (!res.headersSent) {
           res.status(500).json({ error: "Failed to read log file" });
         }

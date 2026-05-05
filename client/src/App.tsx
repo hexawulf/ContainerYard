@@ -8,6 +8,8 @@ import { useEffect, useState, lazy, Suspense } from "react";
 import { AuthProvider, AuthGate } from "@/components/AuthGate";
 import Layout from "@/components/Layout";
 import { checkApiHealthSafe, bootstrapRuntimeConfig } from "@/lib/authBootstrap";
+import { Skeleton } from "@/components/ui/skeleton";
+import { HelmetProvider } from "react-helmet-async";
 
 const Dashboard = lazy(() => import("@/pages/Dashboard"));
 const Login = lazy(() => import("@/pages/Login"));
@@ -34,7 +36,15 @@ function Router() {
   );
 
   return (
-    <Suspense fallback={<div className="min-h-screen bg-background flex items-center justify-center"><div className="text-muted-foreground">Loading page...</div></div>}>
+    <Suspense fallback={
+      <div className="min-h-screen bg-background flex items-center justify-center p-6">
+        <div className="space-y-4 w-full max-w-md">
+          <Skeleton className="h-12 w-[250px] mx-auto" />
+          <Skeleton className="h-4 w-[300px] mx-auto" />
+          <Skeleton className="h-4 w-[200px] mx-auto" />
+        </div>
+      </div>
+    }>
       <Switch>
         <Route path="/" component={LandingPage} />
         <Route path="/login">
@@ -123,21 +133,27 @@ function App() {
   // Show loading while checking boot health
   if (bootChecking) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-muted-foreground">Initializing...</div>
+      <div className="min-h-screen bg-background flex items-center justify-center p-6">
+        <div className="space-y-4 w-full max-w-md">
+          <Skeleton className="h-12 w-[250px] mx-auto" />
+          <Skeleton className="h-4 w-[300px] mx-auto" />
+          <Skeleton className="h-4 w-[200px] mx-auto" />
+        </div>
       </div>
     );
   }
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <AuthProvider>
-          <Router />
-        </AuthProvider>
-      </TooltipProvider>
-    </QueryClientProvider>
+    <HelmetProvider>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <Toaster />
+          <AuthProvider>
+            <Router />
+          </AuthProvider>
+        </TooltipProvider>
+      </QueryClientProvider>
+    </HelmetProvider>
   );
 }
 

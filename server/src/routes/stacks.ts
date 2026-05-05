@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { log } from "../../vite";
 import { getHost } from "../config/hosts";
 import { listContainers as listDockerContainers, performBulkAction, getContainerLogs } from "../services/docker";
 import { getCadvisorService } from "../services/cadvisor";
@@ -125,7 +126,7 @@ router.get("/:hostId/stacks/:name/logs", async (req, res, next) => {
             .map(line => `[${container.name}] ${line}`)
             .join('\n');
         } catch (error) {
-          console.error(`Failed to get logs for container ${container.name}:`, error);
+          log(`Failed to get logs for container ${container.name}: ${error}`, "error");
           return `[${container.name}] Error getting logs: ${error}`;
         }
       })

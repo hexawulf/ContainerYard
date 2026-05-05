@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://containeryard.piapps.dev/sitemap.xml

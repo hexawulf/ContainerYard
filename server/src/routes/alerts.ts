@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { log } from "../../vite";
 import { db } from "../../db";
 import { eq, desc } from "drizzle-orm";
 import {
@@ -49,15 +50,15 @@ async function sendWebhookNotification(config: any, message: string): Promise<vo
 }
 
 async function sendEmailNotification(config: any, message: string): Promise<void> {
-  console.log(`[EMAIL] To: ${config.to}`);
-  console.log(`[EMAIL] Subject: ${config.subject || "ContainerYard Alert"}`);
-  console.log(`[EMAIL] Body: ${message}`);
+  log(`[EMAIL] To: ${config.to}`, "info");
+  log(`[EMAIL] Subject: ${config.subject || "ContainerYard Alert"}`, "info");
+  log(`[EMAIL] Body: ${message}`, "info");
   
   await new Promise(resolve => setTimeout(resolve, 1000));
 }
 
 async function sendBrowserNotification(config: any, message: string): Promise<void> {
-  console.log(`[BROWSER] ${message}`);
+  log(`[BROWSER] ${message}`, "info");
 }
 
 async function sendNotification(channel: any, message: string): Promise<void> {

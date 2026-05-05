@@ -435,7 +435,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - Inspired by [Dozzle](https://dozzle.dev/) - A simple, lightweight Docker log viewer
 - Built with [shadcn/ui](https://ui.shadcn.com/) - Beautifully designed components
-- Powered by [Replit](https://replit.com/) - The collaborative browser-based IDE
 
 ## 📧 Contact
 

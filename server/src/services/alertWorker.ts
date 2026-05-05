@@ -1,3 +1,4 @@
+import { log } from "../../vite";
 import { db } from "../../db";
 import { eq, and } from "drizzle-orm";
 import {
@@ -50,15 +51,15 @@ async function sendWebhookNotification(config: any, message: string): Promise<vo
 }
 
 async function sendEmailNotification(config: any, message: string): Promise<void> {
-  console.log(`[EMAIL] To: ${config.to}`);
-  console.log(`[EMAIL] Subject: ${config.subject || "ContainerYard Alert"}`);
-  console.log(`[EMAIL] Body: ${message}`);
+  log(`[EMAIL] To: ${config.to}`, "info");
+  log(`[EMAIL] Subject: ${config.subject || "ContainerYard Alert"}`, "info");
+  log(`[EMAIL] Body: ${message}`, "info");
   
   await new Promise(resolve => setTimeout(resolve, 1000));
 }
 
 async function sendBrowserNotification(config: any, message: string): Promise<void> {
-  console.log(`[BROWSER] ${message}`);
+  log(`[BROWSER] ${message}`, "info");
 }
 
 async function sendNotification(channel: NotificationChannel, message: string): Promise<void> {
@@ -88,7 +89,7 @@ class AlertWorkerService {
 
   async start() {
     if (this.isRunning) {
-      console.log("Alert worker already running");
+      log("Alert worker already running", "info");
       return;
     }
 
@@ -97,12 +98,12 @@ class AlertWorkerService {
       return;
     }
 
-    console.log("Starting alert worker service...");
+    log("Starting alert worker service...", "info");
     this.isRunning = true;
     
     this.interval = setInterval(() => {
       this.checkAlerts().catch((error) => {
-        console.error("Error checking alerts:", error);
+        log(`Error checking alerts: ${error}`, "error");
       });
     }, this.checkIntervalMs);
 
@@ -114,7 +115,7 @@ class AlertWorkerService {
       clearInterval(this.interval);
       this.interval = null;
       this.isRunning = false;
-      console.log("Alert worker stopped");
+      log("Alert worker stopped", "info");
     }
   }
 

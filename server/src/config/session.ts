@@ -31,6 +31,7 @@ export const sessionMiddleware: RequestHandler = session({
     sameSite: env.COOKIE_SAMESITE,
     secure: true, // TLS at Nginx
     domain: env.COOKIE_DOMAIN ?? undefined,
+    path: "/",
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   },
 });

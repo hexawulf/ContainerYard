@@ -1,7 +1,8 @@
 {
   "apps": [{
-    "name": "containeryard",
-    "script": "dist/index.js",
+    "name": "containeryard-api",
+    "script": "npm",
+    "args": "run start",
     "cwd": "/home/zk/projects/ContainerYard",
     "exec_mode": "fork",
     "instances": 1,

@@ -1,3 +1,5 @@
+import { log } from "../../vite";
+
 /**
  * Database capability detection and utilities
  * Provides centralized SQLite vs PostgreSQL detection
@@ -10,14 +12,14 @@ export const isPostgreSQL = !isSQLite && !!process.env.DATABASE_URL;
  * Log a warning when a feature is disabled due to SQLite mode
  */
 export function logSQLiteDisabled(featureName: string): void {
-  console.warn(`[SQLite Mode] ${featureName} is disabled. This feature requires PostgreSQL.`);
+  log(`[SQLite Mode] ${featureName} is disabled. This feature requires PostgreSQL.`, "warn");
 }
 
 /**
  * Log an informational message about SQLite mode
  */
 export function logSQLiteInfo(message: string): void {
-  console.log(`[SQLite Mode] ${message}`);
+  log(`[SQLite Mode] ${message}`, "info");
 }
 
 export async function requirePostgreSQLAsync<T>(

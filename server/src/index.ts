@@ -69,7 +69,7 @@ export async function createApp() {
       // lightweight checks; do NOT hit DB or cAdvisor
       res.status(200).json({ ok: true, uptime: process.uptime(), ts: Date.now() });
     } catch {
-      res.status(200).json({ ok: true, degraded: true, ts: Date.now() });
+      res.status(503).json({ ok: false, degraded: true, ts: Date.now() });
     }
   });
 
@@ -78,7 +78,7 @@ export async function createApp() {
     try {
       res.status(200).json({ ok: true, uptime: process.uptime(), ts: Date.now() });
     } catch {
-      res.status(200).json({ ok: true, degraded: true, ts: Date.now() });
+      res.status(503).json({ ok: false, degraded: true, ts: Date.now() });
     }
   });
 
@@ -178,8 +178,15 @@ export async function createApp() {
     }
 
     app.use(express.static(distPath));
-    app.get(/^\/(?!api\/).*/, (_req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
+    app.get(/^\/(?!api\/).*/, (req, res) => {
+      const validRoutes = ["/", "/login", "/dashboard", "/styleguide"];
+      const isDynamicRoute = req.path.startsWith("/hosts/");
+      
+      if (!validRoutes.includes(req.path) && !isDynamicRoute) {
+        res.status(404).sendFile(path.join(distPath, "index.html"));
+      } else {
+        res.sendFile(path.join(distPath, "index.html"));
+      }
     });
   }
 
@@ -211,8 +218,15 @@ export async function createApp() {
       await prisma.$connect();
     } catch (error) {
       log(`Failed to connect Prisma client: ${error}`, "error");
+      if (process.env.NODE_ENV === "production") {
+        process.exit(1);
+      }
     }
   }
+
+  process.on("unhandledRejection", (reason, promise) => {
+    log(`Unhandled Rejection at: ${promise}, reason: ${reason}`, "error");
+  });
 
   const port = env.PORT;
   httpServer.listen(

@@ -1,6 +1,6 @@
 module.exports = {
   apps: [{
-    name: "containeryard",
+    name: "containeryard-api",
     script: "dist/index.js",
     cwd: "/home/zk/projects/ContainerYard",
     exec_mode: "cluster",
