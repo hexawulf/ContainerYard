@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
+import { Helmet } from "react-helmet-async";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -82,6 +83,9 @@ export default function Login() {
   if (AUTH_DISABLED) {
     return (
       <div className="flex items-center justify-center py-12">
+        <Helmet>
+          <title>Login - ContainerYard</title>
+        </Helmet>
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
             <Logo size="xl" className="mx-auto mb-8" />
@@ -108,6 +112,9 @@ export default function Login() {
 
   return (
     <div className="flex items-center justify-center py-12">
+      <Helmet>
+        <title>Login - ContainerYard</title>
+      </Helmet>
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <Logo size="xl" className="mx-auto mb-8" />

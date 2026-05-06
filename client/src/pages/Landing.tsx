@@ -3,10 +3,14 @@ import { Link } from 'wouter';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { GitFork, Ship, Terminal } from 'lucide-react';
+import { Helmet } from 'react-helmet-async';
 
 const LandingPage: React.FC = () => {
   return (
     <>
+      <Helmet>
+        <title>ContainerYard - Self-Hosted Docker Management</title>
+      </Helmet>
       <div className="relative isolate overflow-hidden bg-background">
         <div
           className="absolute inset-x-0 top-[-10rem] -z-10 transform-gpu overflow-hidden blur-3xl sm:top-[-20rem]"

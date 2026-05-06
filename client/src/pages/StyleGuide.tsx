@@ -3,10 +3,14 @@ import Layout from '@/components/Layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import Logo from '@/components/Logo';
+import { Helmet } from 'react-helmet-async';
 
 const StyleGuidePage: React.FC = () => {
   return (
     <Layout>
+      <Helmet>
+        <title>Style Guide - ContainerYard</title>
+      </Helmet>
       <div className="container max-w-container py-12">
         <h1 className="text-display mb-8">Style Guide</h1>
 
