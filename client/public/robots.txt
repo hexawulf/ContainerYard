@@ -1,3 +1,6 @@
 User-agent: *
 Allow: /
-Sitemap: https://containeryard.piapps.dev/sitemap.xml
+Disallow: /dashboard
+Disallow: /hosts
+
+Sitemap: https://containeryard.org/sitemap.xml
