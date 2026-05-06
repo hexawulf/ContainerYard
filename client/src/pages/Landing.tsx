@@ -2,7 +2,7 @@ import React from 'react';
 import { Link } from 'wouter';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { GitFork, Ship, Terminal } from 'lucide-react';
+import { Github, Mail, Ship, Terminal, GitFork } from 'lucide-react';
 import { Helmet } from 'react-helmet-async';
 
 const LandingPage: React.FC = () => {
@@ -32,13 +32,20 @@ const LandingPage: React.FC = () => {
             <p className="mt-6 text-lg leading-8 text-muted-foreground">
               Deploy, manage, and monitor your containerized applications with a simple, intuitive interface.
             </p>
-            <div className="mt-10 flex items-center gap-x-6">
+            <div className="mt-10 flex items-center gap-x-4">
               <Link href="/dashboard">
                 <Button size="lg">Open Dashboard</Button>
               </Link>
               <a href="https://github.com/hexawulf/ContainerYard" target="_blank" rel="noreferrer">
-                <Button size="lg" variant="outline">
+                <Button size="lg" variant="outline" className="gap-2">
+                  <Github className="h-5 w-5" />
                   GitHub
+                </Button>
+              </a>
+              <a href="mailto:dev@0xwulf.dev">
+                <Button size="lg" variant="outline" className="gap-2">
+                  <Mail className="h-5 w-5" />
+                  dev@0xwulf.dev
                 </Button>
               </a>
             </div>
