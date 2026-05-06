@@ -128,6 +128,10 @@ export default function Dashboard() {
   const [inspectContainerId, setInspectContainerId] = useState<string | null>(null);
   const [showHistoricalMetrics, setShowHistoricalMetrics] = useState(false);
   
+  // Jump state for Metric-to-Log Quick Jump
+  const [jumpTimestamp, setJumpTimestamp] = useState<string | null>(null);
+  const [jumpMetric, setJumpMetric] = useState<"cpu" | "mem" | "net" | null>(null);
+  
   // Filter and sort state
   interface FilterState {
     state: string;
@@ -369,6 +373,14 @@ export default function Dashboard() {
     });
   };
 
+  const handleTimelineClick = (timestamp: string, metric?: "cpu" | "mem" | "net") => {
+    if (selectedContainerId) {
+      setJumpTimestamp(timestamp);
+      setJumpMetric(metric || null);
+      setLogsContainerId(selectedContainerId);
+    }
+  };
+
   return (
     <DashboardErrorBoundary>
     <div className="container max-w-container py-6">
@@ -563,7 +575,12 @@ export default function Dashboard() {
               </CardContent>
             </Card>
           ) : (
-            <StatsPanel host={host} detail={containerDetail ?? null} statsHistory={history} />
+            <StatsPanel 
+              host={host} 
+              detail={containerDetail ?? null} 
+              statsHistory={history} 
+              onTimelineClick={handleTimelineClick}
+            />
           )}
         </div>
       </div>
@@ -585,10 +602,18 @@ export default function Dashboard() {
         <Suspense>
           <LogsDrawer
             open={Boolean(logsContainerId)}
-            onOpenChange={(open) => !open && setLogsContainerId(null)}
+            onOpenChange={(open) => {
+              if (!open) {
+                setLogsContainerId(null);
+                setJumpTimestamp(null);
+                setJumpMetric(null);
+              }
+            }}
             hostId={selectedHostId}
             containerId={logsContainerId}
             containerName={logsContainer.name}
+            initialJumpTimestamp={jumpTimestamp}
+            initialJumpMetric={jumpMetric}
           />
         </Suspense>
       )}

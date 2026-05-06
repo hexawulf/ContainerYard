@@ -30,6 +30,8 @@ interface LogsDrawerProps {
   hostId: string;
   containerId: string;
   containerName: string;
+  initialJumpTimestamp?: string | null;
+  initialJumpMetric?: "cpu" | "mem" | "net" | null;
 }
 
 export function LogsDrawer({
@@ -38,6 +40,8 @@ export function LogsDrawer({
   hostId,
   containerId,
   containerName,
+  initialJumpTimestamp,
+  initialJumpMetric,
 }: LogsDrawerProps) {
   const [grep, setGrep] = useState("");
   const [tail, setTail] = useState("500");
@@ -49,15 +53,38 @@ export function LogsDrawer({
   const [liveLines, setLiveLines] = useState<string[]>([]);
   const [showSavedSearches, setShowSavedSearches] = useState(false);
   const [currentTimestamp, setCurrentTimestamp] = useState<string>();
+  const [highlightActive, setHighlightActive] = useState(false);
+  const [jumpTimestamp, setJumpTimestamp] = useState<string | null>(null);
+  
   const scrollRef = useRef<HTMLDivElement>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
+
+  // Handle initial jump
+  useEffect(() => {
+    if (open && initialJumpTimestamp) {
+      setIsLive(false);
+      setSince(initialJumpTimestamp);
+      setJumpTimestamp(initialJumpTimestamp);
+      setHighlightActive(true);
+      
+      // Auto-clear highlight after 5s
+      const timer = setTimeout(() => setHighlightActive(false), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [open, initialJumpTimestamp]);
 
   const { data, isLoading, error, refetch } = useQuery<LogsResponse>({
     queryKey: ["/api/hosts", hostId, "containers", containerId, "logs", { tail, since, grep, stdout, stderr }],
     queryFn: async () => {
+      // Determine if since is a duration (number) or timestamp (ISO)
+      const isDuration = /^\d+$/.test(since);
+      const sinceParam = isDuration 
+        ? (since === "0" ? "" : `${since}s`)
+        : since;
+
       const params = new URLSearchParams({
         tail,
-        since: since === "0" ? "" : `${since}s`,
+        since: sinceParam,
         stdout: String(stdout),
         stderr: String(stderr),
         follow: "false",
@@ -83,11 +110,20 @@ export function LogsDrawer({
     if (!open) {
       setIsLive(false);
       setLiveLines([]);
+      setJumpTimestamp(null);
+      setHighlightActive(false);
     } else {
       // Set current timestamp when drawer opens
       setCurrentTimestamp(new Date().toISOString());
     }
   }, [open]);
+
+  useEffect(() => {
+    if (highlightActive && scrollRef.current && data && data.mode === "docker") {
+      // Scroll to top of the log area when jumping to a timestamp
+      scrollRef.current.scrollTop = 0;
+    }
+  }, [highlightActive, data]);
 
   useEffect(() => {
     if (!isLive) {
@@ -126,10 +162,10 @@ export function LogsDrawer({
   }, [isLive, hostId, containerId, grep, stdout, stderr, isPaused]);
 
   useEffect(() => {
-    if (!isPaused && scrollRef.current) {
+    if (!isPaused && scrollRef.current && isLive) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [liveLines, isPaused]);
+  }, [liveLines, isPaused, isLive]);
 
   const handleDownload = () => {
     // Use server download endpoint for admin users
@@ -163,10 +199,13 @@ export function LogsDrawer({
 
   const handleJumpToBookmark = (containerId: string, timestamp: string, filters?: string) => {
     // For now, just set the timestamp and refresh
-    setCurrentTimestamp(timestamp);
+    setSince(timestamp);
+    setJumpTimestamp(timestamp);
+    setHighlightActive(true);
     if (filters) {
       setGrep(filters);
     }
+    setTimeout(() => setHighlightActive(false), 5000);
     refetch();
   };
 
@@ -214,13 +253,29 @@ export function LogsDrawer({
     }
 
     if (data.mode === "docker") {
-      const displayContent = isLive ? liveLines.join("\n") : data.content;
+      const displayContent = isLive ? liveLines : (data.content ? data.content.split("\n") : []);
 
       return (
         <ScrollArea className="h-[600px] w-full" ref={scrollRef}>
-          <pre className="text-xs font-mono p-4 whitespace-pre-wrap break-words">
-            {displayContent || "(empty)"}
-          </pre>
+          <div className="text-xs font-mono p-4">
+            {displayContent.length > 0 ? (
+              displayContent.map((line, idx) => {
+                const isFirstLineOfJump = !isLive && idx === 0 && jumpTimestamp;
+                return (
+                  <div 
+                    key={idx} 
+                    className={`whitespace-pre-wrap break-words py-0.5 px-1 rounded transition-colors duration-1000 ${
+                      isFirstLineOfJump && highlightActive ? 'bg-yellow-500/30 ring-1 ring-yellow-500/50' : ''
+                    }`}
+                  >
+                    {line}
+                  </div>
+                );
+              })
+            ) : (
+              <span className="text-muted-foreground italic">(empty)</span>
+            )}
+          </div>
         </ScrollArea>
       );
     }
@@ -237,6 +292,33 @@ export function LogsDrawer({
         </SheetHeader>
 
         <div className="mt-4 space-y-4">
+          {jumpTimestamp && (
+            <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-md p-2 flex items-center justify-between">
+              <div className="text-xs flex items-center gap-2">
+                <span className="font-medium text-yellow-600 dark:text-yellow-400">Jumped to moment:</span>
+                <code className="text-[10px] bg-yellow-500/20 px-1 rounded">
+                  {new Date(jumpTimestamp).toLocaleString()}
+                </code>
+                {initialJumpMetric && (
+                  <Badge variant="outline" className="text-[9px] uppercase h-4 px-1">
+                    {initialJumpMetric} spike
+                  </Badge>
+                )}
+              </div>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="h-6 text-[10px] hover:bg-yellow-500/20"
+                onClick={() => {
+                  setSince("3600");
+                  setJumpTimestamp(null);
+                }}
+              >
+                Reset Filter
+              </Button>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label htmlFor="tail">Tail</Label>
@@ -255,7 +337,16 @@ export function LogsDrawer({
 
             <div className="space-y-2">
               <Label htmlFor="since">Since</Label>
-              <Select value={since} onValueChange={setSince} disabled={isLive}>
+              <Select 
+                value={/^\d+$/.test(since) ? since : "custom"} 
+                onValueChange={(val) => {
+                  if (val !== "custom") {
+                    setSince(val);
+                    setJumpTimestamp(null);
+                  }
+                }} 
+                disabled={isLive}
+              >
                 <SelectTrigger id="since">
                   <SelectValue />
                 </SelectTrigger>
@@ -264,6 +355,9 @@ export function LogsDrawer({
                   <SelectItem value="21600">Last 6 hours</SelectItem>
                   <SelectItem value="86400">Last 24 hours</SelectItem>
                   <SelectItem value="0">All time</SelectItem>
+                  {!/^\d+$/.test(since) && (
+                    <SelectItem value="custom">Custom moment</SelectItem>
+                  )}
                 </SelectContent>
               </Select>
             </div>

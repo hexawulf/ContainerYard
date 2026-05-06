@@ -4,12 +4,14 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import type { ContainerDetail, ContainerStats, HostSummary } from "@shared/monitoring";
 import { formatDistanceToNow } from "date-fns";
-import { ResponsiveContainer, LineChart, Line, YAxis } from "recharts";
+import { TimelineStrip } from "@/components/TimelineStrip";
+import type { StatsDataPoint } from "@shared/schema";
 
 interface StatsPanelProps {
   host: HostSummary | null;
   detail: ContainerDetail | null | undefined;
   statsHistory: ContainerStats[];
+  onTimelineClick?: (timestamp: string, metric?: "cpu" | "mem" | "net") => void;
 }
 
 function formatBytes(bytes?: number) {
@@ -20,19 +22,17 @@ function formatBytes(bytes?: number) {
   return `${value.toFixed(value >= 10 ? 0 : 1)} ${units[exponent]}`;
 }
 
-function formatPercent(value?: number) {
-  if (value === undefined || Number.isNaN(value)) return "0%";
-  return `${value.toFixed(1)}%`;
-}
-
-export function StatsPanel({ host, detail, statsHistory }: StatsPanelProps) {
+export function StatsPanel({ host, detail, statsHistory, onTimelineClick }: StatsPanelProps) {
   const latestStats = statsHistory.at(-1);
 
-  const cpuData = useMemo(
+  const timelineData: StatsDataPoint[] = useMemo(
     () =>
-      Array.isArray(statsHistory) ? statsHistory.map((item, index) => ({
-        index,
-        cpu: Number(item.cpuPercent.toFixed(2)),
+      Array.isArray(statsHistory) ? statsHistory.map((item) => ({
+        ts: item.timestamp,
+        cpuPct: item.cpuPercent,
+        memPct: item.memoryPercent,
+        netRx: item.networkRx,
+        netTx: item.networkTx,
       })) : [],
     [statsHistory],
   );
@@ -61,6 +61,19 @@ export function StatsPanel({ host, detail, statsHistory }: StatsPanelProps) {
                 Started {detail.createdAt ? formatDistanceToNow(new Date(detail.createdAt), { addSuffix: true }) : "unknown"}
               </span>
             </div>
+
+            {/* Metric Timeline - New Integration */}
+             {timelineData.length > 0 && (
+              <div className="border rounded-lg overflow-hidden my-4">
+                <div className="bg-muted/50 px-3 py-1 text-[10px] uppercase font-bold text-muted-foreground border-b">
+                  Performance Timeline (Click to jump logs)
+                </div>
+                <TimelineStrip 
+                  stats={timelineData} 
+                  onTimestampClick={onTimelineClick}
+                />
+              </div>
+            )}
 
             <div className="grid gap-4 md:grid-cols-2">
               <div>
@@ -122,73 +135,24 @@ export function StatsPanel({ host, detail, statsHistory }: StatsPanelProps) {
               </div>
             ) : null}
 
-             {Array.isArray(statsHistory) && statsHistory.length > 0 ? (
-              <div className="grid gap-4 lg:grid-cols-2">
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">CPU</span>
-                    <Badge variant="secondary">{formatPercent(latestStats?.cpuPercent)}</Badge>
-                  </div>
-                  <ResponsiveContainer width="100%" height={40}>
-                    <LineChart data={cpuData} margin={{ top: 4, bottom: 0, left: 0, right: 0 }}>
-                      <YAxis hide domain={[0, 100]} />
-                      <Line type="monotone" dataKey="cpu" strokeWidth={2} dot={false} stroke="#22c55e" isAnimationActive={false} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
+            <Separator />
 
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">Memory</span>
-                    <Badge variant="secondary">{formatPercent(latestStats?.memoryPercent)}</Badge>
-                  </div>
-                  <div className="border rounded-md p-3 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Usage</span>
-                      <span>{formatBytes(latestStats?.memoryUsage)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Limit</span>
-                      <span>{formatBytes(latestStats?.memoryLimit)}</span>
-                    </div>
-                  </div>
+             {latestStats && (
+              <div className="grid gap-4 grid-cols-2 text-xs">
+                <div className="space-y-1">
+                  <span className="text-muted-foreground uppercase">Mem Usage</span>
+                  <p className="font-medium">{formatBytes(latestStats.memoryUsage)} / {formatBytes(latestStats.memoryLimit)}</p>
                 </div>
-
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">Network TX</span>
-                    <Badge variant="outline">{formatBytes(latestStats?.networkTx)}</Badge>
-                  </div>
-                  <div className="border rounded-md p-3 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">RX</span>
-                      <span>{formatBytes(latestStats?.networkRx)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">TX</span>
-                      <span>{formatBytes(latestStats?.networkTx)}</span>
-                    </div>
-                  </div>
+                <div className="space-y-1">
+                  <span className="text-muted-foreground uppercase">Net I/O</span>
+                  <p className="font-medium">RX: {formatBytes(latestStats.networkRx)} | TX: {formatBytes(latestStats.networkTx)}</p>
                 </div>
-
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">Block I/O</span>
-                    <Badge variant="outline">{formatBytes(latestStats?.blockRead)}</Badge>
-                  </div>
-                  <div className="border rounded-md p-3 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Read</span>
-                      <span>{formatBytes(latestStats?.blockRead)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Write</span>
-                      <span>{formatBytes(latestStats?.blockWrite)}</span>
-                    </div>
-                  </div>
+                <div className="space-y-1">
+                  <span className="text-muted-foreground uppercase">Block I/O</span>
+                  <p className="font-medium">R: {formatBytes(latestStats.blockRead)} | W: {formatBytes(latestStats.blockWrite)}</p>
                 </div>
               </div>
-            ) : null}
+            )}
           </>
         )}
       </CardContent>

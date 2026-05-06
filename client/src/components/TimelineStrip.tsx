@@ -7,9 +7,10 @@ interface TimelineStripProps {
   stats: StatsDataPoint[];
   events?: Array<{ ts: string; type: 'start' | 'stop' | 'health' | 'restart'; label: string }>;
   onSpikeClick?: (timestamp: string, metric: 'cpu' | 'mem' | 'net') => void;
+  onTimestampClick?: (timestamp: string, metric?: 'cpu' | 'mem' | 'net') => void;
 }
 
-export function TimelineStrip({ stats, events = [], onSpikeClick }: TimelineStripProps) {
+export function TimelineStrip({ stats, events = [], onSpikeClick, onTimestampClick }: TimelineStripProps) {
   const chartData = useMemo(() => {
     return stats.map((stat, idx) => ({
       ts: new Date(stat.ts).getTime(),
@@ -26,6 +27,18 @@ export function TimelineStrip({ stats, events = [], onSpikeClick }: TimelineStri
       idx,
     }));
   }, [stats]);
+
+  const handleChartClick = (state: any, metric: 'cpu' | 'mem' | 'net') => {
+    if (!state || !state.activePayload || state.activePayload.length === 0) return;
+    const data = state.activePayload[0].payload;
+    if (data && data.tsISO) {
+      if (onTimestampClick) {
+        onTimestampClick(data.tsISO, metric);
+      } else if (onSpikeClick) {
+        onSpikeClick(data.tsISO, metric);
+      }
+    }
+  };
 
   // Detect spikes: data points significantly higher than local average
   const spikes = useMemo(() => {
@@ -101,13 +114,19 @@ export function TimelineStrip({ stats, events = [], onSpikeClick }: TimelineStri
     <div className="h-32 border-b bg-card/50 backdrop-blur-sm sticky top-0 z-10" data-testid="timeline-strip">
       <div className="grid grid-cols-3 h-full">
         {/* CPU Chart */}
-        <div className="border-r p-2">
+        <div 
+          className="border-r p-2 cursor-crosshair group transition-colors hover:bg-accent/10"
+          title="Click to jump logs to this time"
+        >
           <div className="flex items-center gap-2 mb-1">
             <Activity className="h-3 w-3 text-[hsl(217,91%,60%)]" />
             <span className="text-xs text-muted-foreground">CPU %</span>
           </div>
           <ResponsiveContainer width="100%" height={70}>
-            <LineChart data={chartData}>
+            <LineChart 
+              data={chartData}
+              onClick={(state) => handleChartClick(state, 'cpu')}
+            >
               <XAxis dataKey="label" hide />
               <YAxis hide domain={[0, 100]} />
               <Tooltip 
@@ -131,13 +150,19 @@ export function TimelineStrip({ stats, events = [], onSpikeClick }: TimelineStri
         </div>
 
         {/* Memory Chart */}
-        <div className="border-r p-2">
+        <div 
+          className="border-r p-2 cursor-crosshair group transition-colors hover:bg-accent/10"
+          title="Click to jump logs to this time"
+        >
           <div className="flex items-center gap-2 mb-1">
             <HardDrive className="h-3 w-3 text-[hsl(142,76%,45%)]" />
             <span className="text-xs text-muted-foreground">Memory %</span>
           </div>
           <ResponsiveContainer width="100%" height={70}>
-            <LineChart data={chartData}>
+            <LineChart 
+              data={chartData}
+              onClick={(state) => handleChartClick(state, 'mem')}
+            >
               <XAxis dataKey="label" hide />
               <YAxis hide domain={[0, 100]} />
               <Tooltip 
@@ -161,13 +186,19 @@ export function TimelineStrip({ stats, events = [], onSpikeClick }: TimelineStri
         </div>
 
         {/* Network Chart */}
-        <div className="p-2">
+        <div 
+          className="p-2 cursor-crosshair group transition-colors hover:bg-accent/10"
+          title="Click to jump logs to this time"
+        >
           <div className="flex items-center gap-2 mb-1">
             <Network className="h-3 w-3 text-[hsl(199,89%,48%)]" />
             <span className="text-xs text-muted-foreground">Network KB/s</span>
           </div>
           <ResponsiveContainer width="100%" height={70}>
-            <LineChart data={chartData}>
+            <LineChart 
+              data={chartData}
+              onClick={(state) => handleChartClick(state, 'net')}
+            >
               <XAxis dataKey="label" hide />
               <YAxis hide />
               <Tooltip 
