@@ -182,6 +182,11 @@ export async function createApp() {
       const validRoutes = ["/", "/login", "/dashboard", "/styleguide"];
       const isDynamicRoute = req.path.startsWith("/hosts/");
       
+      // Explicitly handle missing static files that might fall through express.static
+      if (req.path === "/sitemap.xml" || req.path === "/robots.txt") {
+        return res.status(404).send("Not Found");
+      }
+
       if (!validRoutes.includes(req.path) && !isDynamicRoute) {
         res.status(404).sendFile(path.join(distPath, "index.html"));
       } else {

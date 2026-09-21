@@ -17,10 +17,10 @@ npm run build
 
 # Restart the PM2 process
 echo "Restarting PM2 process..."
-pm2 restart containeryard --update-env
+pm2 restart containeryard-api --update-env
 
 # Show logs
 echo "Showing recent logs..."
-pm2 logs containeryard --lines 50
+pm2 logs containeryard-api --lines 50 --no-daemon
 
 echo "ContainerYard restart completed!"
