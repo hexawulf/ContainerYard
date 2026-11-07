@@ -1,11 +1,13 @@
 [![Website](https://img.shields.io/badge/website-containeryard.org-blue)](https://containeryard.org)
 [![GitHub](https://img.shields.io/github/stars/hexawulf/ContainerYard?style=social)](https://github.com/hexawulf/ContainerYard)
 
-# ContainerYard 2.0 🐳
+# ContainerYard 3.0 🐳
 
 > A complete Docker stack monitoring platform with log analysis, alerting, and historical trends
 
-ContainerYard 2.0 introduces a sleeker interface, Container Actions, Log Bookmarks, and advanced Log Pattern Alerts.
+[![Release](https://img.shields.io/badge/release-v3.0.0-brightgreen)](https://github.com/hexawulf/ContainerYard/releases/tag/v3.0.0)
+
+**ContainerYard 3.0** is the first major release since v2.0.0 (Phase 1, November 2025). It brings multi-host monitoring (Docker + cAdvisor-only hosts), SQLite as a first-class database, Metric-to-Log Quick Jump, hardened auth and CSRF, and SEO and landing-page polish. See [What's new in 3.0](#-whats-new-in-30).
 
 ContainerYard is a comprehensive Docker observability platform that goes beyond simple log viewing. It provides Docker Compose stack management, proactive alerting, historical metrics analysis, and real-time log streaming—all in one sleek, developer-friendly interface. Built with React 18 and Express, it bridges the gap between lightweight viewers and enterprise monitoring solutions.
 
@@ -57,6 +59,32 @@ ContainerYard is a comprehensive Docker observability platform that goes beyond 
 - 💾 **Saved Searches** - Persist search queries with PostgreSQL for quick reuse
 - 🌐 **Environment Viewer** - Search, filter, and bulk export container environment variables
 
+## 🆕 What's New in 3.0
+
+> Version note: `v2.0.0` was the November 2025 Phase 1 release. A November 2026 PR (#2) was mistakenly labelled "v2.0.0" a second time, so that release ships as **v3.0.0**.
+
+### Monitoring
+- **Metric-to-Log Quick Jump**: click a metric point to open the logs for that time window
+- **Multi-host support**: host-aware Docker clients, a host summary endpoint, and `CADVISOR_ONLY` hosts (e.g. piapps2) with container overviews from cAdvisor
+- **Synology and remote host fixes**: container lists and log retrieval work on remote hosts again
+- **Logs and inspect**: unit formatting fixes, numeric CPU/memory values, and a restored `/api/containers` route
+
+### Data layer
+- **SQLite is a first-class database mode** (`DATABASE_URL=file:...`); PostgreSQL is still supported, and the Neon WebSocket is turned off under SQLite. Note: alert rules, the alert worker and historical metrics aggregation still require PostgreSQL; under SQLite they are disabled and restart tracking is in-memory only
+
+### Security and reliability
+- **Double-submit CSRF** with hardened session cookies, login rate limiting, and auth lockdown on protected routes
+- **Health endpoints** (`/health`, `/api/health`) and a `runtime-config` endpoint that keeps the client from crashing at boot
+- **Crash fixes**: null-safe `.map` guards across the client, plus a fix for the prom-client `PerformanceObserver` error
+- **Clean TypeScript build** (all errors resolved), about 2,000 lines of dead code removed, and new tests
+
+### Web and SEO
+- Unique page titles (`react-helmet-async`), updated meta tags, sitemap and robots.txt for `containeryard.org`, and proper 404s for missing sitemap/robots paths
+- Landing page: GitHub icon and a developer contact button; refreshed e2e screenshots
+
+### Ops
+- Corrected the PM2 target in the restart script; dependency updates
+
 ## 🚀 Quick Start
 
 ### Prerequisites
@@ -100,8 +128,9 @@ DOCKER_HOST=http://localhost:2375
 DOCKER_AUTH_TOKEN=your-token-here
 ALLOWED_ORIGINS=http://localhost:3000
 
-# Database (optional - for saved searches)
+# Database: PostgreSQL or SQLite
 DATABASE_URL=postgresql://user:password@localhost:5432/containeryard
+# DATABASE_URL=file:./server/prisma/app.db   # SQLite mode
 ```
 
 ### Provider Modes
@@ -198,7 +227,7 @@ ContainerYard/
 - **Zod** - Schema validation
 
 ### Database
-- **PostgreSQL** - Required for alerts, metrics, saved searches, and bookmarks
+- **PostgreSQL or SQLite** - Persistence via Prisma (alerts and historical metrics require PostgreSQL)
 - **Neon Serverless** - Serverless PostgreSQL driver
 - **Drizzle ORM** - Type-safe database operations with migrations
 
@@ -406,11 +435,12 @@ TEST_CONTAINER_ID=<cid> npm test
 
 ## 📚 Documentation
 
-- [Phase 1 Implementation](PHASE1_IMPLEMENTATION_SUMMARY.md) - Complete feature breakdown
+- [Releases](https://github.com/hexawulf/ContainerYard/releases) - Changelog and release notes (current: v3.0.0)
+- [Phase 1 Implementation](docs/_archive/PHASE1_IMPLEMENTATION_SUMMARY.md) - Complete feature breakdown
 - [Deployment Guide](DEPLOYMENT.md) - Production deployment instructions
 - [Environment Variables](.env.example) - Configuration reference
-- [Architecture](replit.md) - Technical architecture details
-- [Original Plan](plan.md) - Phase 1 relaunch strategy
+- [Architecture](docs/_archive/replit.md) - Technical architecture details
+- [Original Plan](docs/_archive/plan.md) - Phase 1 relaunch strategy
 
 ## 🔑 Keyboard Shortcuts
 
