@@ -132,110 +132,108 @@ npm run build && pm2 restart containeryard-api
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Node.js 18+ and npm
-- Docker daemon (for REMOTE provider) or use built-in MOCK/SIMULATION providers
+- **Node.js 22** and npm (the lockfile is npm's; `pnpm-lock.yaml` is stale)
+- **Redis** for sessions (`REDIS_URL`)
+- **Docker** on the host ContainerYard runs on; it talks to `/var/run/docker.sock` directly, so the user running it must be in the `docker` group
+- **cAdvisor** on each remote host you want to monitor read-only
+- A **TLS reverse proxy** (e.g. nginx) in front of the app. Session cookies are always `Secure`, so login only works over HTTPS (the app trusts `X-Forwarded-Proto` from the first proxy)
 
 ### Installation
 
 ```bash
-# Clone the repository
 git clone git@github.com:hexawulf/ContainerYard.git
 cd ContainerYard
+npm ci                               # also runs `prisma generate`
 
-# Install dependencies
-npm install
-
-# Copy environment template
 cp .env.example .env
+nano .env                            # fill in the required variables (see below)
 
-# Edit .env with your configuration
-# Set PROVIDER to MOCK for demo mode (no Docker needed)
+npm run db:push:prisma               # create the SQLite/PostgreSQL tables (users, audit log, bookmarks, saved searches)
+node server/prisma/seed.js           # create the first ADMIN from ADMIN_EMAIL / ADMIN_PASSWORD (no-op if users exist)
 
-# Start development server
-npm run dev
+npm run build
+pm2 startOrReload ecosystem.config.cjs && pm2 save   # or: npm start
 ```
 
-The application will be available at `http://localhost:5000`
+The API and UI are served on `PORT` (default **5008**); point your reverse proxy at it. `scripts/deploy-static.sh [--dry-run]` runs the whole update (DB backup → `npm ci` → schema push → build → pm2 reload → health check).
+
+For development, `npm run dev` serves the same port with Vite hot reload; you still need the TLS proxy (or a tunnel) to sign in.
 
 ## ⚙️ Configuration
 
 ### Environment Variables
 
-Create a `.env` file based on `.env.example`:
+The server validates these at startup (`server/src/config/env.ts`) and exits if a required one is missing.
 
-```bash
-# Provider Selection
-PROVIDER=MOCK  # Options: MOCK, SIMULATION, REMOTE
+**Required**
 
-# Remote Docker (when PROVIDER=REMOTE)
-DOCKER_HOST=http://localhost:2375
-DOCKER_AUTH_TOKEN=your-token-here
-ALLOWED_ORIGINS=http://localhost:3000
+| Variable | Purpose |
+|---|---|
+| `SESSION_SECRET` | Session signing secret, **at least 32 characters** (`openssl rand -hex 32`) |
+| `REDIS_URL` | Session store, e.g. `redis://127.0.0.1:6379` |
+| `ALLOWED_ORIGINS` | Comma-separated origins allowed to make credentialed CORS requests, e.g. `https://containeryard.org` |
+| `DATABASE_URL` | `file:/abs/path/app.db` (SQLite) or a `postgresql://…` URL. See [Database](#database) |
+| `PIAPPS2_CADVISOR_URL` | cAdvisor base URL for the `piapps2` host |
+| `SYNOLOGY_CADVISOR_URL` | cAdvisor base URL for the `synology` host |
+| `ADMIN_EMAIL`, `ADMIN_PASSWORD` | Used by `server/prisma/seed.js` to create the first ADMIN (password ≥ 12 chars) |
 
-# Webhook SSRF policy (v3.1)
-WEBHOOK_ALLOW_PRIVATE=false          # true = allow LAN/loopback webhook targets
-WEBHOOK_ALLOWED_HOSTS=               # comma-separated hostnames that skip IP checks
+**Optional**
 
-# Audit log retention in days (v3.1, default 180)
-AUDIT_RETENTION_DAYS=180
+| Variable | Default | Purpose |
+|---|---|---|
+| `PORT` | `5008` | Listen port |
+| `NODE_ENV` | `development` | `production` serves the built client from `dist/public` |
+| `COOKIE_NAME` | `__Secure-cy.sid` | Session cookie name |
+| `COOKIE_DOMAIN` | unset | Cookie domain |
+| `COOKIE_SAMESITE` | `none` | `lax` is recommended when UI and API share an origin |
+| `PIAPPS2_DOZZLE_URL`, `SYNOLOGY_DOZZLE_URL` | unset | Optional Dozzle links shown for those hosts |
+| `METRICS_TOKEN` | unset | Bearer token required for the Prometheus `/metrics` endpoint |
+| `PUBLIC_API_BASE` | derived from request | API base URL returned by `/api/runtime-config` |
+| `WEBHOOK_ALLOW_PRIVATE` | `false` | Allow alert webhooks to LAN/loopback targets |
+| `WEBHOOK_ALLOWED_HOSTS` | empty | Comma-separated webhook hostnames that skip the IP checks |
+| `AUDIT_RETENTION_DAYS` | `180` | Audit log retention |
+| `HOSTLOGS_LOCAL_HOST` | `piapps` | Host ID whose local log files the Host Logs page reads |
+| `PM2_APP_NAME`, `PM2_LOG_DIR` | `containeryard-api`, `~/.pm2/logs` | Where the pm2 host logs are found |
 
-# Database: PostgreSQL or SQLite
-DATABASE_URL=postgresql://user:password@localhost:5432/containeryard
-# DATABASE_URL=file:./server/prisma/app.db   # SQLite mode
-```
+Client build-time (optional): `VITE_API_BASE` (default `/api`), `VITE_APP_NAME`, `VITE_AUTH_DISABLED=true` (UI demo without login).
 
-### Provider Modes
+### Hosts
 
-**MOCK** (Default)
-- Static mock data for development and demos
-- No Docker daemon required
-- Perfect for testing and UI development
+The monitored hosts are defined in `server/src/config/hosts.ts`:
 
-**SIMULATION**
-- Dynamic simulation with realistic generated logs
-- Simulates CPU/memory metrics and log patterns
-- Great for testing without Docker
+| Host ID | Provider | Access |
+|---|---|---|
+| `piapps` | `DOCKER` | Full access through the local Docker socket: logs, live tail, stats, inspect, container and stack actions, host logs |
+| `piapps2` | `CADVISOR_ONLY` | Read-only containers and stats from cAdvisor |
+| `synology` | `CADVISOR_ONLY` | Read-only containers and stats from cAdvisor |
 
-**REMOTE**
-- Connect to real Docker API
-- Requires Docker daemon with API enabled
-- Supports bearer token authentication
-- CORS security with `ALLOWED_ORIGINS` enforcement
+To add or rename hosts, edit that file (and the `HostId` type) and add the matching `*_CADVISOR_URL` to `env.ts`.
 
-### Docker API Setup (REMOTE Mode)
+> ⚠️ Do **not** expose the Docker daemon over TCP (`tcp://0.0.0.0:2375`) to monitor another host: that grants unauthenticated root on it. Run cAdvisor there instead.
 
-To enable the Docker API on your host:
+### Database
 
-```bash
-# Linux/macOS - edit Docker daemon config
-sudo vim /etc/docker/daemon.json
-```
+| | SQLite (`file:`) | PostgreSQL |
+|---|---|---|
+| Users, audit log, bookmarks, saved searches (Prisma) | ✅ | ✅ |
+| Alert rules/history, historical metrics, restart tracking (Drizzle) | ❌ disabled | ✅ |
 
-Add:
-```json
-{
-  "hosts": ["unix:///var/run/docker.sock", "tcp://0.0.0.0:2375"]
-}
-```
-
-For secure production use, enable TLS authentication and set `DOCKER_AUTH_TOKEN`.
+Schema changes: `npm run db:push:prisma` (Prisma tables) and, on PostgreSQL, `npm run db:push` (Drizzle tables). Back up the database first.
 
 ## 🛠️ Development
 
 ### Available Scripts
 
 ```bash
-# Start development server with hot reload
-npm run dev
-
-# Build for production
-npm run build
-
-# Database migrations (if using PostgreSQL)
-npm run db:push
-
-# Type checking
-npx tsc --noEmit
+npm run dev                 # dev server with hot reload (port 5008)
+npm run build               # server bundle + client build + dist verification
+npm start                   # run the production build
+npm run check               # TypeScript (app); npm run check:tests for the tests
+npm run lint                # ESLint (also runs in the lefthook pre-commit hook)
+npm test                    # unit tests (no Docker, DB or network needed)
+npm run test:integration    # against a running instance (see server/tests/integration/api.test.ts)
+npm run db:push:prisma      # Prisma schema -> database (SQLite or PostgreSQL)
+npm run db:push             # Drizzle schema -> PostgreSQL (alerts/metrics tables)
 ```
 
 ### Project Structure
