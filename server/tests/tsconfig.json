@@ -3,7 +3,7 @@
   "include": ["./**/*.spec.ts", "./**/*.test.ts"],
   "exclude": [],
   "compilerOptions": {
-    "types": ["node", "jest", "supertest"],
+    "types": ["node"],
     "noEmit": true
   }
 }

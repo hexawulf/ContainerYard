@@ -35,7 +35,7 @@ test("demux: frame split across chunks (old bug) is reassembled", () => {
   const d = new DockerLogDemuxer();
   let out = "";
   // feed one byte at a time: worst case for chunk boundaries
-  for (const byte of buf) out += d.push(Buffer.from([byte]));
+  for (let i = 0; i < buf.length; i++) out += d.push(buf.subarray(i, i + 1));
   out += d.end();
   assert.equal(out, "hello world\nsecond\n");
 });

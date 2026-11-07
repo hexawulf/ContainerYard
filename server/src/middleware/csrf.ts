@@ -9,6 +9,9 @@
  */
 import { timingSafeEqual } from "crypto";
 import type { NextFunction, Request, Response } from "express";
+// Loads the express-session Request augmentation (req.session) on its own,
+// so this file type-checks without importing middleware/auth.
+import type {} from "express-session";
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
