@@ -13,6 +13,7 @@ import { FileText, Info } from "lucide-react";
 import type { ContainerSummary, ContainerStats, HostSummary } from "@shared/monitoring";
 import { Link } from "wouter";
 import { ContainerActions } from "./ContainerActions";
+import { useAuth } from "@/components/AuthGate";
 
 interface ContainerTableProps {
   containers: ContainerSummary[];
@@ -40,6 +41,8 @@ export function ContainerTable({
   onLogsClick,
   onInspectClick,
 }: ContainerTableProps) {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "ADMIN";
   return (
     <ScrollArea className="h-[520px]">
       <Table>
@@ -107,7 +110,7 @@ export function ContainerTable({
                 <TableCell className="text-right">
                   <div className="flex items-center justify-end gap-1">
                     <ContainerActions container={container} host={host} />
-                    {host && (
+                    {host && isAdmin && (
                       <Link href={`/hosts/${host.id}/logs`}>
                         <Button
                           size="sm"

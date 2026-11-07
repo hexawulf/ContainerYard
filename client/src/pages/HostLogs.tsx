@@ -66,6 +66,9 @@ export default function HostLogs({ hostId }: { hostId: string }) {
         credentials: "include",
       });
 
+      if (res.status === 403) {
+        throw new Error("Host logs are only available to administrators.");
+      }
       if (!res.ok) {
         throw new Error(`Failed to fetch host logs: ${res.statusText}`);
       }

@@ -394,11 +394,13 @@ export default function Dashboard() {
           >
             {showHistoricalMetrics ? "Hide" : "Show"} Historical Metrics
           </Button>
-          <Link href={`/hosts/${selectedHostId ?? "piapps"}/logs`}>
-            <Button variant="outline" size="sm">
-              Host Logs
-            </Button>
-          </Link>
+          {user?.role === "ADMIN" && (
+            <Link href={`/hosts/${selectedHostId ?? "piapps"}/logs`}>
+              <Button variant="outline" size="sm">
+                Host Logs
+              </Button>
+            </Link>
+          )}
           {user && (
             <Badge variant="outline" className="uppercase tracking-wide">
               {user.role}

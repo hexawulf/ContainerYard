@@ -6,12 +6,14 @@
  *   GET /api/hosts/:hostId/logs/:name?follow=1     live tail, text/event-stream ("line" events)
  *
  * Only names from the server-side allowlist (config/hostlogs.ts) can be read;
- * the client never supplies a path.
+ * the client never supplies a path. ADMIN only: nginx access logs contain
+ * visitor IPs, and the download route was already ADMIN-only.
  */
 import { Router, type Response } from "express";
 import { execFile, spawn } from "child_process";
 import readline from "readline";
 import { LOCAL_HOST_ID, isReadable, resolveHostLogs } from "../config/hostlogs";
+import { requireRole } from "../middleware/auth";
 
 const router = Router();
 
@@ -39,7 +41,10 @@ function unavailable(res: Response, logName: string, reason: string, message: st
   return res.status(200).json({ available: false, reason, message, logName });
 }
 
-router.get("/:hostId/logs", (req, res) => {
+// Per-route (not router.use): this router shares the /api/hosts mount with others.
+const adminOnly = requireRole("ADMIN");
+
+router.get("/:hostId/logs", adminOnly, (req, res) => {
   const { hostId } = req.params;
   const logs = Object.entries(resolveHostLogs(hostId)).map(([name, filePath]) => ({
     name,
@@ -54,7 +59,7 @@ router.get("/:hostId/logs", (req, res) => {
   });
 });
 
-router.get("/:hostId/logs/:name", (req, res, next) => {
+router.get("/:hostId/logs/:name", adminOnly, (req, res, next) => {
   const { hostId, name } = req.params;
   const filePath = resolveHostLogs(hostId)[name];
   if (!filePath) {
