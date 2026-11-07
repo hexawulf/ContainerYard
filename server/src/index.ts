@@ -21,6 +21,7 @@ import { attachUserToResponse, globalRateLimiter, requireAuth } from "./middlewa
 import { verifyCsrf } from "./middleware/csrf";
 import { actionsRouter } from "./routes/actions";
 import { bookmarksRouter } from "./routes/bookmarks";
+import { savedSearchesRouter } from "./routes/savedSearches";
 import { auditRouter } from "./routes/audit";
 import { pruneAudit } from "./services/audit";
 import { log, setupVite } from "../vite";
@@ -108,6 +109,7 @@ export async function createApp() {
   app.use("/api/logs/download", logDownloadRouter); // has its own requireAdmin middleware
   app.use("/api/alerts", requireAuth, alertsRouter);
   app.use("/api/bookmarks", requireAuth, bookmarksRouter);
+  app.use("/api/saved-searches", requireAuth, savedSearchesRouter);
   app.use("/api/audit", requireAuth, auditRouter);
   registerMetrics(app);
 

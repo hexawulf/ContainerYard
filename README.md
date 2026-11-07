@@ -5,7 +5,7 @@
 
 > A complete Docker stack monitoring platform with log analysis, alerting, and historical trends
 
-[![Release](https://img.shields.io/badge/release-v3.1.0-brightgreen)](https://github.com/hexawulf/ContainerYard/releases/tag/v3.1.0)
+[![Release](https://img.shields.io/badge/release-v3.1.1-brightgreen)](https://github.com/hexawulf/ContainerYard/releases/tag/v3.1.1)
 
 **ContainerYard 3.0** is the first major release since v2.0.0 (Phase 1, November 2025). It brings multi-host monitoring (Docker + cAdvisor-only hosts), SQLite as a first-class database, Metric-to-Log Quick Jump, hardened auth and CSRF, and SEO and landing-page polish. **3.1** adds per-container lifecycle actions, an audit log, working Log Moment bookmarks, restored CSRF enforcement and SSRF-safe webhooks. See [What's new in 3.1](#-whats-new-in-31) and [3.0](#-whats-new-in-30).
 
@@ -61,6 +61,18 @@ ContainerYard is a comprehensive Docker observability platform that goes beyond 
 - 🌐 **Environment Viewer** - Search, filter, and bulk export container environment variables
 
 ## 🆕 What's New in 3.1
+
+### 3.1.1: log viewer fixes
+- **Live tail in the container logs drawer works.** It was connecting to the snapshot route (`/logs?follow=true`) instead of `/logs/stream`, so "Go Live" failed instantly. Pausing no longer reconnects and replays lines
+- **Log download works.** The drawer sent `id=`, but the server expects `containerId=`, so every download returned 400
+- **The "Since" filter works.** `3600s` was parsed as `NaN`, so Docker ignored it; durations (`90s`, `15m`, `2h`, `1d`), seconds and ISO timestamps are now accepted
+- **The Host Logs page works.** It used to read files by exec'ing `tail` in a `cadvisor` container that doesn't exist on piapps. It now reads them directly, resolves the current pm2 log files at runtime (`containeryard-api-out-N.log`), shows real "available" flags, and supports live follow (`?follow=1`, SSE). The dead Grafana/Prometheus entries were removed. Host logs are local-only (`HOSTLOGS_LOCAL_HOST`, default `piapps`); remote hosts now show an explanation instead of piapps' own files under the wrong name
+- **The header "Host Logs" button** pointed at `/host-logs` (404); it now opens the selected host's logs
+- **Saved searches in the log drawer work.** Like bookmarks, the UI called `/api/saved-searches`, but no server route existed. It's now stored with Prisma, per user
+- **Refreshing or deep-linking a signed-in page no longer bounces to the login page.** AuthGate redirected before the session check finished, and the login page queried `/api/auth/me/login` (404)
+
+Upgrade: `npm run db:push:prisma` (adds the `SavedSearch` table), then build and restart.
+
 
 ### Container Actions
 - **Per-container lifecycle buttons** in the container table: start, stop, restart, pause, unpause and remove. Which buttons appear depends on the container's state; stop, restart, pause and remove ask for confirmation first
@@ -503,7 +515,7 @@ PW_CHROMIUM_PATH=/path/to/chrome-headless-shell BASE_URL=http://127.0.0.1:5008 n
 
 ## 📚 Documentation
 
-- [Releases](https://github.com/hexawulf/ContainerYard/releases) - Changelog and release notes (current: v3.1.0)
+- [Releases](https://github.com/hexawulf/ContainerYard/releases) - Changelog and release notes (current: v3.1.1)
 - [Phase 1 Implementation](docs/_archive/PHASE1_IMPLEMENTATION_SUMMARY.md) - Complete feature breakdown
 - [Deployment Guide](DEPLOYMENT.md) - Production deployment instructions
 - [Environment Variables](.env.example) - Configuration reference

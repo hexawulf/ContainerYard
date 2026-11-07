@@ -394,7 +394,7 @@ export default function Dashboard() {
           >
             {showHistoricalMetrics ? "Hide" : "Show"} Historical Metrics
           </Button>
-          <Link href="/host-logs">
+          <Link href={`/hosts/${selectedHostId ?? "piapps"}/logs`}>
             <Button variant="outline" size="sm">
               Host Logs
             </Button>

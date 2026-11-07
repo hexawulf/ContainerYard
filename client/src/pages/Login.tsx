@@ -29,7 +29,9 @@ export default function Login() {
   }, [setLocation]);
 
   const { data: me, isLoading } = useQuery<{ user: SessionUser } | null>({
-    queryKey: ["/api/auth/me", "login"],
+    // Same key as AuthProvider: extra string segments are joined into the URL
+    // (this used to request /api/auth/me/login, which 404s).
+    queryKey: ["/api/auth/me"],
     queryFn: getQueryFn<{ user: SessionUser } | null>({ on401: "returnNull" }),
     staleTime: 0,
     enabled: !AUTH_DISABLED,

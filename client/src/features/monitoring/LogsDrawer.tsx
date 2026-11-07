@@ -58,6 +58,11 @@ export function LogsDrawer({
   
   const scrollRef = useRef<HTMLDivElement>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
+  // Read the pause state through a ref so toggling pause doesn't reconnect the stream.
+  const isPausedRef = useRef(isPaused);
+  useEffect(() => {
+    isPausedRef.current = isPaused;
+  }, [isPaused]);
 
   // Handle initial jump
   useEffect(() => {
@@ -140,11 +145,13 @@ export function LogsDrawer({
     });
     if (grep) params.set("grep", grep);
 
-    const url = `${API_BASE}/hosts/${hostId}/containers/${containerId}/logs?${params}&follow=true`;
+    // SSE lives on /logs/stream; /logs only returns a JSON snapshot.
+    const url = `${API_BASE}/hosts/${hostId}/containers/${containerId}/logs/stream?${params}`;
+    setLiveLines([]);
     const es = new EventSource(url, { withCredentials: true });
 
     es.addEventListener("line", (event) => {
-      if (!isPaused) {
+      if (!isPausedRef.current) {
         setLiveLines((prev) => [...prev.slice(-999), event.data]);
       }
     });
@@ -159,7 +166,7 @@ export function LogsDrawer({
     return () => {
       es.close();
     };
-  }, [isLive, hostId, containerId, grep, stdout, stderr, isPaused]);
+  }, [isLive, hostId, containerId, grep, stdout, stderr]);
 
   useEffect(() => {
     if (!isPaused && scrollRef.current && isLive) {
@@ -172,7 +179,7 @@ export function LogsDrawer({
     const params = new URLSearchParams({
       scope: 'container',
       hostId,
-      id: containerId,
+      containerId,
       tail: tail,
       since: since,
     });

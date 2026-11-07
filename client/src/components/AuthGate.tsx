@@ -8,6 +8,8 @@ const AUTH_DISABLED = import.meta.env.VITE_AUTH_DISABLED === 'true';
 
 interface AuthContextValue {
   user: SessionUser | null;
+  /** True until the first /api/auth/me check has finished. */
+  loading: boolean;
   refresh: () => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -40,6 +42,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (AUTH_DISABLED) {
       return {
         user: null,
+        loading: false,
         refresh: async () => {},
         logout: async () => {
           setLocation("/login");
@@ -51,6 +54,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Fallback for loading/unauthenticated state
       return {
         user: null,
+        loading: isLoading,
         refresh: async () => { await refetch(); },
         logout: async () => {
           setLocation("/login");
@@ -60,6 +64,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return {
       user: data.user,
+      loading: false,
       refresh: async () => {
         await refetch();
       },
@@ -70,23 +75,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setLocation("/login");
       },
     };
-  }, [data?.user, refetch, setLocation]);
+  }, [data?.user, isLoading, refetch, setLocation]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function AuthGate({ children }: { children: React.ReactNode }) {
-  const { user, refresh } = useAuth();
+  const { user, loading } = useAuth();
   const [, setLocation] = useLocation();
 
   useEffect(() => {
     if (AUTH_DISABLED) return;
-    
-    // If user is null (not authenticated), redirect to login
-    if (!user) {
+
+    // Redirect only once the session check has finished. Redirecting while it
+    // was still loading sent every page refresh/deep link to /login.
+    if (!loading && !user) {
       setLocation("/login");
     }
-  }, [user, setLocation]);
+  }, [user, loading, setLocation]);
 
   // Show loading while checking authentication
   if (!AUTH_DISABLED && !user) {

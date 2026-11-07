@@ -22,6 +22,7 @@ interface HostLog {
 
 interface HostLogsListResponse {
   logs: HostLog[];
+  message?: string;
 }
 
 const LOG_DESCRIPTIONS: Record<string, { title: string; description: string }> = {
@@ -114,6 +115,12 @@ export default function HostLogs({ hostId }: { hostId: string }) {
             </Button>
           </Link>
         </div>
+
+        {logs.length === 0 && (
+          <p className="text-sm text-muted-foreground" data-testid="hostlogs-empty">
+            {data?.message ?? "No host logs are configured for this host."}
+          </p>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {logs.map((log) => {

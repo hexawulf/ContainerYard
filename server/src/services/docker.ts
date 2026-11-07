@@ -246,6 +246,33 @@ export async function getContainerStats(host: HostConfig, containerId: string): 
   }
 }
 
+/**
+ * Convert a "since" value to a Unix timestamp (seconds) for the Docker API.
+ * Accepts seconds-ago as a number or digit string ("3600"), durations
+ * ("90s", "15m", "2h", "1d") and ISO timestamps. Returns undefined for
+ * empty/invalid input. (Previously "3600s" became NaN and Docker silently
+ * ignored the filter.)
+ */
+export function parseSince(since: number | string | undefined, now = Date.now()): number | undefined {
+  if (since === undefined || since === null || since === "") return undefined;
+  const nowSec = Math.floor(now / 1000);
+  if (typeof since === "number") {
+    return Number.isFinite(since) && since > 0 ? nowSec - Math.floor(since) : undefined;
+  }
+  const s = since.trim();
+  if (/^\d+$/.test(s)) {
+    const n = Number(s);
+    return n > 0 ? nowSec - n : undefined;
+  }
+  const m = /^(\d+)\s*([smhd])$/i.exec(s);
+  if (m) {
+    const mult = { s: 1, m: 60, h: 3600, d: 86400 }[m[2].toLowerCase() as "s" | "m" | "h" | "d"];
+    return nowSec - Number(m[1]) * mult;
+  }
+  const t = Date.parse(s);
+  return Number.isNaN(t) ? undefined : Math.floor(t / 1000);
+}
+
 export interface LogOptions {
   tail?: number;
   since?: number | string;
@@ -287,12 +314,9 @@ export async function getContainerLogs(host: HostConfig, containerId: string, op
       follow: false,
     };
 
-    if (since) {
-      if (typeof since === 'number') {
-        logOpts.since = Math.floor(Date.now() / 1000) - since;
-      } else {
-        logOpts.since = Math.floor(new Date(since).getTime() / 1000);
-      }
+    const sinceEpoch = parseSince(since);
+    if (sinceEpoch !== undefined) {
+      logOpts.since = sinceEpoch;
     }
 
     const raw = (await container.logs(logOpts)) as unknown as Buffer;

@@ -2,7 +2,7 @@ import { Router, Request, Response, NextFunction } from "express";
 import { log } from "../../vite";
 import { getHost } from "../config/hosts";
 import { getContainerLogs } from "../services/docker";
-import { HOST_LOGS } from "../config/hostlogs";
+import { resolveHostLogs } from "../config/hostlogs";
 import { requireRole } from "../middleware/auth";
 import { spawn } from "child_process";
 import * as fs from "fs";
@@ -11,7 +11,6 @@ import * as path from "path";
 const router = Router();
 
 // Reuse the same allowlist as hostLogs
-const HOST_LOG_ALLOWLIST = HOST_LOGS;
 
 // Use standard requireRole middleware for admin access
 
@@ -31,7 +30,8 @@ function parseDownloadQuery(query: any): DownloadQuery {
   return {
     scope,
     hostId: query.hostId ? String(query.hostId) : undefined,
-    containerId: query.containerId ? String(query.containerId) : undefined,
+    // `id` accepted for older clients that sent it instead of containerId
+    containerId: query.containerId ?? query.id ? String(query.containerId ?? query.id) : undefined,
     name: query.name ? String(query.name) : undefined,
     tail: Number.isNaN(tail) ? 5000 : Math.min(Math.max(tail, 1), 10000),
     since: query.since ? String(query.since) : undefined,
@@ -86,7 +86,7 @@ router.get("/", requireRole('ADMIN'), async (req, res, next) => {
       }
 
       const hostId = options.hostId || 'piapps';
-      const hostLogs = HOST_LOG_ALLOWLIST[hostId];
+      const hostLogs = resolveHostLogs(hostId);
       const filePath = hostLogs?.[options.name!];
 
       if (!filePath) {

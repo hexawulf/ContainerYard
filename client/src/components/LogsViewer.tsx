@@ -145,11 +145,8 @@ export function LogsViewer({
       eventSourceRef.current.close();
     }
 
-    const streamEndpoint = endpoint.includes('/stream')
-      ? endpoint
-      : `${endpoint}${endpoint.includes('?') ? '&' : '?'}follow=1`;
-
-    const url = `${streamEndpoint}${streamEndpoint.includes('?') ? '&' : '?'}${buildQueryString(true)}`;
+    // buildQueryString(true) already adds follow=1; don't append it twice.
+    const url = `${endpoint}${endpoint.includes('?') ? '&' : '?'}${buildQueryString(!endpoint.includes('/stream'))}`;
 
     setIsLoading(true);
     setError(null);
