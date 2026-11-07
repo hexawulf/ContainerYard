@@ -5,7 +5,7 @@
 
 > A complete Docker stack monitoring platform with log analysis, alerting, and historical trends
 
-[![Release](https://img.shields.io/badge/release-v3.1.1-brightgreen)](https://github.com/hexawulf/ContainerYard/releases/tag/v3.1.1)
+[![Release](https://img.shields.io/badge/release-v3.1.2-brightgreen)](https://github.com/hexawulf/ContainerYard/releases/tag/v3.1.2)
 
 **ContainerYard 3.0** is the first major release since v2.0.0 (Phase 1, November 2025). It brings multi-host monitoring (Docker + cAdvisor-only hosts), SQLite as a first-class database, Metric-to-Log Quick Jump, hardened auth and CSRF, and SEO and landing-page polish. **3.1** adds per-container lifecycle actions, an audit log, working Log Moment bookmarks, restored CSRF enforcement and SSRF-safe webhooks. See [What's new in 3.1](#-whats-new-in-31) and [3.0](#-whats-new-in-30).
 
@@ -61,6 +61,15 @@ ContainerYard is a comprehensive Docker observability platform that goes beyond 
 - 🌐 **Environment Viewer** - Search, filter, and bulk export container environment variables
 
 ## 🆕 What's New in 3.1
+
+### 3.1.2: security, ops and maintenance
+- **Dependency security updates:** `npm audit fix` cleared the high-severity advisories in `body-parser`, `cookie`, `nanoid`, `postcss`, `@grpc/grpc-js` and `esbuild`, among others, and an npm override forces `qs` ≥ 6.16.2 (it was bundled in Express). Two advisories remain, each needing a major upgrade, and are planned for 3.2: **zod 4** (request bodies are capped at 1 MB, which limits exposure) and **Prisma 7** (`deepmerge-ts`, only reached by the Prisma CLI config loader, never at runtime)
+- **38 unused packages removed**, including `csurf`, `passport`, `connect-pg-simple`, `framer-motion`, unused Radix components, `supertest` and the Jest types
+- **One PM2 definition:** `ecosystem.config.cjs` now matches production (`containeryard-api`, fork, 1 instance). Three conflicting configs are gone; two of them used cluster mode with `instances: max`, which would break the per-process rate limiters, live streams and workers. `scripts/deploy-static.sh` is the deploy path (DB backup → `npm ci` → schema push → build → `pm2 startOrReload` → health check; `--dry-run` supported)
+- **Host logs are ADMIN-only** (nginx access logs contain visitor IPs), matching the download route. The buttons are hidden for viewers
+- **Tests:** the dead Jest specs are replaced by `npm run test:integration`, a test suite run against a live instance (auth/CSRF, logs, SSE, host logs, bookmarks, saved searches, audit, opt-in container actions on `cy-test*` containers only). `npm test` runs the unit tests, and `check:tests` passes again
+- **Docs:** Quick Start and Configuration rewritten to match `env.ts` (the old `PROVIDER` modes are gone); new env, hosts and database tables; `.env.example` rewritten. The advice to expose `dockerd` on TCP 2375 is now a warning against it
+- **Prisma CLI config** moved to `prisma.config.ts` (the `package.json#prisma` key is deprecated in Prisma 7); the stale `prisma/schema.prisma` stub was removed
 
 ### 3.1.1: log viewer fixes
 - **Live tail in the container logs drawer works.** It was connecting to the snapshot route (`/logs?follow=true`) instead of `/logs/stream`, so "Go Live" failed instantly. Pausing no longer reconnects and replays lines
@@ -513,7 +522,7 @@ PW_CHROMIUM_PATH=/path/to/chrome-headless-shell BASE_URL=http://127.0.0.1:5008 n
 
 ## 📚 Documentation
 
-- [Releases](https://github.com/hexawulf/ContainerYard/releases) - Changelog and release notes (current: v3.1.1)
+- [Releases](https://github.com/hexawulf/ContainerYard/releases) - Changelog and release notes (current: v3.1.2)
 - [Phase 1 Implementation](docs/_archive/PHASE1_IMPLEMENTATION_SUMMARY.md) - Complete feature breakdown
 - [Deployment Guide](DEPLOYMENT.md) - Production deployment instructions
 - [Environment Variables](.env.example) - Configuration reference
