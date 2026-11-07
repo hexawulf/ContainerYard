@@ -10,8 +10,29 @@ import {
   insertNotificationChannelSchema,
 } from "@shared/schema";
 import { isSQLite, logSQLiteDisabled, requirePostgreSQLAsync } from "../config/databaseCapabilities";
+import { requireRole } from "../middleware/auth";
+import { sendNotification } from "../services/notifications";
+import { validateWebhookUrl } from "../lib/safeWebhook";
 
 const router = Router();
+
+// Reading alerts is open to any signed-in user; changing them needs ADMIN.
+router.use((req, res, next) => {
+  if (req.method === "GET" || req.method === "HEAD") return next();
+  return requireRole("ADMIN")(req, res, next);
+});
+
+/** Reject webhook channels whose URL points at internal/metadata addresses. */
+function webhookConfigError(type: unknown, config: unknown): string | null {
+  if (type !== "webhook") return null;
+  try {
+    const parsed = typeof config === "string" ? JSON.parse(config) : config;
+    validateWebhookUrl((parsed as any)?.url);
+    return null;
+  } catch (error: any) {
+    return error?.message ?? "Invalid webhook configuration";
+  }
+}
 
 function parseIntParam(value: string): number | null {
   const n = parseInt(value, 10);
@@ -25,60 +46,6 @@ function sqliteErrorResponse(action: string) {
     message: `${action} requires PostgreSQL. SQLite is currently configured.`,
     sqliteMode: true,
   };
-}
-
-// ==================== NOTIFICATION SENDER ====================
-
-async function sendWebhookNotification(config: any, message: string): Promise<void> {
-  const response = await fetch(config.url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...config.headers,
-    },
-    body: JSON.stringify({
-      text: message,
-      message: message,
-      timestamp: new Date().toISOString(),
-      ...config.payload,
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Webhook failed with status ${response.status}`);
-  }
-}
-
-async function sendEmailNotification(config: any, message: string): Promise<void> {
-  log(`[EMAIL] To: ${config.to}`, "info");
-  log(`[EMAIL] Subject: ${config.subject || "ContainerYard Alert"}`, "info");
-  log(`[EMAIL] Body: ${message}`, "info");
-  
-  await new Promise(resolve => setTimeout(resolve, 1000));
-}
-
-async function sendBrowserNotification(config: any, message: string): Promise<void> {
-  log(`[BROWSER] ${message}`, "info");
-}
-
-async function sendNotification(channel: any, message: string): Promise<void> {
-  let config: any;
-  try {
-    config = JSON.parse(channel.config);
-  } catch {
-    throw new Error(`Invalid JSON in notification channel config for channel ${channel.id}`);
-  }
-  
-  switch (channel.type) {
-    case "webhook":
-      return sendWebhookNotification(config, message);
-    case "email":
-      return sendEmailNotification(config, message);
-    case "browser":
-      return sendBrowserNotification(config, message);
-    default:
-      throw new Error(`Unsupported notification type: ${channel.type}`);
-  }
 }
 
 // ==================== Notification Channels ====================
@@ -132,10 +99,14 @@ router.post("/channels", async (req, res, next) => {
   try {
     const result = insertNotificationChannelSchema.safeParse(req.body);
     if (!result.success) {
-      return res.status(400).json({ 
-        error: "Invalid channel data", 
-        details: result.error 
+      return res.status(400).json({
+        error: "Invalid channel data",
+        details: result.error
       });
+    }
+    const webhookError = webhookConfigError(result.data.type, result.data.config);
+    if (webhookError) {
+      return res.status(400).json({ error: webhookError });
     }
 
     const [channel] = await db
@@ -161,6 +132,19 @@ router.patch("/channels/:id", async (req, res, next) => {
     }
 
     const { name, type, config, enabled } = req.body;
+    if (type !== undefined || config !== undefined) {
+      const [existing] = await db
+        .select()
+        .from(notificationChannels)
+        .where(eq(notificationChannels.id, id));
+      if (!existing) {
+        return res.status(404).json({ error: "Channel not found" });
+      }
+      const webhookError = webhookConfigError(type ?? existing.type, config ?? existing.config);
+      if (webhookError) {
+        return res.status(400).json({ error: webhookError });
+      }
+    }
     const updates: Record<string, any> = { updatedAt: new Date() };
     if (name !== undefined) updates.name = String(name);
     if (type !== undefined) updates.type = String(type);

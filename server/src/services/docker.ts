@@ -1,6 +1,7 @@
 import Docker from "dockerode";
 import type { HostConfig } from "../config/hosts";
 import { parseContainerInstant } from "../lib/parseDockerStats";
+import { DockerLogDemuxer, demuxDockerLogs } from "../lib/dockerDemux";
 import type { ContainerAction } from "@shared/schema";
 import type {
   ContainerDetail,
@@ -245,29 +246,6 @@ export async function getContainerStats(host: HostConfig, containerId: string): 
   }
 }
 
-function demuxDockerLogs(buffer: Buffer): string {
-  const headerSize = 8;
-  const output: string[] = [];
-  let offset = 0;
-
-  while (offset + headerSize <= buffer.length) {
-    const payloadLength = buffer.readUInt32BE(offset + 4);
-    const start = offset + headerSize;
-    const end = start + payloadLength;
-    if (end > buffer.length) {
-      break;
-    }
-    output.push(buffer.slice(start, end).toString("utf-8"));
-    offset = end;
-  }
-
-  if (output.length === 0) {
-    return buffer.toString("utf-8");
-  }
-
-  return output.join("");
-}
-
 export interface LogOptions {
   tail?: number;
   since?: number | string;
@@ -359,9 +337,11 @@ export async function streamContainerLogs(
 
     const pattern = grep ? new RegExp(grep.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') : null;
     
+    // One demuxer per stream: frames can straddle chunk boundaries.
+    const demuxer = new DockerLogDemuxer();
     let buffer = '';
     stream.on('data', (chunk: Buffer) => {
-      const text = demuxDockerLogs(chunk);
+      const text = demuxer.push(chunk);
       buffer += text;
       
       const lines = buffer.split('\n');
@@ -409,11 +389,40 @@ export async function performBulkAction(host: HostConfig, containerIds: string[]
   }
 }
 
-export async function performAction(host: HostConfig, containerId: string, action: ContainerAction): Promise<void> {
+export interface ActionResult {
+  id: string;
+  name?: string;
+  /** Container state after the action; undefined after "remove". */
+  state?: string;
+  /** True when Docker reported the container was already in the target state. */
+  noop?: boolean;
+}
+
+function httpError(message: string, status: number): Error {
+  const err = new Error(message);
+  (err as any).status = status;
+  return err;
+}
+
+export async function performAction(host: HostConfig, containerId: string, action: ContainerAction): Promise<ActionResult> {
+  const client = getDockerClientForHost(host);
+  const container = client.getContainer(containerId);
+
+  let name: string | undefined;
+  let id = containerId;
   try {
-    const client = getDockerClientForHost(host);
-    const container = client.getContainer(containerId);
-    
+    const info = await container.inspect();
+    name = info.Name?.replace(/^\//, "");
+    id = info.Id ?? containerId;
+  } catch (error: any) {
+    if (error.statusCode === 404) {
+      throw httpError(`Container ${containerId} not found on host ${host.id}`, 404);
+    }
+    throw error;
+  }
+
+  let noop = false;
+  try {
     switch (action) {
       case "start":
         await container.start();
@@ -424,26 +433,42 @@ export async function performAction(host: HostConfig, containerId: string, actio
       case "restart":
         await container.restart();
         break;
+      case "pause":
+        await container.pause();
+        break;
+      case "unpause":
+        await container.unpause();
+        break;
       case "remove":
         await container.remove({ force: true });
-        break;
+        return { id, name, noop: false };
       default:
-        throw new Error(`Unsupported action: ${action}`);
+        throw httpError(`Unsupported action: ${action}`, 400);
     }
   } catch (error: any) {
     if (error.statusCode === 404) {
-      throw new Error(`Container ${containerId} not found on host ${host.id}`);
+      throw httpError(`Container ${containerId} not found on host ${host.id}`, 404);
     }
-    if (error.statusCode === 409 && action === "start") {
-      // Container already running, not an error for bulk operations
-      return;
+    // 304 = already started / already stopped: treat as success.
+    if (error.statusCode === 304 && (action === "start" || action === "stop")) {
+      noop = true;
+    } else if (error.statusCode === 409) {
+      // e.g. pause on a stopped container, unpause on one that is not paused
+      const reason = error.json?.message ?? error.reason ?? "conflict";
+      throw httpError(`Cannot ${action} ${name ?? containerId}: ${reason}`, 409);
+    } else {
+      throw error;
     }
-    if (error.statusCode === 304 && action === "stop") {
-      // Container already stopped, not an error for bulk operations
-      return;
-    }
-    throw error;
   }
+
+  let state: string | undefined;
+  try {
+    const after = await container.inspect();
+    state = after.State?.Status;
+  } catch {
+    // ignore: state is informational
+  }
+  return { id, name, state, noop };
 }
 
 interface ContainerStatSample {

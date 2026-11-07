@@ -6,6 +6,7 @@ import { prisma } from "../db/client";
 import { env } from "../config/env";
 import { loginRateLimiter, requireAuth } from "../middleware/auth";
 import { loginSchema } from "../types/zod";
+import { recordAudit } from "../services/audit";
 
 const router = Router();
 
@@ -25,12 +26,9 @@ router.post("/login", loginRateLimiter, async (req, res, next) => {
     }
 
     const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) {
-      return res.status(401).json({ message: "Invalid credentials" });
-    }
-
-    const passwordMatch = await bcrypt.compare(password, user.password);
-    if (!passwordMatch) {
+    const passwordMatch = user ? await bcrypt.compare(password, user.password) : false;
+    if (!user || !passwordMatch) {
+      await recordAudit(req, { action: "auth.login", outcome: "failure", target: email.slice(0, 254) });
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
@@ -50,6 +48,7 @@ router.post("/login", loginRateLimiter, async (req, res, next) => {
       role: user.role,
     };
 
+    await recordAudit(req, { action: "auth.login", outcome: "success", target: user.email });
     return res.json({ user: req.session.user });
   } catch (error) {
     handleError(error, req, res, next);

@@ -12,6 +12,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { FileText, Info } from "lucide-react";
 import type { ContainerSummary, ContainerStats, HostSummary } from "@shared/monitoring";
 import { Link } from "wouter";
+import { ContainerActions } from "./ContainerActions";
 
 interface ContainerTableProps {
   containers: ContainerSummary[];
@@ -105,6 +106,7 @@ export function ContainerTable({
                 <TableCell className="text-right text-sm">{formatPercent(stats?.memoryPercent)}</TableCell>
                 <TableCell className="text-right">
                   <div className="flex items-center justify-end gap-1">
+                    <ContainerActions container={container} host={host} />
                     {host && (
                       <Link href={`/hosts/${host.id}/logs`}>
                         <Button

@@ -1,6 +1,6 @@
 {
   "name": "rest-express",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "type": "module",
   "license": "MIT",
   "scripts": {
@@ -16,6 +16,8 @@
     "start": "NODE_ENV=production node -r dotenv/config dist/index.js",
     "check": "tsc",
     "check:tests": "tsc -p server/tests/tsconfig.json",
+    "test:unit": "node --import tsx --test server/tests/unit/*.test.ts",
+    "db:push:prisma": "prisma db push --skip-generate",
     "lint": "eslint . --ext .ts,.tsx",
     "db:push": "drizzle-kit push",
     "deploy:static": "scripts/deploy-static.sh",

@@ -21,3 +21,33 @@ enum Role {
   ADMIN
   VIEWER
 }
+
+/// State-changing operations: container/stack actions, logins (v3.1.0)
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+  userId    String?
+  userEmail String?
+  action    String
+  outcome   String
+  hostId    String?
+  target    String?
+  detail    String?
+  ip        String?
+
+  @@index([createdAt])
+  @@index([action])
+}
+
+/// Per-user "Log Moment" bookmarks (v3.1.0)
+model LogBookmark {
+  id          Int      @id @default(autoincrement())
+  userId      String
+  containerId String
+  timestamp   String
+  note        String?
+  filters     String?
+  createdAt   DateTime @default(now())
+
+  @@index([userId, createdAt])
+}

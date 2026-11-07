@@ -10,6 +10,9 @@ export default defineConfig({
   use: {
     baseURL: process.env.BASE_URL || 'http://127.0.0.1:4173',
     trace: 'on-first-retry',
+    // Hosts where Playwright cannot download its pinned browser (e.g. Ubuntu 26.04 arm64)
+    // can point at an existing Chromium build.
+    launchOptions: process.env.PW_CHROMIUM_PATH ? { executablePath: process.env.PW_CHROMIUM_PATH } : {},
   },
   projects: [
     {

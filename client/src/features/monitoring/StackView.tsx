@@ -4,7 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { getQueryFn, queryClient } from "@/lib/queryClient";
+import { getQueryFn, queryClient, apiRequest } from "@/lib/queryClient";
+import { useAuth } from "@/components/AuthGate";
+import { ActionConfirmDialog } from "@/components/ActionConfirmDialog";
+import { errorMessage } from "./ContainerActions";
 import { 
   Server, 
   Play, 
@@ -136,30 +139,21 @@ function StackCard({
   selectedContainerId?: string | null;
 }) {
   const [isOpen, setIsOpen] = useState(true);
+  const [confirmAction, setConfirmAction] = useState<"stop" | "restart" | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const canAct = user?.role === "ADMIN" && host?.provider === "DOCKER";
 
   const bulkActionMutation = useMutation({
     mutationFn: async ({ action }: { action: "start" | "stop" | "restart" }) => {
-      const response = await fetch(`/api/hosts/${hostId}/stacks/${stack.name}/action`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ action }),
-      });
-      
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || `Failed to ${action} stack`);
-      }
-      
+      const response = await apiRequest("POST", `/api/hosts/${hostId}/stacks/${encodeURIComponent(stack.name)}/action`, { action });
       return response.json();
     },
     onSuccess: (data, { action }) => {
       toast({
         title: "Success",
-        description: `${stack.name} stack ${action}ed successfully`,
+        description: `${stack.name} stack ${action === "stop" ? "stopped" : `${action}ed`} successfully`,
       });
       // Refresh the stacks data
       queryClient.invalidateQueries({ queryKey: ["/api/hosts", hostId, "stacks"] });
@@ -168,7 +162,7 @@ function StackCard({
     onError: (error, { action }) => {
       toast({
         title: "Error",
-        description: `Failed to ${action} ${stack.name} stack: ${error.message}`,
+        description: `Failed to ${action} ${stack.name} stack: ${errorMessage(error)}`,
         variant: "destructive",
       });
     },
@@ -180,11 +174,29 @@ function StackCard({
   };
 
   const handleBulkAction = (action: "start" | "stop" | "restart") => {
-    bulkActionMutation.mutate({ action });
+    if (action === "start") {
+      bulkActionMutation.mutate({ action });
+    } else {
+      setConfirmAction(action);
+    }
   };
 
   return (
     <Card>
+      {confirmAction && (
+        <ActionConfirmDialog
+          isOpen
+          kind="stack"
+          action={confirmAction}
+          containerName={`${stack.name} (${stack.containerCount} containers)`}
+          isLoading={bulkActionMutation.isPending}
+          onClose={() => setConfirmAction(null)}
+          onConfirm={() => {
+            bulkActionMutation.mutate({ action: confirmAction });
+            setConfirmAction(null);
+          }}
+        />
+      )}
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
@@ -212,7 +224,7 @@ function StackCard({
                 size="sm" 
                 title="Start all"
                 onClick={() => handleBulkAction("start")}
-                disabled={bulkActionMutation.isPending || host?.provider === "CADVISOR_ONLY"}
+                disabled={bulkActionMutation.isPending || !canAct}
               >
                 <Play className="h-4 w-4" />
               </Button>
@@ -221,7 +233,7 @@ function StackCard({
                 size="sm" 
                 title="Stop all"
                 onClick={() => handleBulkAction("stop")}
-                disabled={bulkActionMutation.isPending || host?.provider === "CADVISOR_ONLY"}
+                disabled={bulkActionMutation.isPending || !canAct}
               >
                 <Square className="h-4 w-4" />
               </Button>
@@ -230,7 +242,7 @@ function StackCard({
                 size="sm" 
                 title="Restart all"
                 onClick={() => handleBulkAction("restart")}
-                disabled={bulkActionMutation.isPending || host?.provider === "CADVISOR_ONLY"}
+                disabled={bulkActionMutation.isPending || !canAct}
               >
                 <RotateCw className="h-4 w-4" />
               </Button>

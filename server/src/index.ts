@@ -18,6 +18,11 @@ import summaryRouter from "./routes/summary";
 import inspectRouter from "./routes/inspect";
 import { registerRuntimeConfigRoute } from "./routes/runtimeConfig";
 import { attachUserToResponse, globalRateLimiter, requireAuth } from "./middleware/auth";
+import { verifyCsrf } from "./middleware/csrf";
+import { actionsRouter } from "./routes/actions";
+import { bookmarksRouter } from "./routes/bookmarks";
+import { auditRouter } from "./routes/audit";
+import { pruneAudit } from "./services/audit";
 import { log, setupVite } from "../vite";
 import { registerMetrics } from "./metrics";
 import { alertWorker } from "./services/alertWorker";
@@ -89,15 +94,21 @@ export async function createApp() {
 
   app.use(attachUserToResponse);
 
+  // CSRF: every mutating /api request must carry the session's x-csrf-token.
+  app.use("/api", verifyCsrf);
+
   app.use("/api/auth", authRouter);
   app.use("/api/hosts", hostsRouter);
   app.use("/api/hosts", requireAuth, stacksRouter);
+  app.use("/api/hosts", requireAuth, actionsRouter);
   app.use("/api/hosts", requireAuth, metricsRouter);
   app.use("/api/hosts", requireAuth, summaryRouter);
   app.use("/api/hosts", requireAuth, hostLogsRouter);
   app.use(inspectRouter);
   app.use("/api/logs/download", logDownloadRouter); // has its own requireAdmin middleware
   app.use("/api/alerts", requireAuth, alertsRouter);
+  app.use("/api/bookmarks", requireAuth, bookmarksRouter);
+  app.use("/api/audit", requireAuth, auditRouter);
   registerMetrics(app);
 
   // Runtime config endpoint (public)
@@ -252,6 +263,12 @@ export async function createApp() {
           log(`Failed to cleanup old restart records: ${error}`, "error");
         });
       }, 24 * 60 * 60 * 1000); // Daily
+
+      // Audit log retention (AUDIT_RETENTION_DAYS, default 180)
+      const runAuditPrune = () =>
+        pruneAudit().catch((error) => log(`Failed to prune audit log: ${error}`, "error"));
+      setInterval(runAuditPrune, 24 * 60 * 60 * 1000);
+      runAuditPrune();
 
       // Initial cleanup
       restartTracker.cleanupOldRestarts().catch((error) => {

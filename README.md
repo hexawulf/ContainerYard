@@ -1,13 +1,13 @@
 [![Website](https://img.shields.io/badge/website-containeryard.org-blue)](https://containeryard.org)
 [![GitHub](https://img.shields.io/github/stars/hexawulf/ContainerYard?style=social)](https://github.com/hexawulf/ContainerYard)
 
-# ContainerYard 3.0 🐳
+# ContainerYard 3.1 🐳
 
 > A complete Docker stack monitoring platform with log analysis, alerting, and historical trends
 
-[![Release](https://img.shields.io/badge/release-v3.0.0-brightgreen)](https://github.com/hexawulf/ContainerYard/releases/tag/v3.0.0)
+[![Release](https://img.shields.io/badge/release-v3.1.0-brightgreen)](https://github.com/hexawulf/ContainerYard/releases/tag/v3.1.0)
 
-**ContainerYard 3.0** is the first major release since v2.0.0 (Phase 1, November 2025). It brings multi-host monitoring (Docker + cAdvisor-only hosts), SQLite as a first-class database, Metric-to-Log Quick Jump, hardened auth and CSRF, and SEO and landing-page polish. See [What's new in 3.0](#-whats-new-in-30).
+**ContainerYard 3.0** is the first major release since v2.0.0 (Phase 1, November 2025). It brings multi-host monitoring (Docker + cAdvisor-only hosts), SQLite as a first-class database, Metric-to-Log Quick Jump, hardened auth and CSRF, and SEO and landing-page polish. **3.1** adds per-container lifecycle actions, an audit log, working Log Moment bookmarks, restored CSRF enforcement and SSRF-safe webhooks. See [What's new in 3.1](#-whats-new-in-31) and [3.0](#-whats-new-in-30).
 
 ContainerYard is a comprehensive Docker observability platform that goes beyond simple log viewing. It provides Docker Compose stack management, proactive alerting, historical metrics analysis, and real-time log streaming—all in one sleek, developer-friendly interface. Built with React 18 and Express, it bridges the gap between lightweight viewers and enterprise monitoring solutions.
 
@@ -19,7 +19,8 @@ ContainerYard is a comprehensive Docker observability platform that goes beyond 
 ### 🎯 Stack Management (Phase 1)
 - **Docker Compose Stack Detection** - Automatically groups containers by compose project
 - **Stack Health Indicators** - Visual status badges (healthy/unhealthy/partial/unknown)
-- **Bulk Stack Operations** - Start, stop, or restart entire stacks with one click
+- **Bulk Stack Operations** - Start, stop, or restart entire stacks (ADMIN, with confirmation)
+- **Container Actions** - Start, stop, restart, pause, unpause or remove a single container from the table (ADMIN, audited)
 - **Stack-Level Metrics** - Aggregated stats for all containers in a stack
 - **Standalone Container View** - Separate display for non-compose containers
 
@@ -59,6 +60,37 @@ ContainerYard is a comprehensive Docker observability platform that goes beyond 
 - 💾 **Saved Searches** - Persist search queries with PostgreSQL for quick reuse
 - 🌐 **Environment Viewer** - Search, filter, and bulk export container environment variables
 
+## 🆕 What's New in 3.1
+
+### Container Actions
+- **Per-container lifecycle buttons** in the container table: start, stop, restart, pause, unpause and remove. Which buttons appear depends on the container's state; stop, restart, pause and remove ask for confirmation first
+- **API:** `POST /api/hosts/:hostId/containers/:containerId/actions` with `{ "action": "pause" }`. Accepts a container ID or name. "Already started" or "already stopped" is a no-op (`noop: true`); conflicts such as pausing a paused container return 409
+- **ADMIN only**, rate-limited to 30 actions/min, and only on Docker hosts (cAdvisor-only hosts stay read-only). Stack bulk actions now need ADMIN too, and stop/restart ask for confirmation
+
+### Audit Log
+- New `AuditLog` table (Prisma, works on **SQLite and PostgreSQL**) records every container and stack action, plus logins. Successful, failed and **denied** attempts are all logged with user, host, target and IP
+- `GET /api/audit` (ADMIN) lists entries newest first. Entries older than `AUDIT_RETENTION_DAYS` (default 180) are pruned daily
+
+### Log Moment Bookmarks (now actually working)
+- The bookmark UI has existed since Oct 2025, but the server never had `/api/bookmarks`, so every save failed with a 404. The routes now exist, backed by Prisma (SQLite + PostgreSQL), with bookmarks kept **per user**
+
+### Security
+- **CSRF enforcement restored.** It was removed in Nov 2025 together with `csurf`, which left every POST/PATCH/DELETE route unprotected. Mutating `/api` requests now need the session's `x-csrf-token`, and the client refreshes a stale token once automatically
+- **SSRF protection for webhook channels.** Only http(s) is allowed; private, loopback, link-local, metadata (169.254.169.254) and multicast targets are blocked. Every resolved address is checked when the connection is made, so DNS rebinding is blocked too. Redirects are never followed, and requests time out after 10 s. For LAN targets (ntfy, Gotify, …) set `WEBHOOK_ALLOW_PRIVATE=true` or list hosts in `WEBHOOK_ALLOWED_HOSTS`
+- Creating, editing and deleting alert rules and channels now needs ADMIN
+
+### Fixes
+- **Docker log demultiplexing:** on live streams, frames split across chunk boundaries were dropped or shown with raw header bytes, and multi-byte UTF-8 split across frames was garbled. Replaced with a stateful demuxer
+- **E2E screenshots:** the PR #2 images all showed the "Startup Error" screen because the spec mocked every API call with `{}`. The spec now mocks each endpoint properly, fails if the error screen appears, and the images were regenerated
+- Notification sending is no longer duplicated between the alert worker and the alert routes
+
+### Upgrading from 3.0
+```bash
+git pull && npm install
+npm run db:push:prisma      # adds the AuditLog and LogBookmark tables (non-destructive)
+npm run build && pm2 restart containeryard-api
+```
+
 ## 🆕 What's New in 3.0
 
 > Version note: `v2.0.0` was the November 2025 Phase 1 release. A November 2026 PR (#2) was mistakenly labelled "v2.0.0" a second time, so that release ships as **v3.0.0**.
@@ -73,7 +105,7 @@ ContainerYard is a comprehensive Docker observability platform that goes beyond 
 - **SQLite is a first-class database mode** (`DATABASE_URL=file:...`); PostgreSQL is still supported, and the Neon WebSocket is turned off under SQLite. Note: alert rules, the alert worker and historical metrics aggregation still require PostgreSQL; under SQLite they are disabled and restart tracking is in-memory only
 
 ### Security and reliability
-- **Double-submit CSRF** with hardened session cookies, login rate limiting, and auth lockdown on protected routes
+- **Hardened session cookies**, login rate limiting, and auth lockdown on protected routes (the 3.0 notes also listed CSRF enforcement, but it wasn't actually active; 3.1 restores it)
 - **Health endpoints** (`/health`, `/api/health`) and a `runtime-config` endpoint that keeps the client from crashing at boot
 - **Crash fixes**: null-safe `.map` guards across the client, plus a fix for the prom-client `PerformanceObserver` error
 - **Clean TypeScript build** (all errors resolved), about 2,000 lines of dead code removed, and new tests
@@ -127,6 +159,13 @@ PROVIDER=MOCK  # Options: MOCK, SIMULATION, REMOTE
 DOCKER_HOST=http://localhost:2375
 DOCKER_AUTH_TOKEN=your-token-here
 ALLOWED_ORIGINS=http://localhost:3000
+
+# Webhook SSRF policy (v3.1)
+WEBHOOK_ALLOW_PRIVATE=false          # true = allow LAN/loopback webhook targets
+WEBHOOK_ALLOWED_HOSTS=               # comma-separated hostnames that skip IP checks
+
+# Audit log retention in days (v3.1, default 180)
+AUDIT_RETENTION_DAYS=180
 
 # Database: PostgreSQL or SQLite
 DATABASE_URL=postgresql://user:password@localhost:5432/containeryard
@@ -227,7 +266,7 @@ ContainerYard/
 - **Zod** - Schema validation
 
 ### Database
-- **PostgreSQL or SQLite** - Persistence via Prisma (alerts and historical metrics require PostgreSQL)
+- **PostgreSQL or SQLite** - Users, audit log and bookmarks via Prisma (both engines); alerts and historical metrics via Drizzle (PostgreSQL only)
 - **Neon Serverless** - Serverless PostgreSQL driver
 - **Drizzle ORM** - Type-safe database operations with migrations
 
@@ -323,6 +362,32 @@ Get details for a specific stack.
 Perform bulk actions (start/stop/restart) on all containers in a stack.
 
 Body: `{ "action": "start" | "stop" | "restart" | "remove" }`
+
+### Container Actions (v3.1)
+
+**POST** `/api/hosts/:hostId/containers/:containerId/actions`
+
+ADMIN only; requires the `x-csrf-token` header; limited to 30/min. `containerId` may be an ID or a name.
+
+Body: `{ "action": "start" | "stop" | "restart" | "pause" | "unpause" | "remove" }`
+
+Response:
+```json
+{ "success": true, "action": "pause", "id": "a3fd…", "name": "web", "state": "paused", "noop": false }
+```
+Errors: `400` invalid action or container reference · `403` not ADMIN / bad CSRF token · `404` unknown container · `409` conflict (e.g. already paused) · `501` read-only (cAdvisor) host.
+
+### Audit Log (v3.1)
+
+**GET** `/api/audit?limit=100&before=<id>&action=container.`
+
+ADMIN only. Returns `{ entries: [...], nextBefore }`, newest first; pass `before=nextBefore` to get the next page. Each entry has `action` (`container.stop`, `stack.restart`, `auth.login`, …), `outcome` (`success` | `failure` | `denied`), `userEmail`, `hostId`, `target`, `detail`, `ip` and `createdAt`.
+
+### Log Bookmarks (v3.1)
+
+**GET** `/api/bookmarks[?containerId=…]` · **POST** `/api/bookmarks` `{ containerId, timestamp, note?, filters? }` · **DELETE** `/api/bookmarks/:id`
+
+Bookmarks are per user, and mutating calls need the `x-csrf-token` header.
 
 ### Alert Management
 
@@ -429,13 +494,16 @@ node scripts/test-sse.js https://your-app.dev piapps <cid> "cy.sid=<session>"
 curl -s -H "cookie: cy.sid=<session>" \
   "https://your-app.dev/api/hosts/piapps/stacks" | jq .
 
-# Run Jest tests (requires test container)
-TEST_CONTAINER_ID=<cid> npm test
+# Unit tests (log demuxer, SSRF guard, CSRF); no Docker or DB needed
+npm run test:unit
+
+# Screenshots of public pages (on arm64 hosts, point at an existing Chromium)
+PW_CHROMIUM_PATH=/path/to/chrome-headless-shell BASE_URL=http://127.0.0.1:5008 npx playwright test e2e/screenshot.spec.ts
 ```
 
 ## 📚 Documentation
 
-- [Releases](https://github.com/hexawulf/ContainerYard/releases) - Changelog and release notes (current: v3.0.0)
+- [Releases](https://github.com/hexawulf/ContainerYard/releases) - Changelog and release notes (current: v3.1.0)
 - [Phase 1 Implementation](docs/_archive/PHASE1_IMPLEMENTATION_SUMMARY.md) - Complete feature breakdown
 - [Deployment Guide](DEPLOYMENT.md) - Production deployment instructions
 - [Environment Variables](.env.example) - Configuration reference

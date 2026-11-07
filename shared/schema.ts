@@ -85,7 +85,7 @@ export const statsDataPointSchema = z.object({
 export type StatsDataPoint = z.infer<typeof statsDataPointSchema>;
 
 // Container Action
-export const containerActionSchema = z.enum(['start', 'stop', 'restart', 'remove']);
+export const containerActionSchema = z.enum(['start', 'stop', 'restart', 'pause', 'unpause', 'remove']);
 export type ContainerAction = z.infer<typeof containerActionSchema>;
 
 // Theme

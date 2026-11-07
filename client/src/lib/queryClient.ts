@@ -79,15 +79,28 @@ export async function apiRequest(
     headers["x-csrf-token"] = token;
   }
 
-  // Use apiFetch for consistent error handling
-  const res = await apiFetch(url, {
-    method: upperMethod,
-    headers,
-    body: data ? JSON.stringify(data) : undefined,
-    credentials: "include",
-  });
+  const send = () =>
+    apiFetch(url, {
+      method: upperMethod,
+      headers,
+      body: data ? JSON.stringify(data) : undefined,
+      credentials: "include",
+    });
 
-  return res;
+  try {
+    return await send();
+  } catch (error) {
+    // A cached token goes stale when the server session is replaced.
+    // Fetch a fresh one and retry exactly once.
+    const isCsrfError =
+      error instanceof ApiError && error.status === 403 && /csrf/i.test(error.body ?? "");
+    if (!isCsrfError || options?.skipCsrf || !MUTATING_METHODS.has(upperMethod) || options?.headers?.["x-csrf-token"]) {
+      throw error;
+    }
+    clearCsrfToken();
+    headers["x-csrf-token"] = await fetchCsrfToken();
+    return await send();
+  }
 }
 
 type UnauthorizedBehavior = "returnNull" | "throw";

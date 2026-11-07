@@ -6,6 +6,9 @@ import { getCadvisorService } from "../services/cadvisor";
 import { groupContainersByStack, getStackByName } from "../models/stacks";
 import type { ContainerSummary } from "../models/containers";
 import type { ContainerAction } from "@shared/schema";
+import { requireRole } from "../middleware/auth";
+import { recordAudit } from "../services/audit";
+import { actionRateLimiter } from "./actions";
 
 const router = Router();
 
@@ -52,10 +55,9 @@ router.get("/:hostId/stacks/:name", async (req, res, next) => {
 });
 
 // Bulk action on all containers in a stack
-router.post("/:hostId/stacks/:name/action", async (req, res, next) => {
+router.post("/:hostId/stacks/:name/action", actionRateLimiter, requireRole("ADMIN"), async (req, res, next) => {
+  const { action } = req.body ?? {};
   try {
-    const { action } = req.body;
-    
     if (!action || !["start", "stop", "restart", "remove"].includes(action)) {
       return res.status(400).json({ error: "Invalid action" });
     }
@@ -81,13 +83,27 @@ router.post("/:hostId/stacks/:name/action", async (req, res, next) => {
 
     // Perform bulk action
     await performBulkAction(host, containerIds, action as ContainerAction);
-    
+    await recordAudit(req, {
+      action: `stack.${action}`,
+      outcome: "success",
+      hostId: req.params.hostId,
+      target: req.params.name,
+      detail: `${containerIds.length} containers`,
+    });
+
     res.json({ 
       success: true, 
       message: `Successfully performed ${action} on ${containerIds.length} containers`,
       affectedContainers: containerIds.length
     });
-  } catch (error) {
+  } catch (error: any) {
+    await recordAudit(req, {
+      action: `stack.${action}`,
+      outcome: "failure",
+      hostId: req.params.hostId,
+      target: req.params.name,
+      detail: error?.message,
+    });
     next(error);
   }
 });

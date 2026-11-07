@@ -29,7 +29,7 @@ export function registerRuntimeConfigRoute(app: import("express").Express) {
         multiHost: true,
         alerts: !isSQLite,
         savedSearches: !isSQLite,
-        logBookmarks: !isSQLite,
+        logBookmarks: true, // Prisma-backed since v3.1.0 (SQLite + PostgreSQL)
         historicalMetrics: !isSQLite,
         restartTracking: !isSQLite,
       },

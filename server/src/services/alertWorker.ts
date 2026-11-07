@@ -14,6 +14,7 @@ import { getHost, listHosts } from "../config/hosts";
 import { restartTracker } from "./restartTracker";
 import type { ContainerSummary, ContainerStats } from "../models/containers";
 import { isSQLite, logSQLiteInfo, requirePostgreSQLAsync } from "../config/databaseCapabilities";
+import { sendNotification } from "./notifications";
 
 interface AlertEvaluation {
   rule: AlertRule;
@@ -28,59 +29,6 @@ const metricsHistory = new Map<string, { stats: ContainerStats[]; timestamps: nu
 
 // Store recent log patterns for analysis
 const logPatternCache = new Map<string, string[]>();
-
-// Notification sender functions
-async function sendWebhookNotification(config: any, message: string): Promise<void> {
-  const response = await fetch(config.url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...config.headers,
-    },
-    body: JSON.stringify({
-      text: message,
-      message: message,
-      timestamp: new Date().toISOString(),
-      ...config.payload,
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Webhook failed with status ${response.status}`);
-  }
-}
-
-async function sendEmailNotification(config: any, message: string): Promise<void> {
-  log(`[EMAIL] To: ${config.to}`, "info");
-  log(`[EMAIL] Subject: ${config.subject || "ContainerYard Alert"}`, "info");
-  log(`[EMAIL] Body: ${message}`, "info");
-  
-  await new Promise(resolve => setTimeout(resolve, 1000));
-}
-
-async function sendBrowserNotification(config: any, message: string): Promise<void> {
-  log(`[BROWSER] ${message}`, "info");
-}
-
-async function sendNotification(channel: NotificationChannel, message: string): Promise<void> {
-  let config: any;
-  try {
-    config = JSON.parse(channel.config);
-  } catch {
-    throw new Error(`Invalid JSON in notification channel config for channel ${channel.id}`);
-  }
-  
-  switch (channel.type) {
-    case "webhook":
-      return sendWebhookNotification(config, message);
-    case "email":
-      return sendEmailNotification(config, message);
-    case "browser":
-      return sendBrowserNotification(config, message);
-    default:
-      throw new Error(`Unsupported notification type: ${channel.type}`);
-  }
-}
 
 class AlertWorkerService {
   private interval: NodeJS.Timeout | null = null;
