@@ -6,7 +6,7 @@ echo
 
 # Check if ContainerYard is running
 echo "1. Checking ContainerYard status..."
-pm2 status containeryard | grep -q "online" && echo "✅ ContainerYard is running" || echo "❌ ContainerYard is not running"
+pm2 status containeryard-api | grep -q "online" && echo "✅ ContainerYard is running" || echo "❌ ContainerYard is not running"
 echo
 
 # Check if the new summary endpoint is accessible (will require auth)
@@ -55,7 +55,7 @@ echo
 
 # Check recent logs for any critical errors
 echo "6. Checking for critical errors in recent logs..."
-ERROR_COUNT=$(pm2 logs containeryard --lines 50 2>/dev/null | grep -c "Error" || echo "0")
+ERROR_COUNT=$(pm2 logs containeryard-api --lines 50 2>/dev/null | grep -c "Error" || echo "0")
 if [ "$ERROR_COUNT" -lt 5 ]; then
     echo "✅ Normal error levels detected ($ERROR_COUNT errors in recent logs)"
 else

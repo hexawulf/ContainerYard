@@ -92,7 +92,7 @@ echo "2. Update your .env file with:"
 echo "   PIAPPS2_CADVISOR_URL=http://192.168.50.120:8082"
 echo
 echo "3. Restart ContainerYard:"
-echo "   pm2 restart containeryard --update-env"
+echo "   pm2 restart containeryard-api --update-env"
 echo
 echo "4. Test the implementation:"
 echo "   - Open ContainerYard dashboard"

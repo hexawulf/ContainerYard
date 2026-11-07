@@ -25,7 +25,7 @@ if curl -sf "${API_URL}/health" > /dev/null; then
   echo -e "${GREEN}✓${NC} API health endpoint responding"
 else
   echo -e "${RED}✗${NC} API health endpoint not responding"
-  echo "  Run: pm2 restart containeryard"
+  echo "  Run: pm2 restart containeryard-api"
   exit 1
 fi
 echo ""
@@ -98,7 +98,7 @@ echo "=========================================="
 echo -e "${GREEN}✓ All verification checks passed!${NC}"
 echo ""
 echo "Next Steps:"
-echo "1. Deploy the build: pm2 restart containeryard --update-env"
+echo "1. Deploy the build: pm2 restart containeryard-api --update-env"
 echo "2. Open browser DevTools at: $BASE_URL"
 echo "3. Check console for errors (should be none)"
 echo "4. Test: await (await fetch('/api/auth/me', {credentials:'include'})).json()"
