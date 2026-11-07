@@ -1,9 +1,11 @@
 [![Website](https://img.shields.io/badge/website-containeryard.org-blue)](https://containeryard.org)
 [![GitHub](https://img.shields.io/github/stars/hexawulf/ContainerYard?style=social)](https://github.com/hexawulf/ContainerYard)
 
-# ContainerYard 🐳
+# ContainerYard 2.0 🐳
 
 > A complete Docker stack monitoring platform with log analysis, alerting, and historical trends
+
+ContainerYard 2.0 introduces a sleeker interface, Container Actions, Log Bookmarks, and advanced Log Pattern Alerts.
 
 ContainerYard is a comprehensive Docker observability platform that goes beyond simple log viewing. It provides Docker Compose stack management, proactive alerting, historical metrics analysis, and real-time log streaming—all in one sleek, developer-friendly interface. Built with React 18 and Express, it bridges the gap between lightweight viewers and enterprise monitoring solutions.
 
