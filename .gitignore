@@ -77,3 +77,4 @@ plan.md
 playwright-report/
 test-results/
 lighthouse-report.json
+gh_*
