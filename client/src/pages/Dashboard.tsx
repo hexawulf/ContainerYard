@@ -548,7 +548,7 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <div className="space-y-6 min-w-0">
+        <div className="flex min-w-0 flex-col gap-6">
            {Array.isArray(normalizedHistory) && normalizedHistory.length > 0 && (
             <Card>
               <CardHeader>
@@ -561,7 +561,7 @@ export default function Dashboard() {
           )}
           
           {detailLoading ? (
-            <Card>
+            <Card className="flex-1">
               <CardHeader>
                 <CardTitle>Container overview</CardTitle>
               </CardHeader>

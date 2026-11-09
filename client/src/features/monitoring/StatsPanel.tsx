@@ -38,7 +38,7 @@ export function StatsPanel({ host, detail, statsHistory, onTimelineClick }: Stat
   );
 
   return (
-    <Card className="h-full">
+    <Card className="flex-1">
       <CardHeader>
         <CardTitle>Container overview</CardTitle>
         <CardDescription>
