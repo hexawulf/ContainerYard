@@ -1,0 +1,149 @@
+# Release: on a pushed tag vX.Y.Z (or by hand for an existing tag), run CI on
+# that tag, then build linux/amd64 + linux/arm64 and push
+# 0xwulf/containeryard:X.Y.Z, :X.Y and :latest with SBOM and provenance
+# attestations. Only runs in hexawulf/ContainerYard; Docker Hub credentials are
+# used in the publish job alone, after the tests passed.
+name: Release
+
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to publish, e.g. v4.0.0
+        required: true
+        type: string
+      latest:
+        description: Also move :latest (untick when republishing an older version)
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    name: Check the tag
+    if: github.repository == 'hexawulf/ContainerYard'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      tag: ${{ steps.check.outputs.tag }}
+      ref: ${{ steps.check.outputs.ref }}
+    steps:
+      - name: Validate the tag name
+        id: check
+        env:
+          TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        run: |
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::not a release tag: $TAG"
+            exit 1
+          fi
+          echo "tag=$TAG" >>"$GITHUB_OUTPUT"
+          echo "ref=refs/tags/$TAG" >>"$GITHUB_OUTPUT"
+
+      - name: Check out the tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.check.outputs.ref }}
+          persist-credentials: false
+          sparse-checkout: package.json
+          sparse-checkout-cone-mode: false
+
+      - name: Tag matches package.json version
+        env:
+          TAG: ${{ steps.check.outputs.tag }}
+        run: |
+          pkg=$(jq -r .version package.json)
+          if [ "v$pkg" != "$TAG" ]; then
+            echo "::error::package.json version is $pkg, tag is $TAG"
+            exit 1
+          fi
+
+  test:
+    name: CI on the tag
+    needs: tag
+    uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ needs.tag.outputs.ref }}
+
+  publish:
+    name: Build and push (amd64, arm64)
+    if: github.repository == 'hexawulf/ContainerYard'
+    needs: [tag, test]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Check out the tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.tag.outputs.ref }}
+          persist-credentials: false
+
+      # SOURCE_DATE_EPOCH is the tagged commit's committer date so two builds of
+      # one tag produce identical assets and deterministic build dates.
+      - name: Commit of the tag
+        id: rev
+        run: |
+          {
+            echo "sha=$(git rev-parse HEAD)"
+            echo "epoch=$(git log -1 --format=%ct)"
+            echo "created=$(git log -1 --format=%cI)"
+          } >>"$GITHUB_OUTPUT"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Image tags
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: 0xwulf/containeryard
+          # pre-releases (vX.Y.Z-rc.1) get only their own tag, never :X.Y or :latest
+          tags: |
+            type=semver,pattern={{version}},value=${{ needs.tag.outputs.tag }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ needs.tag.outputs.tag }}
+          flavor: |
+            latest=${{ (github.event_name == 'workflow_dispatch' && !inputs.latest) && 'false' || 'auto' }}
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
+            REVISION=${{ steps.rev.outputs.sha }}
+            SOURCE_DATE_EPOCH=${{ steps.rev.outputs.epoch }}
+            CREATED=${{ steps.rev.outputs.created }}
+          sbom: true
+          provenance: mode=max
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Sync Docker Hub description
+        continue-on-error: true
+        uses: peter-evans/dockerhub-description@1b9a80c056b620d92cedb9d9b5a223409c68ddfa # v5.0.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: 0xwulf/containeryard
+          short-description: Self-hosted Docker observability dashboard with real-time logs, stack actions, and metrics
+          readme-filepath: ./README.md

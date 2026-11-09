@@ -1,0 +1,150 @@
+# CI: typecheck, lint, unit tests, production build, and Docker Compose
+# integration test. Also called by release.yml with the tag ref to test
+# before publishing.
+# No secrets are used here, so pull requests from forks run it safely.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_call:
+    inputs:
+      ref:
+        description: Git ref to test (release.yml passes refs/tags/vX.Y.Z)
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test:
+    name: Typecheck, Lint, Unit & Build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+
+      - name: Set up Node 22
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Typecheck app
+        run: npm run check
+
+      - name: Typecheck tests
+        run: npm run check:tests
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+  docker:
+    name: Docker Build & Integration Suite
+    needs: test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+
+      - name: Set up Node 22
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies (for integration test runner)
+        run: npm ci --no-audit --no-fund
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Build Docker image (linux/amd64)
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          tags: 0xwulf/containeryard:ci-test
+          build-args: |
+            VERSION=ci-test
+            REVISION=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Start Compose stack with throwaway .env and wait for healthy
+        run: |
+          DOCKER_GID="$(stat -c '%g' /var/run/docker.sock)"
+          cat > .env <<EOF
+          SESSION_SECRET=$(openssl rand -hex 32)
+          REDIS_PASSWORD=$(openssl rand -hex 24)
+          ALLOWED_ORIGINS=http://127.0.0.1:5008
+          DATABASE_URL=file:/data/app.db
+          PIAPPS2_CADVISOR_URL=http://127.0.0.1:18080/
+          SYNOLOGY_CADVISOR_URL=http://127.0.0.1:18081/
+          ADMIN_EMAIL=ci-admin@example.invalid
+          ADMIN_PASSWORD=CiAdmin_Pass_2026!
+          COOKIE_SAMESITE=lax
+          CY_TAG=ci-test
+          CY_BIND=127.0.0.1
+          CY_PORT=5008
+          DOCKER_GID=${DOCKER_GID}
+          EOF
+
+          docker compose -p cy-ci up -d --no-build
+
+          for i in $(seq 1 45); do
+            status="$(docker inspect -f '{{.State.Health.Status}}' cy-ci-app-1 2>/dev/null || echo starting)"
+            if [ "$status" = "healthy" ]; then
+              echo "Container cy-ci-app-1 is healthy"
+              break
+            fi
+            if [ "$i" -eq 45 ]; then
+              echo "::error::Container failed to become healthy"
+              docker compose -p cy-ci ps
+              docker compose -p cy-ci logs
+              exit 1
+            fi
+            sleep 2
+          done
+
+          curl -fsS http://127.0.0.1:5008/health | jq .
+
+      - name: Run integration test suite
+        env:
+          CY_BASE_URL: http://127.0.0.1:5008
+          CY_USE_ENV_ADMIN: "1"
+        run: npm run test:integration
+
+      - name: Dump logs on failure
+        if: failure()
+        run: |
+          docker compose -p cy-ci ps
+          docker compose -p cy-ci logs
+
+      - name: Tear down Compose stack
+        if: always()
+        run: docker compose -p cy-ci down -v
