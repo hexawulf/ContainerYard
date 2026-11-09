@@ -2,212 +2,107 @@
 
 ## Design Approach
 
-**Selected System**: Modern Developer Tool Aesthetic (inspired by Linear, GitHub Dark, Railway, Vercel)
+**Selected System**: Modern Developer Tool Aesthetic (inspired by Linear, Vercel, GitHub Light & Dark)
 
-**Justification**: ContainerYard is a utility-focused developer tool where efficiency, log readability, and debugging speed are paramount. The design prioritizes information density, performance, and professional polish over decorative elements. Dark mode is the primary interface optimized for extended monitoring sessions.
+**Justification**: ContainerYard is a utility-focused developer tool where efficiency, log readability, and debugging speed are paramount. The design prioritizes information density, performance, and professional polish over decorative elements. **Light mode is the default interface**, with **Dark mode as a first-class toggle** persisted per browser (`containeryard-theme`) and applied before first paint with zero theme flash.
 
 **Core Principles**:
 - Log-first hierarchy: Everything serves the live tail experience
 - Instant visual feedback: State changes must be immediately apparent
 - Scannable density: Maximum information without cognitive overload
-- Terminal-native feel: Familiar to developers' daily tools
+- Dual-theme parity: WCAG AA contrast (≥ 4.5:1 body text, ≥ 3:1 UI) in both light and dark modes
+- Terminal-native feel: Embedded shell (xterm.js) stays dark in both themes, cleanly framed in light mode
 
 ---
 
 ## Core Design Elements
 
-### A. Color Palette
+### A. Color Palette & Token Tables
 
-**Dark Mode (Primary)**:
-- Background: 222 14% 9% (deep charcoal, reduced eye strain)
-- Surface: 222 13% 12% (cards, panels)
-- Surface elevated: 222 12% 16% (hover states, modals)
-- Border: 222 10% 20% (subtle divisions)
-- Text primary: 210 20% 98% (high contrast)
-- Text secondary: 210 10% 71% (muted info)
-- Text tertiary: 210 8% 50% (labels, timestamps)
+#### Light Mode (`:root`, Default)
 
-**Accent Colors**:
-- Primary: 217 91% 60% (electric blue - actions, links)
-- Success/Healthy: 142 76% 45% (green - running states)
-- Warning: 38 92% 50% (amber - warnings, unhealthy)
-- Error/Critical: 0 84% 60% (red - errors, stopped)
-- Info: 199 89% 48% (cyan - info badges)
+| Token | HSL Value | Purpose / Contrast Notes |
+| --- | --- | --- |
+| `--background` | `210 33% 99%` | Near-white page canvas (`#fafbfd`) |
+| `--foreground` | `222 47% 11%` | Primary body text (~17.4:1 vs background) |
+| `--card` | `0 0% 100%` | Elevated pure-white cards & panels |
+| `--card-foreground` | `222 47% 11%` | Card primary text |
+| `--card-border` | `214 32% 89%` | Crisp 1px card border |
+| `--border` | `214 28% 86%` | Standard structural divider |
+| `--input` | `214 26% 82%` | Form control border |
+| `--primary` | `217 91% 50%` | Refined primary blue (~5.15:1 with white text) |
+| `--primary-foreground` | `0 0% 100%` | Button / badge text on primary |
+| `--secondary` | `214 32% 93%` | Subtle secondary surface |
+| `--secondary-foreground` | `222 47% 11%` | Text on secondary |
+| `--muted` | `210 28% 95%` | Muted panels & table headers |
+| `--muted-foreground` | `215 22% 36%` | Secondary text (~7.1:1 on card, ~6.2:1 on muted) |
+| `--accent` | `214 32% 94%` | Hover / active highlight |
+| `--destructive` | `0 78% 48%` | Danger / error actions (~5.6:1 with white text) |
+| `--status-running` | `142 72% 29%` | Running / healthy state (~5.1:1 on white) |
+| `--status-warning` | `32 95% 34%` | Restarting / warning state (~5.3:1 on white) |
+| `--status-danger` | `0 78% 46%` | Unhealthy / error state (~5.9:1 on white) |
+| `--status-info` | `199 89% 34%` | Paused / informational state (~5.3:1 on white) |
+| `--log-error` | `0 78% 44%` | `ERROR` log severity (~6.3:1 on white) |
+| `--log-warn` | `32 95% 33%` | `WARN` log severity (~5.5:1 on white) |
+| `--log-info` | `201 90% 34%` | `INFO` log severity (~5.4:1 on white) |
+| `--log-debug` | `268 70% 46%` | `DEBUG` log severity (~6.0:1 on white) |
+| `--log-fatal` | `346 84% 40%` | `FATAL` log severity (~6.6:1 on white) |
 
-**Log Level Colors** (optimized for readability):
-- ERROR: 0 84% 60%
-- WARN: 38 92% 50%
-- INFO: 199 89% 48%
-- DEBUG: 280 65% 60% (purple)
-- FATAL: 348 83% 47% (deep red)
+#### Dark Mode (`.dark`, First-Class Toggle)
 
-**Light Mode** (secondary support):
-- Background: 0 0% 100%
-- Surface: 210 17% 98%
-- Border: 214 32% 91%
-- Text primary: 222 47% 11%
+| Token | HSL Value | Purpose / Contrast Notes |
+| --- | --- | --- |
+| `--background` | `222 24% 7%` | Deep charcoal canvas (`#0d1117`) |
+| `--foreground` | `210 25% 96%` | High-contrast primary text (~17.5:1 vs background) |
+| `--card` | `222 21% 10%` | Subtle elevated card surface (`#141923`) |
+| `--card-foreground` | `210 25% 96%` | Card primary text |
+| `--card-border` | `220 16% 18%` | 1px card border |
+| `--border` | `220 15% 20%` | Standard structural divider |
+| `--input` | `220 15% 24%` | Form control border |
+| `--primary` | `217 91% 60%` | Electric blue primary accent |
+| `--primary-foreground` | `0 0% 100%` | Text on primary |
+| `--secondary` | `220 16% 17%` | Subtle secondary surface |
+| `--secondary-foreground` | `210 25% 96%` | Text on secondary |
+| `--muted` | `220 16% 14%` | Muted panels & table headers |
+| `--muted-foreground` | `215 16% 72%` | Secondary text (~8.8:1 on background, ~7.6:1 on card) |
+| `--accent` | `220 16% 16%` | Hover / active highlight |
+| `--destructive` | `0 72% 51%` | Danger / error actions |
+| `--status-running` | `142 70% 55%` | Running / healthy state (~9.6:1 on dark) |
+| `--status-warning` | `38 95% 60%` | Restarting / warning state (~9.2:1 on dark) |
+| `--status-danger` | `0 86% 68%` | Unhealthy / error state (~6.2:1 on dark) |
+| `--status-info` | `199 92% 62%` | Paused / informational state (~8.8:1 on dark) |
+| `--log-error` | `0 86% 68%` | `ERROR` log severity (~6.2:1 on dark) |
+| `--log-warn` | `38 95% 60%` | `WARN` log severity (~9.2:1 on dark) |
+| `--log-info` | `199 92% 62%` | `INFO` log severity (~8.8:1 on dark) |
+| `--log-debug` | `272 76% 72%` | `DEBUG` log severity (~6.8:1 on dark) |
+| `--log-fatal` | `348 88% 66%` | `FATAL` log severity (~5.8:1 on dark) |
 
 ### B. Typography
 
 **Font Stack**:
-- Primary: 'Inter', system-ui, sans-serif (UI elements, headers)
-- Code/Logs: 'JetBrains Mono', 'Fira Code', Consolas, monospace (terminal, logs)
+- Primary: `'Inter', system-ui, sans-serif` (UI elements, headers)
+- Code/Logs: `'JetBrains Mono', 'Fira Code', Consolas, monospace` (terminal, logs, metrics)
 
 **Scale**:
-- Display: 32px/40px, font-weight 600 (dashboard title)
-- Heading: 20px/28px, font-weight 600 (section headers)
-- Body: 14px/20px, font-weight 400 (default)
-- Small: 12px/16px, font-weight 500 (labels, timestamps)
-- Code: 13px/18px, font-weight 400 (logs, terminal)
-
-**Log Typography**:
-- Fixed-width mono font for perfect alignment
-- Slightly increased letter-spacing (0.01em) for clarity
-- Line height 1.5 for comfortable scanning
+- Display: `32px/40px`, `font-weight: 600` (dashboard & page titles)
+- Heading: `20px/28px`, `font-weight: 600` (section headers)
+- Body: `14px/20px`, `font-weight: 400` (default)
+- Small: `12px/16px`, `font-weight: 500` (labels, timestamps)
+- Code: `13px/18px`, `font-weight: 400` (logs, terminal)
 
 ### C. Layout System
 
 **Spacing Primitives**: Tailwind units of 1, 2, 3, 4, 6, 8, 12, 16, 24
-- Micro spacing: 1, 2 (icon gaps, tight elements)
-- Component spacing: 4, 6 (card padding, inline gaps)
-- Section spacing: 8, 12 (between major sections)
-- Layout spacing: 16, 24 (page margins, modal padding)
+- Container max-width: `1600px` (`max-w-container`) with `px-4 sm:px-6` horizontal padding
+- Responsive breakpoints:
+  - Mobile (`375px`–`767px`): Single column, stacked views, wrapped action bars, zero horizontal overflow
+  - Tablet (`768px`–`1023px`): Multi-card grids
+  - Desktop (`1024px+`): Two-column split (`minmax(0,1.25fr)_minmax(0,1fr)`) for container list + telemetry overview
 
-**Grid Structure**:
-- Container max-width: 1600px (wide for multi-panel layouts)
-- Sidebar: 280px fixed (container list)
-- Main content: flex-1 (logs, terminal, timeline)
-- Timeline strip: 120px height (sparklines + markers)
+### D. Theme System Implementation
 
-**Responsive Breakpoints**:
-- Mobile: Single column, stacked views
-- Tablet (768px): Sidebar collapses to drawer
-- Desktop (1024px+): Full sidebar + main layout
-
-### D. Component Library
-
-**ContainerCard**:
-- Compact height (80px), scannable at a glance
-- Health badge (8px dot + text, top-right)
-- Resource pills (CPU/Mem/Net as small chips with icons)
-- Port links as clickable badges with external link icon
-- Quick action icons on hover (restart/stop/start/remove)
-- State indicator: 4px left border color-coded by status
-
-**LogTail**:
-- Full-height virtualized list with 1px row borders
-- Timestamp column: 80px fixed width, muted color
-- Level badge: 48px, color pill with abbreviation (ERR/WRN/INF)
-- Message: flex-1, mono font, word-wrap enabled
-- Search highlight: background 60 100% 50% with 30% opacity
-
-**TimelineStrip**:
-- Sticky at top, 120px height, glass morphism background
-- Three sparkline rows (CPU/Mem/Net), 32px each
-- Event markers: vertical lines with icon tooltip on hover
-- Drag-to-select: semi-transparent blue overlay
-- Time labels every 10s along bottom
-
-**Terminal**:
-- Full xterm.js integration with dark Dracula theme
-- Minimal chrome: only connection status indicator
-- Resize handle (bottom-right corner, subtle)
-- Copy-on-select enabled by default
-- Blinking cursor with 600ms interval
-
-**SearchBar**:
-- Prominent 48px height, full-width in header
-- Pill-based active filters (dismissible with X)
-- Autocomplete dropdown for saved snippets
-- Regex toggle icon, DSL syntax hints on focus
-- Keyboard shortcut hint (/) in placeholder
-
-**QuickActions**:
-- Icon-only buttons in card header
-- Tooltip on hover with action name + keyboard shortcut
-- Destructive actions (remove) require confirmation modal
-- Loading spinner replaces icon during execution
-- Success/error toast notifications
-
-**Modals**:
-- Centered overlay with backdrop blur
-- Max-width 600px for confirmations, 900px for env vars panel
-- Title + description + action buttons
-- ESC to close, focus trap enabled
-- Smooth slide-up animation (200ms ease-out)
-
-**Keyboard Shortcuts Help**:
-- Full-screen overlay (50% opacity backdrop)
-- Grouped by category in 2-column grid
-- Shortcut key badges with subtle borders
-- Animated entry (fade + scale from 95%)
-
-### E. Interactions & Animations
-
-**Principles**: Use sparingly, prioritize performance
-- State transitions: 150ms ease-out (color, opacity)
-- Layout shifts: 200ms ease-in-out (drawer open/close)
-- Micro-interactions: 100ms (button hover, badge appear)
-- No decorative animations in log tail (performance critical)
-
-**Key Interactions**:
-- Container card hover: Lift shadow + show quick actions
-- Log line hover: Subtle background highlight
-- Timeline drag: Instant feedback, no lag
-- Terminal typing: Zero latency, direct passthrough
-- Button clicks: Ripple effect (Material-style, 300ms)
-
----
-
-## Feature-Specific Design
-
-### Live Log Tail
-- Autoscroll indicator: Fixed bottom-right, blue pill "Live"
-- Pause state: Amber "Paused" badge with resume button
-- Smart level detection: Regex-matched keywords get color pills
-- Line numbers: Optional toggle, 60px gutter when enabled
-
-### Container Status Visualization
-- Health badge prominence: Always visible, 12px font-weight 600
-- Port mapping: Grouped badges with protocol icons (TCP/UDP)
-- Quick stats: Minimal pill design, icon + value only
-- State timeline: Horizontal bars with gaps for restarts
-
-### Dark Mode Implementation
-- Toggle: Sun/moon icon in top-right, 40px button
-- Transition: 200ms all colors, smooth eye comfort
-- Persistence: localStorage key 'containeryard-theme'
-- System detection: matchMedia on initial load
-
-### Keyboard Shortcuts
-- Visual feedback: Highlight active shortcut key in UI
-- Help overlay: Triggered by ?, categorized list
-- Toast notifications: Bottom-right, 4s duration
-- Conflicting shortcuts: ESC always resets/closes
-
----
-
-## Accessibility & Performance
-
-- Focus indicators: 2px blue outline with 2px offset
-- Color contrast: WCAG AA minimum (4.5:1 for text)
-- Screen reader: ARIA labels on icon-only buttons
-- Keyboard navigation: Full tab order, skip links
-- Virtual scrolling: React-window for 10k+ log lines
-- WebSocket buffering: Batch updates every 100ms max
-- Dark mode first: Optimized for low-light environments
-
----
-
-## Visual Hierarchy
-
-1. **Primary**: Live log stream (largest surface area, center focus)
-2. **Secondary**: Container list (left sidebar, persistent context)
-3. **Tertiary**: Timeline strip (top, contextual glance)
-4. **Quaternary**: Actions/search (header, supporting tools)
-
-**Information Density Strategy**:
-- Compact cards without sacrificing readability
-- Collapsible panels for secondary info (env vars, volumes)
-- Progressive disclosure: Details on demand, not upfront
-- Smart truncation: Ellipsis with full text on hover/focus
+- **Default**: Light mode (`<html class="light">`)
+- **Toggle**: Sun/Moon icon button (`data-testid="button-theme-toggle"`) in the right side of `Navbar` on every route (Landing, Login, Dashboard, HostLogs, StyleGuide, 404)
+- **Persistence**: `localStorage` key `'containeryard-theme'`. Stored `'dark'` resolves to `'dark'`; `'light'`, missing, invalid, or legacy `'system'` resolves to `'light'`
+- **No-Flash Script**: Inline `<script>` in `client/index.html` sets `<html class="light|dark">`, `document.documentElement.style.colorScheme`, and `<meta name="theme-color">` before any module loads
+- **Transition**: 150ms color transition applied only on user toggle (`html.theme-transition`) and disabled under `prefers-reduced-motion: reduce` and during first paint
