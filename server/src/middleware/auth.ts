@@ -8,9 +8,20 @@ import { env } from "../config/env";
 const AUTH_DISABLED =
   process.env.AUTH_DISABLED === "true" || process.env.VITE_AUTH_DISABLED === "true";
 
+// Requests per client IP per 15 minutes. A logged-in dashboard polls stats and
+// summaries for every host (~80 requests/minute with four hosts), so signed-in
+// sessions get a higher ceiling; anonymous traffic keeps the strict one.
+export const GLOBAL_LIMIT_ANONYMOUS = 1000;
+export const GLOBAL_LIMIT_AUTHENTICATED = 10000;
+
+export function globalRequestLimit(req: Request): number {
+  return req.session?.user?.id ? GLOBAL_LIMIT_AUTHENTICATED : GLOBAL_LIMIT_ANONYMOUS;
+}
+
+// Must be mounted after the session middleware so req.session is populated.
 export const globalRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 1000,
+  max: (req) => globalRequestLimit(req as Request),
   standardHeaders: "draft-7",
   legacyHeaders: false,
 });

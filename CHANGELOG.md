@@ -3,7 +3,15 @@
 All notable changes to ContainerYard are documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [5.0.1] - 2026-11-10
+
+### Fixed
+- Signed-in users no longer hit "Too many requests, please try again later.":
+  the global limiter now runs after the session middleware and allows 10000
+  requests per 15 minutes for authenticated sessions (anonymous stays at 1000).
+  An open dashboard with four hosts polls about 80 requests a minute, which
+  exceeded the old shared limit of 1000.
+
 
 ### Security
 - Weekly image refresh: every Monday the release workflow rebuilds the latest

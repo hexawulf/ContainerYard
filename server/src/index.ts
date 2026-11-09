@@ -68,8 +68,6 @@ export async function createApp() {
     return next();
   });
 
-  app.use(globalRateLimiter);
-
   // Health endpoint - completely exempt from CSRF and session (moved before session)
   app.get("/api/health", async (_req, res) => {
     try {
@@ -93,6 +91,9 @@ export async function createApp() {
   app.use(express.urlencoded({ extended: false }));
 
   app.use(sessionMiddleware);
+
+  // After the session: signed-in users get the higher dashboard ceiling.
+  app.use(globalRateLimiter);
 
   app.use(attachUserToResponse);
 
