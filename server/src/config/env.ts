@@ -20,6 +20,8 @@ const envSchema = z.object({
   SYNOLOGY_DOZZLE_URL: z.string().url().optional(),
   PIAPPS2_CADVISOR_URL: z.string().url(),
   PIAPPS2_DOZZLE_URL: z.string().url().optional(),
+  DS718_CADVISOR_URL: z.string().url().optional(),
+  DS718_DOZZLE_URL: z.string().url().optional(),
   ADMIN_EMAIL: z.string().email(),
   ADMIN_PASSWORD: z.string().min(12),
   METRICS_TOKEN: z.string().optional(),

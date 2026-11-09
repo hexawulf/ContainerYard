@@ -248,7 +248,8 @@ The server (`server/src/config/env.ts`) and container entrypoint (`docker/entryp
 | `COOKIE_NAME` | No | `__Secure-cy.sid` | Session cookie name |
 | `COOKIE_DOMAIN` | No | unset | Cookie domain |
 | `COOKIE_SAMESITE` | No | `none` | `lax` is recommended when UI and API share an origin |
-| `PIAPPS2_DOZZLE_URL`, `SYNOLOGY_DOZZLE_URL` | No | unset | Optional Dozzle links shown for remote hosts |
+| `DS718_CADVISOR_URL` | No | unset | cAdvisor base URL for `ds718`; the host is only listed when set |
+| `PIAPPS2_DOZZLE_URL`, `SYNOLOGY_DOZZLE_URL`, `DS718_DOZZLE_URL` | No | unset | Optional Dozzle root URLs; container links go to `<url>/container/<short id>` |
 | `METRICS_TOKEN` | No | unset | Bearer token required for the Prometheus `/metrics` endpoint |
 | `PUBLIC_API_BASE` | No | derived from request | API base URL returned by `/api/runtime-config` |
 | `WEBHOOK_ALLOW_PRIVATE` | No | `false` | Allow alert webhooks to LAN/loopback targets |
@@ -276,6 +277,7 @@ The monitored hosts are defined in `server/src/config/hosts.ts`:
 | `piapps` | `DOCKER` | Full access through the local Docker socket (`/var/run/docker.sock`): logs, live tail, stats, inspect, container and stack actions, host logs |
 | `piapps2` | `CADVISOR_ONLY` | Read-only containers and stats from cAdvisor |
 | `synology` | `CADVISOR_ONLY` | Read-only containers and stats from cAdvisor |
+| `ds718` | `CADVISOR_ONLY` | Optional (`DS718_CADVISOR_URL`): read-only containers and stats from cAdvisor |
 
 > ⚠️ **Docker Socket Security:** Mounting `/var/run/docker.sock` gives the container root-equivalent control over the host's Docker daemon (needed for container/stack lifecycle actions). ContainerYard runs as unprivileged `uid 1000` with `read_only: true`, `cap_drop: [ALL]`, `no-new-privileges:true`, and binds to `127.0.0.1:5008`. Never expose `dockerd` over unauthenticated TCP (`tcp://0.0.0.0:2375`) to monitor another host—run cAdvisor there instead. See `docker-compose.yml` for an optional `docker-socket-proxy` reference.
 
