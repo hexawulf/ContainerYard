@@ -7,11 +7,11 @@
 
 [![Release](https://img.shields.io/badge/release-v3.2.0-brightgreen)](https://github.com/hexawulf/ContainerYard/releases/tag/v3.2.0)
 
-**ContainerYard 3.0** is the first major release since v2.0.0 (Phase 1, November 2025). It brings multi-host monitoring (Docker + cAdvisor-only hosts), SQLite as a first-class database, Metric-to-Log Quick Jump, hardened auth and CSRF, and SEO and landing-page polish. **3.1** adds per-container lifecycle actions, an audit log, working Log Moment bookmarks, restored CSRF enforcement and SSRF-safe webhooks. **3.2** introduces a light-by-default theme system with a persistent light/dark mode toggle on every page, zero flash on load, and a full WCAG AA UI refresh across both themes. See [What's new in 3.2](#-whats-new-in-32), [3.1](#-whats-new-in-31), and [3.0](#-whats-new-in-30).
+**ContainerYard 3.0** is the first major release since v2.0.0 (Phase 1, November 2025). It brings multi-host monitoring (Docker + cAdvisor-only hosts), SQLite as a first-class database, Metric-to-Log Quick Jump, hardened auth and CSRF, and SEO and landing-page polish. **3.1** adds per-container lifecycle actions, an audit log, working Log Moment bookmarks, restored CSRF enforcement and SSRF-safe webhooks. **3.2** introduces a light-by-default theme system with a persistent light/dark mode toggle on every page, zero flash on load, a full WCAG AA UI refresh across both themes, and a unified top-right header action bar (About modal with build metadata & diagnostics, self-service password change, ADMIN user management, and instant `sessionVersion` session revocation). See [What's new in 3.2](#-whats-new-in-32), [3.1](#-whats-new-in-31), and [3.0](#-whats-new-in-30).
 
 ContainerYard is a comprehensive Docker observability platform that goes beyond simple log viewing. It provides Docker Compose stack management, proactive alerting, historical metrics analysis, and real-time log streaming—all in one sleek, developer-friendly interface. Built with React 18 and Express, it bridges the gap between lightweight viewers and enterprise monitoring solutions.
 
-![ContainerYard Dashboard](https://github.com/hexawulf/ContainerYard/blob/main/docs/screenshots/ui-refresh/dashboard-light-1440x900.png?raw=true)
+![ContainerYard Dashboard — Top Navigation & Light Theme](https://github.com/hexawulf/ContainerYard/blob/main/docs/screenshots/header-actions/header-admin-light-desktop.png?raw=true)
 
 
 ## ✨ Features
@@ -62,6 +62,17 @@ ContainerYard is a comprehensive Docker observability platform that goes beyond 
 - 🌐 **Environment Viewer** - Search, filter, and bulk export container environment variables
 
 ## 🆕 What's New in 3.2
+
+### Header action bar, About modal, self-service password change & ADMIN user management
+- **Unified top-right header action row (`Navbar`):** Every page now renders a consistent icon action row in exact left-to-right order: `[Open Dashboard (off /dashboard)] · (i) About · Theme · Change password · Users (ADMIN only) · Logout`. Moved `Logout` out of the Dashboard sub-header and moved developer/repository/documentation links out of the footer into the `About` modal so the footer remains minimal (`Built for self-hosted container observability.` + `Style Guide`).
+- **About modal (`AboutModal`):** Accessible from every route (logged in or logged out). Displays the ContainerYard logo, tagline, build-time version (`v{__APP_VERSION__}`) and date (`__BUILD_DATE__` injected via `vite.config.ts`), runtime user/role badge when signed in, verified 4-group tech stack (`Frontend`, `Backend`, `Data & Auth`, `Tooling`), developer contact (`0xWulf` / `hexawulf`, `mailto:dev@0xwulf.dev`), project links (GitHub repo, README docs, Issues, `containeryard.org`, MIT license), and a one-click copyable diagnostics string.
+- **Self-service password change (`ChangePasswordModal` & `POST /api/auth/change-password`):** Any authenticated user (`ADMIN` or `VIEWER`) can change their own password. Enforces `12`–`72` UTF-8 bytes (`Buffer.byteLength` cap matching bcrypt's 72-byte limit) and inequality with the current password on both client and server, hashes with `bcrypt` cost 12, increments `User.sessionVersion`, and regenerates the caller's session so the caller stays signed in while every other session for that user is immediately revoked.
+- **ADMIN user administration (`UsersModal` & `/api/users`):** `ADMIN` users get a dedicated header button opening a responsive User Administration modal to list accounts, create users (with a CSPRNG password generator and copy button), switch roles (`ADMIN` / `VIEWER`), reset passwords, and delete users (cascading `LogBookmark` and `SavedSearch` rows in a single `prisma.$transaction`). Server guards prevent self-deletion or self-demotion (`403`) and deleting or demoting the last remaining `ADMIN` (`409`).
+- **DB-backed session revocation (`User.sessionVersion`):** Added `sessionVersion Int @default(0)` to `User` in `server/prisma/schema.prisma`. `requireAuth` and `requireRole` verify the user record and `sessionVersion` on every request, destroying stale sessions (`401`) and syncing role changes immediately. All mutations are recorded in `AuditLog` (`auth.password_change`, `user.create`, `user.role_change`, `user.password_reset`, `user.delete`).
+
+| About Modal | User Administration Modal (ADMIN) |
+|---|---|
+| ![About Modal](https://github.com/hexawulf/ContainerYard/blob/main/docs/screenshots/header-actions/modal-about-light-desktop.png?raw=true) | ![User Administration Modal](https://github.com/hexawulf/ContainerYard/blob/main/docs/screenshots/header-actions/modal-users-light-desktop.png?raw=true) |
 
 ### 3.2.0: light-by-default theme toggle & UI refresh
 - **Light-by-default theme system (`containeryard-theme`):** Light mode is now the default across the app, paired with a persistent `ThemeToggle` (`Sun`/`Moon`) in the navbar on every route (Landing, Login, Dashboard, Host Logs, Style Guide, 404). An inline `<head>` script sets `<html class="light|dark">`, `colorScheme`, and `<meta name="theme-color">` before first paint so there is zero flash of the wrong theme on load. Stored `"dark"` resolves to dark; `"light"`, missing, invalid, or legacy `"system"` values resolve to light
@@ -257,17 +268,27 @@ npm run db:push             # Drizzle schema -> PostgreSQL (alerts/metrics table
 
 ```
 ContainerYard/
-├── client/              # React frontend
+├── client/                    # React 18 + Vite frontend
+│   └── src/
+│       ├── components/
+│       │   ├── header/        # Navbar action buttons & modals (About, ChangePassword, Users, Logout)
+│       │   └── ui/            # shadcn/ui + Radix primitives
+│       ├── features/          # Monitoring, logs, stacks, alerts, metrics modules
+│       ├── pages/             # Route pages (Landing, Login, Dashboard, HostLogs, StyleGuide, 404)
+│       ├── lib/               # Query client (CSRF handling), theme, utilities
+│       └── App.tsx            # App entry
+├── server/                    # Express backend
+│   ├── prisma/                # Prisma schema (User + sessionVersion, AuditLog, LogBookmark, SavedSearch) & seed
 │   ├── src/
-│   │   ├── components/  # UI components
-│   │   ├── pages/       # Route pages
-│   │   ├── lib/         # Utilities
-│   │   └── App.tsx      # App entry
-├── server/              # Express backend
-│   ├── providers/       # Data source providers
-│   ├── routes.ts        # API endpoints
-│   └── index.ts         # Server entry
-├── shared/              # Shared types and schemas
+│   │   ├── config/            # Validated env, hosts, Redis session config
+│   │   ├── lib/               # User password & mutation policy guards
+│   │   ├── middleware/        # Auth (sessionVersion verification), CSRF, rate limiting
+│   │   ├── routes/            # REST endpoints (auth, users, hosts, logs, stacks, alerts, audit, bookmarks)
+│   │   └── services/          # Dockerode, cAdvisor, host logs, audit, metrics
+│   ├── tests/                 # Unit (node:test) & live integration specs
+│   └── index.ts               # Server entry
+├── shared/                    # Shared TypeScript types and schemas
+├── e2e/                       # Playwright E2E specs (theme, header actions, screenshots)
 └── package.json
 ```
 
@@ -275,27 +296,23 @@ ContainerYard/
 
 ### Frontend
 - **React 18** - Modern UI library with hooks
-- **TypeScript** - Type safety and developer experience
-- **Vite** - Fast build tool and dev server
-- **Tailwind CSS** - Utility-first styling
-- **shadcn/ui** - Accessible component library
-- **TanStack Query** - Server state management
-- **TanStack Virtual** - Virtualized log rendering
-- **xterm.js** - Terminal emulator
-- **Recharts** - Data visualization
+- **TypeScript** - Strict type safety across client, server, and tests
+- **Vite 6** - Fast build tool and dev server (injects `__APP_VERSION__` and `__BUILD_DATE__` at build time)
+- **Tailwind CSS 3** - Utility-first styling with semantic light/dark CSS tokens
+- **shadcn/ui + Radix UI** - Accessible Dialog, AlertDialog, Select, Tooltip, and Table primitives
+- **TanStack Query & Virtual** - Server state management and virtualized log rendering
+- **xterm.js** - Interactive container terminal emulator
+- **Recharts** - Real-time and historical metrics visualization
 - **Wouter** - Lightweight routing
 
-### Backend
-- **Node.js** - JavaScript runtime
-- **Express** - Web framework
-- **WebSocket (ws)** - Real-time communication
-- **Drizzle ORM** - Type-safe database toolkit
-- **Zod** - Schema validation
-
-### Database
-- **PostgreSQL or SQLite** - Users, audit log and bookmarks via Prisma (both engines); alerts and historical metrics via Drizzle (PostgreSQL only)
-- **Neon Serverless** - Serverless PostgreSQL driver
-- **Drizzle ORM** - Type-safe database operations with migrations
+### Backend & Auth
+- **Node.js & Express** - REST API and SSE log streaming server
+- **Dockerode & cAdvisor** - Local Docker UNIX socket and remote cAdvisor telemetry
+- **Prisma (SQLite / PostgreSQL)** - Users (`sessionVersion`), `AuditLog`, `LogBookmark`, and `SavedSearch`
+- **Redis (`connect-redis` + `ioredis`)** - Server-side session store with instant `sessionVersion` revocation
+- **bcrypt (cost 12) + CSRF + Helmet** - Password hashing (72-byte UTF-8 cap), per-session CSRF tokens, rate limiting, and security headers
+- **Zod** - Request and environment schema validation
+- **Drizzle ORM (PostgreSQL optional)** - Alert rules/history and historical metrics aggregation
 
 ## 📡 API Reference
 
