@@ -3,11 +3,16 @@
 # 0xwulf/containeryard:X.Y.Z, :X.Y and :latest with SBOM and provenance
 # attestations. Only runs in hexawulf/ContainerYard; Docker Hub credentials are
 # used in the publish job alone, after the tests passed.
+# Weekly refresh: every Monday the latest GitHub Release is rebuilt without the
+# build cache, so the runtime stage's apt-get upgrade picks up Debian security
+# fixes. Same version tags are re-pushed; running hosts update on next deploy.
 name: Release
 
 on:
   push:
     tags: ['v*.*.*']
+  schedule:
+    - cron: '17 3 * * 1'   # Monday 03:17 UTC: rebuild the latest release
   workflow_dispatch:
     inputs:
       tag:
@@ -18,12 +23,16 @@ on:
         description: Also move :latest (untick when republishing an older version)
         type: boolean
         default: true
+      no_cache:
+        description: Rebuild without the build cache (picks up Debian updates)
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 concurrency:
-  group: release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  group: release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event_name == 'schedule' && 'weekly-refresh' || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
@@ -40,7 +49,14 @@ jobs:
         id: check
         env:
           TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          EVENT: ${{ github.event_name }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
         run: |
+          if [ "$EVENT" = schedule ]; then
+            TAG=$(gh api "repos/$REPO/releases/latest" --jq .tag_name)
+            echo "weekly refresh of the latest release: $TAG"
+          fi
           if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
             echo "::error::not a release tag: $TAG"
             exit 1
@@ -135,6 +151,9 @@ jobs:
             CREATED=${{ steps.rev.outputs.created }}
           sbom: true
           provenance: mode=max
+          # weekly refresh (and no_cache runs) rebuild every layer so apt-get upgrade runs again
+          no-cache: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.no_cache) }}
+          pull: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

@@ -3,6 +3,15 @@
 All notable changes to ContainerYard are documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Security
+- Weekly image refresh: every Monday the release workflow rebuilds the latest
+  release without the build cache, so Debian security fixes reach the published
+  image between releases. `workflow_dispatch` gains a `no_cache` option.
+- Dependabot version updates for npm, the Docker base image and GitHub Actions
+  (weekly, grouped); Dependabot security updates enabled.
+
 ## [5.0.0] - 2026-11-09
 
 ### Breaking
