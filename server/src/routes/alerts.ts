@@ -101,7 +101,7 @@ router.post("/channels", async (req, res, next) => {
     if (!result.success) {
       return res.status(400).json({
         error: "Invalid channel data",
-        details: result.error
+        details: { name: "ZodError", issues: result.error.issues }
       });
     }
     const webhookError = webhookConfigError(result.data.type, result.data.config);
@@ -276,7 +276,7 @@ router.post("/rules", async (req, res, next) => {
     if (!result.success) {
       return res.status(400).json({ 
         error: "Invalid rule data", 
-        details: result.error 
+        details: { name: "ZodError", issues: result.error.issues } 
       });
     }
 

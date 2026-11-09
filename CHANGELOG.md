@@ -9,6 +9,13 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 - **Smaller runtime attack surface:** the runtime image no longer ships npm, npx, corepack or yarn from the Node base image (the app only runs `node` and the local Prisma CLI). This removes all 22 npm-package findings that came from the bundled npm tree (Trivy: npm HIGH 11 → 0, MEDIUM 12 → 0).
 - **Debian security updates at build time:** the runtime stage runs `apt-get upgrade`, so rebuilds pick up Debian fixes as they land. All remaining OS findings (bookworm: zlib, util-linux, ncurses, systemd libs, gzip, perl-base, ...) currently have no fixed Debian package.
 - **`deepmerge-ts` 8.0.1 via a scoped override** under `@prisma/config` (fixes CVE-2026-40345). Prisma stays on 6.19.3; runtime `prisma db push` and seed verified.
+- **zod 4 (4.6.7):** fixes GHSA-mrhx-c7xc-m3w5 (memory exhaustion when validating oversized constrained collections in zod < 4.6.6). `drizzle-zod` moves to 0.8.3, the release line that supports zod 4.
+
+### Changed
+- Validation error responses keep the same JSON shape (`issues.formErrors` / `issues.fieldErrors`, now built with `z.flattenError`). Built-in zod messages use zod 4 wording (e.g. an invalid role reads `Invalid option: expected one of "ADMIN"|"VIEWER"`); custom messages are unchanged.
+- Alert channel/rule validation errors return `details: { name, issues }` explicitly (same shape as before).
+- `z.record()` call sites now pass an explicit key schema; the login schema uses `z.email()`.
+- New unit test: the env schema accepts a complete valid environment and rejects bad values while naming the field and never echoing the value.
 
 ## [4.2.0] - 2026-11-09
 

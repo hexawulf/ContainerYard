@@ -8,6 +8,7 @@
  *   DELETE /api/users/:id                delete user + bookmarks + saved searches in $transaction -> 200
  */
 import { Router } from "express";
+import { z } from "zod";
 import bcrypt from "bcrypt";
 import { prisma } from "../db/client";
 import {
@@ -65,7 +66,7 @@ router.post("/", async (req, res, next) => {
       });
       return res.status(400).json({
         message: firstIssue,
-        issues: parsed.error.flatten(),
+        issues: z.flattenError(parsed.error),
       });
     }
 
@@ -150,7 +151,7 @@ router.patch("/:id", async (req, res, next) => {
       });
       return res.status(400).json({
         message: firstIssue,
-        issues: parsed.error.flatten(),
+        issues: z.flattenError(parsed.error),
       });
     }
 
@@ -221,7 +222,7 @@ router.post("/:id/reset-password", async (req, res, next) => {
       });
       return res.status(400).json({
         message: "New password is required",
-        issues: parsed.error.flatten(),
+        issues: z.flattenError(parsed.error),
       });
     }
 

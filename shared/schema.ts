@@ -50,7 +50,7 @@ export const containerDetailSchema = containerSummarySchema.extend({
   command: z.string(),
   mounts: z.array(volumeMountSchema),
   networks: z.array(z.string()),
-  labels: z.record(z.string()),
+  labels: z.record(z.string(), z.string()),
 });
 
 export type ContainerDetail = z.infer<typeof containerDetailSchema>;
@@ -60,7 +60,7 @@ export const logLineSchema = z.object({
   ts: z.string(),
   raw: z.string(),
   level: logLevelSchema.optional(),
-  meta: z.record(z.union([z.string(), z.number(), z.boolean()])).optional(),
+  meta: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])).optional(),
 });
 
 export type LogLine = z.infer<typeof logLineSchema>;
