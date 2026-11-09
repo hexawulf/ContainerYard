@@ -246,6 +246,17 @@ export function AboutModal() {
                 </li>
                 <li>
                   <a
+                    href="https://hub.docker.com/repository/docker/0xwulf/containeryard/general"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 font-medium text-primary underline underline-offset-4 hover:text-primary/80"
+                  >
+                    Docker Hub (0xwulf/containeryard)
+                    <ExternalLink className="h-3 w-3 shrink-0" aria-hidden="true" />
+                  </a>
+                </li>
+                <li>
+                  <a
                     href="https://github.com/hexawulf/ContainerYard#readme"
                     target="_blank"
                     rel="noopener noreferrer"
