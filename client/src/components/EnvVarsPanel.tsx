@@ -140,7 +140,7 @@ export function EnvVarsPanel({ isOpen, onClose, envVars, containerName }: EnvVar
                       data-testid={`button-copy-env-${idx}`}
                     >
                       {copiedKey === envVar.key ? (
-                        <Check className="h-4 w-4 text-[hsl(142,76%,45%)]" />
+                        <Check className="h-4 w-4 text-status-running" />
                       ) : (
                         <Copy className="h-4 w-4" />
                       )}

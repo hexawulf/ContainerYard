@@ -12,7 +12,7 @@ import { getQueryFn, apiRequest, prefetchCsrfToken, queryClient, clearCsrfToken 
 import { ApiError } from "@/lib/api";
 import type { SessionUser } from "@shared/monitoring";
 
-const AUTH_DISABLED = import.meta.env.VITE_AUTH_DISABLED === 'true';
+const AUTH_DISABLED = import.meta.env.VITE_AUTH_DISABLED === "true";
 
 export default function Login() {
   const [, setLocation] = useLocation();
@@ -21,7 +21,6 @@ export default function Login() {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // If auth is disabled, redirect to dashboard immediately
   useEffect(() => {
     if (AUTH_DISABLED) {
       setLocation("/dashboard");
@@ -29,8 +28,6 @@ export default function Login() {
   }, [setLocation]);
 
   const { data: me, isLoading } = useQuery<{ user: SessionUser } | null>({
-    // Same key as AuthProvider: extra string segments are joined into the URL
-    // (this used to request /api/auth/me/login, which 404s).
     queryKey: ["/api/auth/me"],
     queryFn: getQueryFn<{ user: SessionUser } | null>({ on401: "returnNull" }),
     staleTime: 0,
@@ -64,14 +61,13 @@ export default function Login() {
       queryClient.setQueryData(["/api/auth/me"], data);
       setLocation("/dashboard");
     } catch (err: any) {
-      // Handle API errors gracefully - no raw HTML in UI
       if (err instanceof ApiError) {
-        if (err.status === 'disabled') {
-          setError('Authentication is disabled in this environment');
+        if (err.status === "disabled") {
+          setError("Authentication is disabled in this environment");
         } else if (err.status === 502 || err.status === 503) {
-          setError('API unavailable (502). Please try again later.');
+          setError("API unavailable (502). Please try again later.");
         } else {
-          setError(err.message || 'Login failed. Please check your credentials.');
+          setError(err.message || "Login failed. Please check your credentials.");
         }
       } else {
         setError(err.message ?? "Login failed");
@@ -81,17 +77,16 @@ export default function Login() {
     }
   };
 
-  // Show static mode message when auth is disabled
   if (AUTH_DISABLED) {
     return (
-      <div className="flex items-center justify-center py-12">
+      <div className="flex min-h-[calc(100vh-8rem)] items-center justify-center px-4 py-12">
         <Helmet>
           <title>Login - ContainerYard</title>
         </Helmet>
-        <Card className="w-full max-w-md">
-          <CardHeader className="text-center">
-            <Logo size="xl" className="mx-auto mb-8" />
-            <CardTitle>ContainerYard</CardTitle>
+        <Card className="w-full max-w-md border-border/80 shadow-sm">
+          <CardHeader className="space-y-2 text-center">
+            <Logo size="lg" className="mx-auto mb-2" />
+            <CardTitle className="text-xl">ContainerYard</CardTitle>
             <CardDescription>Running in static mode</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -100,10 +95,7 @@ export default function Login() {
                 Authentication is disabled. You will be redirected to the dashboard.
               </AlertDescription>
             </Alert>
-            <Button 
-              className="w-full" 
-              onClick={() => setLocation("/dashboard")}
-            >
+            <Button className="w-full" onClick={() => setLocation("/dashboard")}>
               Open Dashboard
             </Button>
           </CardContent>
@@ -113,15 +105,19 @@ export default function Login() {
   }
 
   return (
-    <div className="flex items-center justify-center py-12">
+    <div className="flex min-h-[calc(100vh-8rem)] items-center justify-center px-4 py-12">
       <Helmet>
         <title>Login - ContainerYard</title>
       </Helmet>
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <Logo size="xl" className="mx-auto mb-8" />
-          <CardTitle>Sign in to ContainerYard</CardTitle>
-          <CardDescription>Use your administrator-provided credentials.</CardDescription>
+      <Card className="w-full max-w-md border-border/80 shadow-sm">
+        <CardHeader className="space-y-2 text-center">
+          <Logo size="lg" className="mx-auto mb-2" />
+          <CardTitle className="text-xl font-semibold tracking-tight">
+            Sign in to ContainerYard
+          </CardTitle>
+          <CardDescription>
+            Use your administrator-provided credentials to access host telemetry and logs.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {error && (
@@ -135,6 +131,7 @@ export default function Login() {
               <Input
                 id="email"
                 type="email"
+                placeholder="admin@example.com"
                 autoComplete="email"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
@@ -147,6 +144,7 @@ export default function Login() {
               <Input
                 id="password"
                 type="password"
+                placeholder="••••••••"
                 autoComplete="current-password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}

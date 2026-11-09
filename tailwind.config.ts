@@ -15,15 +15,6 @@ export default {
         small: ["12px", { lineHeight: "16px", fontWeight: "500" }],
         code: ["13px", { lineHeight: "18px", fontWeight: "400" }],
       },
-      extend: {
-        fontSize: {
-          display: ["32px", { lineHeight: "40px", fontWeight: "600" }],
-          heading: ["20px", { lineHeight: "28px", fontWeight: "600" }],
-          body: ["14px", { lineHeight: "20px", fontWeight: "400" }],
-          small: ["12px", { lineHeight: "16px", fontWeight: "500" }],
-          code: ["13px", { lineHeight: "18px", fontWeight: "400" }],
-        },
-      },
       borderRadius: {
         lg: ".5625rem", /* 9px */
         md: ".375rem", /* 6px */
@@ -95,10 +86,15 @@ export default {
           border: "var(--sidebar-accent-border)"
         },
         status: {
-          online: "rgb(34 197 94)",
-          away: "rgb(245 158 11)",
-          busy: "rgb(239 68 68)",
-          offline: "rgb(156 163 175)",
+          running: "hsl(var(--status-running) / <alpha-value>)",
+          warning: "hsl(var(--status-warning) / <alpha-value>)",
+          danger: "hsl(var(--status-danger) / <alpha-value>)",
+          info: "hsl(var(--status-info) / <alpha-value>)",
+          neutral: "hsl(var(--status-neutral) / <alpha-value>)",
+          online: "hsl(var(--status-running) / <alpha-value>)",
+          away: "hsl(var(--status-warning) / <alpha-value>)",
+          busy: "hsl(var(--status-danger) / <alpha-value>)",
+          offline: "hsl(var(--status-neutral) / <alpha-value>)",
         },
       },
       fontFamily: {

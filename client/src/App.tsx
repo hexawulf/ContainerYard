@@ -3,7 +3,7 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { useTheme } from "@/hooks/useTheme";
+import { ThemeProvider } from "@/components/theme-provider";
 import { useEffect, useState, lazy, Suspense } from "react";
 import { AuthProvider, AuthGate } from "@/components/AuthGate";
 import Layout from "@/components/Layout";
@@ -46,7 +46,11 @@ function Router() {
       </div>
     }>
       <Switch>
-        <Route path="/" component={LandingPage} />
+        <Route path="/">
+          <Layout>
+            <LandingPage />
+          </Layout>
+        </Route>
         <Route path="/login">
           <Layout>
             <Login />
@@ -55,14 +59,17 @@ function Router() {
         <Route path="/dashboard" component={ProtectedDashboard} />
         <Route path="/hosts/:hostId/logs" component={ProtectedHostLogs} />
         <Route path="/styleguide" component={StyleGuidePage} />
-        <Route component={NotFound} />
+        <Route>
+          <Layout>
+            <NotFound />
+          </Layout>
+        </Route>
       </Switch>
     </Suspense>
   );
 }
 
 function App() {
-  const { effectiveTheme } = useTheme();
   const [bootError, setBootError] = useState<string | null>(null);
   const [bootChecking, setBootChecking] = useState(true);
 
@@ -100,60 +107,46 @@ function App() {
     })();
   }, []);
 
-  useEffect(() => {
-    if (effectiveTheme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, [effectiveTheme]);
-
-  // Show boot error screen if API is unreachable
-  if (bootError) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-6">
-        <div className="max-w-md w-full space-y-4 text-center">
-          <div className="text-destructive text-5xl mb-4">⚠️</div>
-          <h1 className="text-2xl font-semibold text-foreground">Startup Error</h1>
-          <p className="text-muted-foreground">{bootError}</p>
-          <p className="text-sm text-muted-foreground/75">
-            Check server logs and verify <code className="px-1 py-0.5 bg-muted rounded">/api/health</code> is accessible.
-          </p>
-          <button 
-            onClick={() => window.location.reload()} 
-            className="mt-4 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
-          >
-            Retry
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // Show loading while checking boot health
-  if (bootChecking) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-6">
-        <div className="space-y-4 w-full max-w-md">
-          <Skeleton className="h-12 w-[250px] mx-auto" />
-          <Skeleton className="h-4 w-[300px] mx-auto" />
-          <Skeleton className="h-4 w-[200px] mx-auto" />
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <HelmetProvider>
-      <QueryClientProvider client={queryClient}>
-        <TooltipProvider>
-          <Toaster />
-          <AuthProvider>
-            <Router />
-          </AuthProvider>
-        </TooltipProvider>
-      </QueryClientProvider>
-    </HelmetProvider>
+    <ThemeProvider>
+      <HelmetProvider>
+        <QueryClientProvider client={queryClient}>
+          <TooltipProvider>
+            <Toaster />
+            {bootError ? (
+              <div className="min-h-screen bg-background flex items-center justify-center p-6">
+                <div className="max-w-md w-full space-y-4 text-center">
+                  <div className="text-destructive text-5xl mb-4">⚠️</div>
+                  <h1 className="text-2xl font-semibold text-foreground">Startup Error</h1>
+                  <p className="text-muted-foreground">{bootError}</p>
+                  <p className="text-sm text-muted-foreground/75">
+                    Check server logs and verify <code className="px-1 py-0.5 bg-muted rounded">/api/health</code> is accessible.
+                  </p>
+                  <button
+                    onClick={() => window.location.reload()}
+                    className="mt-4 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+                  >
+                    Retry
+                  </button>
+                </div>
+              </div>
+            ) : bootChecking ? (
+              <div className="min-h-screen bg-background flex items-center justify-center p-6">
+                <div className="space-y-4 w-full max-w-md">
+                  <Skeleton className="h-12 w-[250px] mx-auto" />
+                  <Skeleton className="h-4 w-[300px] mx-auto" />
+                  <Skeleton className="h-4 w-[200px] mx-auto" />
+                </div>
+              </div>
+            ) : (
+              <AuthProvider>
+                <Router />
+              </AuthProvider>
+            )}
+          </TooltipProvider>
+        </QueryClientProvider>
+      </HelmetProvider>
+    </ThemeProvider>
   );
 }
 

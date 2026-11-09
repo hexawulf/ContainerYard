@@ -1,8 +1,32 @@
 <!DOCTYPE html>
-<html lang="en" class="transition-colors duration-200">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#f8fafc" />
+    <!--
+      No-flash theme script: sets <html class="light|dark"> and style.colorScheme
+      before first paint. Mirrors resolveTheme() in src/lib/theme.ts
+      (key: containeryard-theme; light by default).
+    -->
+    <script>
+      (function () {
+        var stored = null;
+        try {
+          stored = localStorage.getItem("containeryard-theme");
+        } catch (e) {}
+        var resolved = stored === "dark" ? "dark" : "light";
+        var root = document.documentElement;
+        root.classList.remove("light", "dark");
+        root.classList.add(resolved);
+        root.style.colorScheme = resolved;
+        var meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) {
+          meta.setAttribute("content", resolved === "dark" ? "#0b0f17" : "#f8fafc");
+        }
+      })();
+    </script>
     
     <!-- SEO and Open Graph -->
     <title>ContainerYard - Self-Hosted Docker Management</title>

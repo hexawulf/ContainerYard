@@ -198,10 +198,18 @@ export function HistoricalMetricsChart({
         <div className="h-[400px]">
           <ResponsiveContainer width="100%" height="100%">
             <ChartComponent data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="time" />
-              <YAxis />
-              <Tooltip />
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+              <XAxis dataKey="time" stroke="hsl(var(--muted-foreground))" fontSize={12} />
+              <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: "hsl(var(--card))",
+                  border: "1px solid hsl(var(--border))",
+                  borderRadius: "8px",
+                  color: "hsl(var(--foreground))",
+                  fontSize: "12px",
+                }}
+              />
               <Legend />
               {chartType === "area" ? (
                 <>
@@ -209,36 +217,36 @@ export function HistoricalMetricsChart({
                     type="monotone"
                     dataKey="cpuMax"
                     stackId="cpu"
-                    stroke="#ef4444"
-                    fill="#ef4444"
-                    fillOpacity={0.3}
+                    stroke="hsl(var(--status-danger))"
+                    fill="hsl(var(--status-danger))"
+                    fillOpacity={0.25}
                     name="CPU Max %"
                   />
                   <Area
                     type="monotone"
                     dataKey="cpuAvg"
                     stackId="cpu"
-                    stroke="#f97316"
-                    fill="#f97316"
-                    fillOpacity={0.6}
+                    stroke="hsl(var(--chart-3))"
+                    fill="hsl(var(--chart-3))"
+                    fillOpacity={0.5}
                     name="CPU Avg %"
                   />
                   <Area
                     type="monotone"
                     dataKey="memoryMax"
                     stackId="memory"
-                    stroke="#3b82f6"
-                    fill="#3b82f6"
-                    fillOpacity={0.3}
+                    stroke="hsl(var(--chart-1))"
+                    fill="hsl(var(--chart-1))"
+                    fillOpacity={0.25}
                     name="Memory Max %"
                   />
                   <Area
                     type="monotone"
                     dataKey="memoryAvg"
                     stackId="memory"
-                    stroke="#06b6d4"
-                    fill="#06b6d4"
-                    fillOpacity={0.6}
+                    stroke="hsl(var(--chart-5))"
+                    fill="hsl(var(--chart-5))"
+                    fillOpacity={0.5}
                     name="Memory Avg %"
                   />
                 </>
@@ -247,14 +255,14 @@ export function HistoricalMetricsChart({
                   <Line
                     type="monotone"
                     dataKey="cpuAvg"
-                    stroke="#f97316"
+                    stroke="hsl(var(--chart-3))"
                     strokeWidth={2}
                     name="CPU Avg %"
                   />
                   <Line
                     type="monotone"
                     dataKey="cpuMax"
-                    stroke="#ef4444"
+                    stroke="hsl(var(--status-danger))"
                     strokeWidth={2}
                     strokeDasharray="5 5"
                     name="CPU Max %"
@@ -262,14 +270,14 @@ export function HistoricalMetricsChart({
                   <Line
                     type="monotone"
                     dataKey="memoryAvg"
-                    stroke="#06b6d4"
+                    stroke="hsl(var(--chart-5))"
                     strokeWidth={2}
                     name="Memory Avg %"
                   />
                   <Line
                     type="monotone"
                     dataKey="memoryMax"
-                    stroke="#3b82f6"
+                    stroke="hsl(var(--chart-1))"
                     strokeWidth={2}
                     strokeDasharray="5 5"
                     name="Memory Max %"

@@ -18,15 +18,21 @@ const sizeMap: Record<NonNullable<Props["size"]>, string> = {
 
 export default function Logo({ size = "lg", className, title = "ContainerYard" }: Props) {
   return (
-    <picture className={clsx("block", sizeMap[size], className)} title={title}>
-      <source srcSet={markLight} media="(prefers-color-scheme: dark)" />
+    <span className={clsx("inline-block shrink-0", sizeMap[size], className)} title={title}>
       <img
         src={markDark}
         alt="ContainerYard"
         loading="eager"
         decoding="async"
-        className="block w-full h-full"
+        className="block dark:hidden w-full h-full"
       />
-    </picture>
+      <img
+        src={markLight}
+        alt="ContainerYard"
+        loading="eager"
+        decoding="async"
+        className="hidden dark:block w-full h-full"
+      />
+    </span>
   );
 }

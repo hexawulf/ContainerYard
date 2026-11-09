@@ -134,11 +134,11 @@ export function LogRateHeatmap({
       <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1">
-            <div className="w-2 h-2 rounded-sm" style={{ backgroundColor: 'hsl(217, 90%, 40%)' }} />
+            <div className="w-2 h-2 rounded-sm bg-primary" />
             <span>Normal</span>
           </div>
           <div className="flex items-center gap-1">
-            <div className="w-2 h-2 rounded-sm" style={{ backgroundColor: 'hsl(0, 100%, 40%)' }} />
+            <div className="w-2 h-2 rounded-sm bg-destructive" />
             <span>Burst</span>
           </div>
         </div>

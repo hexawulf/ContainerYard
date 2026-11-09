@@ -272,7 +272,7 @@ export function LogsDrawer({
                   <div 
                     key={idx} 
                     className={`whitespace-pre-wrap break-words py-0.5 px-1 rounded transition-colors duration-1000 ${
-                      isFirstLineOfJump && highlightActive ? 'bg-yellow-500/30 ring-1 ring-yellow-500/50' : ''
+                      isFirstLineOfJump && highlightActive ? 'bg-status-warning/20 ring-1 ring-status-warning/50' : ''
                     }`}
                   >
                     {line}
@@ -300,10 +300,10 @@ export function LogsDrawer({
 
         <div className="mt-4 space-y-4">
           {jumpTimestamp && (
-            <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-md p-2 flex items-center justify-between">
+            <div className="bg-status-warning/10 border border-status-warning/30 rounded-md p-2 flex items-center justify-between">
               <div className="text-xs flex items-center gap-2">
-                <span className="font-medium text-yellow-600 dark:text-yellow-400">Jumped to moment:</span>
-                <code className="text-[10px] bg-yellow-500/20 px-1 rounded">
+                <span className="font-medium text-status-warning">Jumped to moment:</span>
+                <code className="text-[10px] bg-status-warning/15 text-foreground px-1 rounded">
                   {new Date(jumpTimestamp).toLocaleString()}
                 </code>
                 {initialJumpMetric && (
@@ -315,7 +315,7 @@ export function LogsDrawer({
               <Button 
                 variant="ghost" 
                 size="sm" 
-                className="h-6 text-[10px] hover:bg-yellow-500/20"
+                className="h-6 text-[10px] hover:bg-status-warning/15"
                 onClick={() => {
                   setSince("3600");
                   setJumpTimestamp(null);

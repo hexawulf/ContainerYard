@@ -27,6 +27,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 
 interface StackSummary {
@@ -58,7 +59,7 @@ function HealthBadge({ status }: { status: StackSummary["healthStatus"] }) {
   const config = {
     healthy: { icon: CheckCircle2, variant: "default" as const, label: "Healthy", className: "" },
     unhealthy: { icon: AlertCircle, variant: "destructive" as const, label: "Unhealthy", className: "" },
-    partial: { icon: Activity, variant: "outline" as const, label: "Partial", className: "text-yellow-600 border-yellow-600" },
+    partial: { icon: Activity, variant: "outline" as const, label: "Partial", className: "text-status-warning border-status-warning/40 bg-status-warning/10" },
     unknown: { icon: AlertCircle, variant: "secondary" as const, label: "Unknown", className: "" },
   };
 
@@ -86,11 +87,11 @@ function ContainerRow({
   onInspectClick: () => void;
 }) {
   const stateColor = {
-    running: "text-green-600",
-    exited: "text-gray-500",
-    restarting: "text-yellow-600",
-    paused: "text-blue-600",
-  }[container.state] || "text-gray-500";
+    running: "text-status-running border-status-running/30 bg-status-running/10",
+    exited: "text-muted-foreground border-border bg-muted/50",
+    restarting: "text-status-warning border-status-warning/30 bg-status-warning/10",
+    paused: "text-status-info border-status-info/30 bg-status-info/10",
+  }[container.state] || "text-muted-foreground border-border bg-muted/50";
 
   return (
     <div
@@ -248,14 +249,14 @@ function StackCard({
               </Button>
             </div>
           </div>
-          <div className="flex gap-4 text-sm text-muted-foreground mt-2">
+          <div className="flex flex-wrap gap-4 text-sm text-muted-foreground mt-2">
             <span>{stack.containerCount} containers</span>
-            <span className="text-green-600">{stack.runningCount} running</span>
+            <span className="text-status-running font-medium">{stack.runningCount} running</span>
             {stack.stoppedCount > 0 && (
-              <span className="text-gray-600">{stack.stoppedCount} stopped</span>
+              <span className="text-muted-foreground">{stack.stoppedCount} stopped</span>
             )}
             {stack.restartingCount > 0 && (
-              <span className="text-yellow-600">{stack.restartingCount} restarting</span>
+              <span className="text-status-warning font-medium">{stack.restartingCount} restarting</span>
             )}
           </div>
         </CardHeader>
@@ -296,8 +297,10 @@ export function StackView({
   if (isLoading) {
     return (
       <Card>
-        <CardContent className="p-6">
-          <p className="text-sm text-muted-foreground">Loading stacks...</p>
+        <CardContent className="p-6 space-y-3">
+          <Skeleton className="h-6 w-40" />
+          <Skeleton className="h-14 w-full" />
+          <Skeleton className="h-14 w-full" />
         </CardContent>
       </Card>
     );

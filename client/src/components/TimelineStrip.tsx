@@ -90,13 +90,13 @@ export function TimelineStrip({ stats, events = [], onSpikeClick, onTimestampCli
   const getEventIcon = (type: string) => {
     switch (type) {
       case 'start':
-        return <PlayCircle className="h-3 w-3 text-[hsl(142,76%,45%)]" />;
+        return <PlayCircle className="h-3 w-3 text-status-running" />;
       case 'stop':
         return <StopCircle className="h-3 w-3 text-muted-foreground" />;
       case 'health':
-        return <AlertCircle className="h-3 w-3 text-[hsl(0,84%,60%)]" />;
+        return <AlertCircle className="h-3 w-3 text-status-danger" />;
       case 'restart':
-        return <Activity className="h-3 w-3 text-[hsl(38,92%,50%)]" />;
+        return <Activity className="h-3 w-3 text-status-warning" />;
       default:
         return null;
     }
@@ -119,7 +119,7 @@ export function TimelineStrip({ stats, events = [], onSpikeClick, onTimestampCli
           title="Click to jump logs to this time"
         >
           <div className="flex items-center gap-2 mb-1">
-            <Activity className="h-3 w-3 text-[hsl(217,91%,60%)]" />
+            <Activity className="h-3 w-3 text-[hsl(var(--chart-1))]" />
             <span className="text-xs text-muted-foreground">CPU %</span>
           </div>
           <ResponsiveContainer width="100%" height={70}>
@@ -140,7 +140,7 @@ export function TimelineStrip({ stats, events = [], onSpikeClick, onTimestampCli
               <Line 
                 type="monotone" 
                 dataKey="cpu" 
-                stroke="hsl(217,91%,60%)" 
+                stroke="hsl(var(--chart-1))" 
                 strokeWidth={2} 
                 dot={false}
                 isAnimationActive={false}
@@ -155,7 +155,7 @@ export function TimelineStrip({ stats, events = [], onSpikeClick, onTimestampCli
           title="Click to jump logs to this time"
         >
           <div className="flex items-center gap-2 mb-1">
-            <HardDrive className="h-3 w-3 text-[hsl(142,76%,45%)]" />
+            <HardDrive className="h-3 w-3 text-[hsl(var(--chart-2))]" />
             <span className="text-xs text-muted-foreground">Memory %</span>
           </div>
           <ResponsiveContainer width="100%" height={70}>
@@ -176,7 +176,7 @@ export function TimelineStrip({ stats, events = [], onSpikeClick, onTimestampCli
               <Line 
                 type="monotone" 
                 dataKey="mem" 
-                stroke="hsl(142,76%,45%)" 
+                stroke="hsl(var(--chart-2))" 
                 strokeWidth={2} 
                 dot={false}
                 isAnimationActive={false}
@@ -191,7 +191,7 @@ export function TimelineStrip({ stats, events = [], onSpikeClick, onTimestampCli
           title="Click to jump logs to this time"
         >
           <div className="flex items-center gap-2 mb-1">
-            <Network className="h-3 w-3 text-[hsl(199,89%,48%)]" />
+            <Network className="h-3 w-3 text-[hsl(var(--chart-5))]" />
             <span className="text-xs text-muted-foreground">Network KB/s</span>
           </div>
           <ResponsiveContainer width="100%" height={70}>
@@ -212,7 +212,7 @@ export function TimelineStrip({ stats, events = [], onSpikeClick, onTimestampCli
               <Line 
                 type="monotone" 
                 dataKey="net" 
-                stroke="hsl(199,89%,48%)" 
+                stroke="hsl(var(--chart-5))" 
                 strokeWidth={2} 
                 dot={false}
                 isAnimationActive={false}
@@ -259,9 +259,9 @@ export function TimelineStrip({ stats, events = [], onSpikeClick, onTimestampCli
             
             const getColor = (metric: string) => {
               switch (metric) {
-                case 'cpu': return 'hsl(217,91%,60%)';
-                case 'mem': return 'hsl(142,76%,45%)';
-                case 'net': return 'hsl(199,89%,48%)';
+                case 'cpu': return 'hsl(var(--chart-1))';
+                case 'mem': return 'hsl(var(--chart-2))';
+                case 'net': return 'hsl(var(--chart-5))';
                 default: return 'hsl(var(--primary))';
               }
             };
