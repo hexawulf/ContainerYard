@@ -28,7 +28,7 @@ interface HostLogsListResponse {
 const LOG_DESCRIPTIONS: Record<string, { title: string; description: string }> = {
   nginx_access: {
     title: "Nginx Access Log",
-    description: "HTTP requests to container.piapps.dev"
+    description: "HTTP access log requests"
   },
   nginx_error: {
     title: "Nginx Error Log",

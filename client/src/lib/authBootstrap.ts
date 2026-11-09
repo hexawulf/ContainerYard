@@ -20,7 +20,6 @@ export async function bootstrapRuntimeConfig() {
         apiBase: window.location.origin,
         appName: 'ContainerYard',
         autoDismiss: 'true',
-        hosts: [],
         features: {}
       };
       
@@ -28,7 +27,6 @@ export async function bootstrapRuntimeConfig() {
       (window as any).__CY_API_BASE__ = cfg?.apiBase || defaultConfig.apiBase;
       (window as any).__CY_APP_NAME__ = cfg?.appName || defaultConfig.appName;
       (window as any).__CY_AUTO_DISMISS__ = cfg?.autoDismiss ?? defaultConfig.autoDismiss;
-      (window as any).__CY_HOSTS__ = Array.isArray(cfg?.hosts) ? cfg.hosts : defaultConfig.hosts;
       (window as any).__CY_FEATURES__ = cfg?.features || defaultConfig.features;
     } catch (error) {
       console.warn('[RuntimeConfig] Failed to load runtime config, using defaults:', error);
@@ -36,7 +34,6 @@ export async function bootstrapRuntimeConfig() {
       (window as any).__CY_API_BASE__ = window.location.origin;
       (window as any).__CY_APP_NAME__ = 'ContainerYard';
       (window as any).__CY_AUTO_DISMISS__ = 'true';
-      (window as any).__CY_HOSTS__ = [];
       (window as any).__CY_FEATURES__ = {};
     }
   }

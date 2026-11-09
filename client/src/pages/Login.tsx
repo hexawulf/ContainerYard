@@ -59,6 +59,7 @@ export default function Login() {
       clearCsrfToken();
       await prefetchCsrfToken();
       queryClient.setQueryData(["/api/auth/me"], data);
+      queryClient.removeQueries({ queryKey: ["/api/hosts"] });
       setLocation("/dashboard");
     } catch (err: any) {
       if (err instanceof ApiError) {

@@ -120,7 +120,7 @@ export const getQueryFn: <T>(options: {
     }
     
     // Join segments with `/`, properly encoding any special characters
-    // For paths like: ["/api/hosts", "piapps2", "containers", "/system.slice/docker-xxx.scope"]
+    // For paths like: ["/api/hosts", "edge-01", "containers", "/system.slice/docker-xxx.scope"]
     // We need to encode the container ID part but not the path structure
     const fullPath = pathSegments
       .map((seg, idx) => {

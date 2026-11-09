@@ -59,6 +59,7 @@ vite.config.ts.*
 # Temporary files
 .tmp/
 .temp/
+.cy-dev/
 # Build artifacts
 /dist
 /server/index.js

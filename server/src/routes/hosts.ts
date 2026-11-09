@@ -16,9 +16,8 @@ import type { NormalizedStats, HostStats } from "@shared/monitoring";
 
 const router = Router();
 
-router.get("/", (_req, res) => {
-  // Always return hosts array, even for unauthenticated requests
-  // This allows the UI to show available hosts before authentication
+router.get("/", requireAuth, (_req, res) => {
+  // Return configured hosts only to authenticated sessions
   res.json(listHosts());
 });
 
