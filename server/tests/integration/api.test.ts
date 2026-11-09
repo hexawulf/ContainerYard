@@ -16,10 +16,15 @@
  */
 import { test, before } from "node:test";
 import assert from "node:assert/strict";
+import dotenv from "dotenv";
+
+if (process.env.CY_USE_ENV_ADMIN === "1") {
+  dotenv.config();
+}
 
 const BASE = (process.env.CY_BASE_URL ?? "http://127.0.0.1:5008").replace(/\/+$/, "");
-const EMAIL = process.env.CY_TEST_EMAIL;
-const PASSWORD = process.env.CY_TEST_PASSWORD;
+const EMAIL = process.env.CY_TEST_EMAIL ?? (process.env.CY_USE_ENV_ADMIN === "1" ? process.env.ADMIN_EMAIL : undefined);
+const PASSWORD = process.env.CY_TEST_PASSWORD ?? (process.env.CY_USE_ENV_ADMIN === "1" ? process.env.ADMIN_PASSWORD : undefined);
 const HOST = process.env.CY_TEST_HOST ?? "piapps";
 const CONTAINER = process.env.CY_TEST_CONTAINER;
 const ALLOW_ACTIONS = process.env.CY_TEST_ALLOW_ACTIONS === "1" && !!CONTAINER?.startsWith("cy-test");
@@ -194,6 +199,202 @@ test("audit log is readable by ADMIN", { skip: skipAll }, async () => {
   assert.equal(res.status, 200);
   const { entries } = (await res.json()) as { entries: Array<{ action: string }> };
   assert.ok(entries.some((e) => e.action === "auth.login"));
+});
+
+// ---------- user admin, password change & session revocation ----------
+
+test("user lifecycle: create viewer, RBAC, password change + session revocation, role change, reset, guards, delete & audit", { skip: skipAll }, async () => {
+  const testEmail = "cy-test-viewer@example.invalid";
+  const initialPassword = "CyTestInitial_Pass_01!";
+  const updatedPassword = "CyTestUpdated_Pass_02!";
+  const resetPassword = "CyTestReset_Pass_03!";
+  let createdUserId = "";
+
+  // Clean up any leftover test user from an interrupted run before starting
+  const initialUsers = (await (await admin.req("/api/users")).json()) as Array<{ id: string; email: string }>;
+  const leftover = initialUsers.find((u) => u.email === testEmail);
+  if (leftover) {
+    await admin.mutate(`/api/users/${leftover.id}`, "DELETE");
+  }
+
+  try {
+    // 1. Admin creates a cy-test VIEWER (and verify no password/totpSecret in response)
+    const createRes = await admin.mutate("/api/users", "POST", {
+      email: testEmail,
+      role: "VIEWER",
+      password: initialPassword,
+    });
+    assert.equal(createRes.status, 201);
+    const createdUser = (await createRes.json()) as Record<string, unknown>;
+    assert.equal(createdUser.email, testEmail);
+    assert.equal(createdUser.role, "VIEWER");
+    assert.equal("password" in createdUser, false, "password hash must never be returned");
+    assert.equal("totpSecret" in createdUser, false, "totpSecret must never be returned");
+    createdUserId = String(createdUser.id);
+
+    // Duplicate email -> 409
+    const dupRes = await admin.mutate("/api/users", "POST", {
+      email: testEmail,
+      role: "VIEWER",
+      password: initialPassword,
+    });
+    assert.equal(dupRes.status, 409);
+
+    // 2. Log in as VIEWER in two separate cookie jars (two active sessions)
+    const viewerSessionA = new Client();
+    await viewerSessionA.refreshCsrf();
+    assert.equal(
+      (await viewerSessionA.mutate("/api/auth/login", "POST", { email: testEmail, password: initialPassword })).status,
+      200,
+    );
+    await viewerSessionA.refreshCsrf();
+
+    const viewerSessionB = new Client();
+    await viewerSessionB.refreshCsrf();
+    assert.equal(
+      (await viewerSessionB.mutate("/api/auth/login", "POST", { email: testEmail, password: initialPassword })).status,
+      200,
+    );
+    await viewerSessionB.refreshCsrf();
+
+    // Create a bookmark & saved search as VIEWER so we can verify cascade delete later
+    assert.equal(
+      (await viewerSessionA.mutate("/api/bookmarks", "POST", {
+        containerId: "cy-test-container",
+        timestamp: new Date().toISOString(),
+        note: "viewer-bookmark",
+      })).status,
+      201,
+    );
+    assert.equal(
+      (await viewerSessionA.mutate("/api/saved-searches", "POST", {
+        name: "viewer-search",
+        query: "level:error",
+      })).status,
+      201,
+    );
+
+    // 3. VIEWER gets 403 on /api/users
+    assert.equal((await viewerSessionA.req("/api/users")).status, 403);
+    assert.equal(
+      (await viewerSessionA.mutate("/api/users", "POST", {
+        email: "another@example.invalid",
+        role: "VIEWER",
+        password: initialPassword,
+      })).status,
+      403,
+    );
+
+    // 4. VIEWER changes own password: wrong current = 401, short = 400, same = 400, >72B = 400, ok = 200
+    assert.equal(
+      (await viewerSessionA.mutate("/api/auth/change-password", "POST", {
+        currentPassword: "WrongCurrentPassword_99!",
+        newPassword: updatedPassword,
+      })).status,
+      401,
+    );
+    assert.equal(
+      (await viewerSessionA.mutate("/api/auth/change-password", "POST", {
+        currentPassword: initialPassword,
+        newPassword: "short",
+      })).status,
+      400,
+    );
+    assert.equal(
+      (await viewerSessionA.mutate("/api/auth/change-password", "POST", {
+        currentPassword: initialPassword,
+        newPassword: initialPassword,
+      })).status,
+      400,
+    );
+    assert.equal(
+      (await viewerSessionA.mutate("/api/auth/change-password", "POST", {
+        currentPassword: initialPassword,
+        newPassword: "🐳".repeat(19), // 76 UTF-8 bytes
+      })).status,
+      400,
+    );
+
+    const changeOk = await viewerSessionA.mutate("/api/auth/change-password", "POST", {
+      currentPassword: initialPassword,
+      newPassword: updatedPassword,
+    });
+    assert.equal(changeOk.status, 200);
+    await viewerSessionA.refreshCsrf();
+
+    // Old session in second cookie jar (viewerSessionB) is now revoked (401)
+    assert.equal((await viewerSessionB.req("/api/auth/me")).status, 401);
+    assert.equal((await viewerSessionB.req("/api/bookmarks")).status, 401);
+
+    // Caller's own session (viewerSessionA) remains authenticated (200)
+    assert.equal((await viewerSessionA.req("/api/auth/me")).status, 200);
+    assert.equal((await viewerSessionA.req("/api/bookmarks")).status, 200);
+
+    // 5. Admin promotes VIEWER -> ADMIN and demotes ADMIN -> VIEWER (bumps sessionVersion)
+    const promoteRes = await admin.mutate(`/api/users/${createdUserId}`, "PATCH", { role: "ADMIN" });
+    assert.equal(promoteRes.status, 200);
+    assert.equal(((await promoteRes.json()) as { role: string }).role, "ADMIN");
+
+    // Role change bumped sessionVersion, so viewerSessionA is revoked (401)
+    assert.equal((await viewerSessionA.req("/api/auth/me")).status, 401);
+
+    const demoteRes = await admin.mutate(`/api/users/${createdUserId}`, "PATCH", { role: "VIEWER" });
+    assert.equal(demoteRes.status, 200);
+    assert.equal(((await demoteRes.json()) as { role: string }).role, "VIEWER");
+
+    // 6. Admin resets password for test user
+    const resetRes = await admin.mutate(`/api/users/${createdUserId}/reset-password`, "POST", {
+      newPassword: resetPassword,
+    });
+    assert.equal(resetRes.status, 200);
+
+    // Test user can log in with the reset password
+    const viewerSessionC = new Client();
+    await viewerSessionC.refreshCsrf();
+    assert.equal(
+      (await viewerSessionC.mutate("/api/auth/login", "POST", { email: testEmail, password: resetPassword })).status,
+      200,
+    );
+
+    // 7. Self-delete & self-demote guards (403) and last-admin guards
+    const adminMe = (await (await admin.req("/api/auth/me")).json()) as { user: { id: string; email: string } };
+    assert.equal((await admin.mutate(`/api/users/${adminMe.user.id}`, "DELETE")).status, 403);
+    assert.equal(
+      (await admin.mutate(`/api/users/${adminMe.user.id}`, "PATCH", { role: "VIEWER" })).status,
+      403,
+    );
+
+    // 8. Delete test user cleans up user + bookmarks + saved searches
+    const delRes = await admin.mutate(`/api/users/${createdUserId}`, "DELETE");
+    assert.equal(delRes.status, 200);
+    createdUserId = "";
+
+    // Revoked session after delete returns 401
+    assert.equal((await viewerSessionC.req("/api/auth/me")).status, 401);
+
+    // 9. Verify audit log entries for all mutations
+    const auditRes = await admin.req("/api/audit?limit=50");
+    assert.equal(auditRes.status, 200);
+    const { entries } = (await auditRes.json()) as {
+      entries: Array<{ action: string; outcome: string; target: string | null }>;
+    };
+    for (const expectedAction of [
+      "auth.password_change",
+      "user.create",
+      "user.role_change",
+      "user.password_reset",
+      "user.delete",
+    ]) {
+      assert.ok(
+        entries.some((e) => e.action === expectedAction && e.target === testEmail),
+        `missing audit entry for ${expectedAction} on ${testEmail}`,
+      );
+    }
+  } finally {
+    if (createdUserId) {
+      await admin.mutate(`/api/users/${createdUserId}`, "DELETE");
+    }
+  }
 });
 
 // ---------- container actions (opt-in, cy-test* only) ----------
