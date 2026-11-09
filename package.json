@@ -27,7 +27,7 @@
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.4",
-    "@prisma/client": "^6.17.1",
+    "@prisma/client": "^7.10.1",
     "@radix-ui/react-alert-dialog": "^1.1.7",
     "@radix-ui/react-collapsible": "^1.1.4",
     "@radix-ui/react-dialog": "^1.1.7",
