@@ -1,14 +1,14 @@
 [![Website](https://img.shields.io/badge/website-containeryard.org-blue)](https://containeryard.org)
 [![GitHub](https://img.shields.io/github/stars/hexawulf/ContainerYard?style=social)](https://github.com/hexawulf/ContainerYard)
 
-# ContainerYard 4.0 🐳
+# ContainerYard 5.0 🐳
 
 > A complete Docker stack monitoring platform with log analysis, alerting, and historical trends
 
-[![Release](https://img.shields.io/badge/release-v4.0.2-brightgreen)](https://github.com/hexawulf/ContainerYard/releases/tag/v4.0.2)
+[![Release](https://img.shields.io/github/v/release/hexawulf/ContainerYard?label=release&color=brightgreen)](https://github.com/hexawulf/ContainerYard/releases/latest)
 [![Docker Hub](https://img.shields.io/badge/docker-0xwulf%2Fcontaineryard-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/0xwulf/containeryard)
 
-**ContainerYard 4.0** ships official multi-arch Docker images (`0xwulf/containeryard` for `linux/amd64` and `linux/arm64`) with a hardened non-root runtime, bundled Redis session store, automated Prisma schema sync + bootstrap seeding at container start, environment-driven host log paths, and GitHub Actions CI/CD with SBOM and provenance attestations. **3.2** introduced a light-by-default theme system with a persistent light/dark mode toggle on every page, zero flash on load, a full WCAG AA UI refresh across both themes, and a unified top-right header action bar (About modal with build metadata & diagnostics, self-service password change, ADMIN user management, and instant `sessionVersion` session revocation). **3.1** added per-container lifecycle actions, an audit log, working Log Moment bookmarks, restored CSRF enforcement, and SSRF-safe webhooks. **3.0** brought multi-host monitoring (Docker + cAdvisor-only hosts) and SQLite as a first-class database. See [What's new in 4.0](#-whats-new-in-40), [3.2](#-whats-new-in-32), [3.1](#-whats-new-in-31), and [3.0](#-whats-new-in-30).
+**ContainerYard 5.0** replaces the built-in host list with generic, environment-driven host configuration (`CY_LOCAL_HOST_ID`, `CY_LOCAL_HOST_NAME`, `CY_REMOTE_HOSTS`), keeps the host inventory behind login, slims the runtime image (no npm/yarn/corepack, Debian security updates at build time), and moves to zod 4. **4.0** shipped official multi-arch Docker images (`0xwulf/containeryard` for `linux/amd64` and `linux/arm64`) with a hardened non-root runtime, bundled Redis session store, automated Prisma schema sync + bootstrap seeding at container start, environment-driven host log paths, and GitHub Actions CI/CD with SBOM and provenance attestations. **3.2** introduced a light-by-default theme system with a persistent light/dark mode toggle on every page, zero flash on load, a full WCAG AA UI refresh across both themes, and a unified top-right header action bar (About modal with build metadata & diagnostics, self-service password change, ADMIN user management, and instant `sessionVersion` session revocation). **3.1** added per-container lifecycle actions, an audit log, working Log Moment bookmarks, restored CSRF enforcement, and SSRF-safe webhooks. **3.0** brought multi-host monitoring (Docker + cAdvisor-only hosts) and SQLite as a first-class database. See [What's new in 5.0](#-whats-new-in-50), [4.0](#-whats-new-in-40), [3.2](#-whats-new-in-32), [3.1](#-whats-new-in-31), and [3.0](#-whats-new-in-30).
 
 ContainerYard is a comprehensive Docker observability platform that goes beyond simple log viewing. It provides Docker Compose stack management, proactive alerting, historical metrics analysis, and real-time log streaming—all in one sleek, developer-friendly interface. Built with React 18 and Express, it bridges the gap between lightweight viewers and enterprise monitoring solutions.
 
@@ -61,6 +61,30 @@ ContainerYard is a comprehensive Docker observability platform that goes beyond 
 - 🔄 **Restart Comparison** - Before/after restart analysis with error pattern detection
 - 💾 **Saved Searches** - Persist search queries with PostgreSQL for quick reuse
 - 🌐 **Environment Viewer** - Search, filter, and bulk export container environment variables
+
+## 🆕 What's New in 5.0
+
+### Generic host configuration (breaking)
+- **No built-in hosts any more.** The local Docker host is `CY_LOCAL_HOST_ID` (default `local`) / `CY_LOCAL_HOST_NAME` (default `Local Docker`). Remote read-only hosts come from `CY_REMOTE_HOSTS`, a JSON array validated at startup:
+  ```bash
+  CY_LOCAL_HOST_ID=local
+  CY_LOCAL_HOST_NAME="Local Docker"
+  CY_REMOTE_HOSTS=[{"id":"edge-01","name":"Edge 01","cadvisorUrl":"http://cadvisor.example.internal:8080","dozzleUrl":"https://dozzle.example.com"},{"id":"nas-01","name":"NAS 01","cadvisorUrl":"http://nas.example.internal:9818"}]
+  ```
+  IDs must match `/^[a-z0-9-]{1,32}$/` and be unique, URLs must be valid, and `dozzleUrl` is optional. "Open in Dozzle" links go to `<dozzleUrl>/container/<12-char id>`.
+- **Neutral defaults:** host logs default to `access.log` / `error.log` under `HOSTLOG_NGINX_DIR`, `HOSTLOGS_LOCAL_HOST` defaults to `CY_LOCAL_HOST_ID`, and the optional host-log overlay is `deploy/hostlogs/docker-compose.hostlogs.yml`.
+
+### Security
+- **Host inventory requires login** (since 4.2): `GET /api/hosts` returns `401` when signed out, and `/api/runtime-config` no longer lists hosts.
+- **cAdvisor hosts list only real containers** (since 4.1.1): parent `docker` cgroups and daemon units are ignored.
+- **Slimmer runtime image:** npm, npx, corepack and yarn are removed from the runtime stage, and `apt-get upgrade` runs at build time. This clears every npm-package finding the base image's bundled npm brought in; what remains is Debian base-image packages without a published fix.
+- **zod 4** (fixes GHSA-mrhx-c7xc-m3w5) with `drizzle-zod` 0.8, plus a scoped `deepmerge-ts` 8 override for Prisma's config loader. Validation error responses keep the same JSON shape.
+
+### Upgrading from 4.x
+1. Back up `.env` and the database (`scripts/docker-deploy.sh` backs up `cy-data` automatically).
+2. Translate the old per-host variables (`<HOST>_CADVISOR_URL` / `<HOST>_DOZZLE_URL`) into `CY_REMOTE_HOSTS` entries. **Keep the same host IDs** so saved UI state (selected host, bookmarks) still matches.
+3. Set `CY_LOCAL_HOST_ID` / `CY_LOCAL_HOST_NAME` if your local host isn't `local`, and set `HOSTLOG_NGINX_ACCESS_FILE` / `HOSTLOG_NGINX_ERROR_FILE` if you use the Host Logs page.
+4. Remove the old per-host variables, then deploy: `scripts/docker-deploy.sh 5.0.0 --dry-run`, then without `--dry-run`.
 
 ## 🆕 What's New in 4.0
 
@@ -174,7 +198,7 @@ npm run build && pm2 restart containeryard-api
 ContainerYard is published to Docker Hub as **[`0xwulf/containeryard`](https://hub.docker.com/r/0xwulf/containeryard)** (`linux/amd64` and `linux/arm64`).
 
 ```bash
-cp .env.example .env && nano .env     # Set SESSION_SECRET, REDIS_PASSWORD, ADMIN_*, ALLOWED_ORIGINS, CADVISOR_URLs
+cp .env.example .env && nano .env     # Set SESSION_SECRET, REDIS_PASSWORD, ADMIN_*, ALLOWED_ORIGINS, optional CY_REMOTE_HOSTS
 docker compose pull
 docker compose up -d
 ```
