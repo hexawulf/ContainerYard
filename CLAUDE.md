@@ -6,25 +6,27 @@ ContainerYard is a Docker container observability dashboard built with TypeScrip
 
 **Architecture**: Simple full-stack project (not a monorepo) with clear separation between client, server, shared types, and E2E tests.
 
-**Production Deployment**: PM2 runs the built `dist/` artifacts on an internal port (e.g., 5008), reverse-proxied by Nginx. See PM2 config and Nginx site configs for details.
+**Production Deployment**: Deployed via Docker Compose (`0xwulf/containeryard` + `redis:7-alpine`, bound to `127.0.0.1:5008`) or legacy PM2 (`ecosystem.config.cjs`), reverse-proxied by Nginx. See `DEPLOYMENT.md` for details.
 
 ## Essential Commands
 
 ```bash
-# Install dependencies
-npm install
+# Install dependencies (generates Prisma client via postinstall)
+npm ci
 
-# Generate Prisma client (runs automatically via postinstall)
-npm run postinstall
-
-# Start development server (client + server on http://localhost:5000)
+# Start development server (client + server on http://localhost:5008)
 npm run dev
 
 # Type checking (TypeScript strict mode)
 npm run check
+npm run check:tests
 
 # Linting (ESLint with React Hooks rules)
 npm run lint
+
+# Unit & live integration tests
+npm test
+npm run test:integration
 
 # E2E testing (Playwright)
 npm run e2e
@@ -34,6 +36,10 @@ npm run build
 
 # Check for circular dependencies
 npx madge client/src --circular
+
+# Docker Compose deployment
+docker compose up -d
+scripts/docker-deploy.sh 4.0.0 --dry-run
 ```
 
 ## Codebase Structure

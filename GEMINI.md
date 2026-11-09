@@ -1,24 +1,30 @@
-# Install dependencies
-npm install
-
-# (Prisma client is generated via postinstall, but you can re-run if needed)
-npm run postinstall
+# Install dependencies (generates Prisma client via postinstall)
+npm ci
 
 # Start dev servers (client + server; proxied on dev port)
-npm run dev     # typically http://localhost:5000
+npm run dev     # typically http://localhost:5008
 
 # Type checking
 npm run check   # TypeScript strict mode
+npm run check:tests
 
 # Linting
 npm run lint    # ESLint (React Hooks rules enabled)
+
+# Unit & integration tests
+npm test
+npm run test:integration
 
 # Run E2E tests (Playwright)
 npm run e2e
 
 # Build for production (server + client + verification)
 npm run build
-Production on the Pi is run via PM2 using the built dist/ artifacts and a PORT from .env (currently bound to an internal port like 5008 and reverse-proxied by Nginx).
+
+# Docker Compose (v4.0+ primary deployment)
+docker compose up -d
+scripts/docker-deploy.sh 4.0.0 --dry-run
+Production on the Pi runs via Docker Compose (`0xwulf/containeryard` + `redis:7-alpine` bound to `127.0.0.1:5008` and reverse-proxied by Nginx; legacy PM2 config remains in `ecosystem.config.cjs`).
 
 Codebase Layout (Mental Map)
 client/ – React 18 + Vite UI

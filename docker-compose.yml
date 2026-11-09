@@ -1,0 +1,130 @@
+# ContainerYard — Production Docker Compose stack
+#
+# Quick start:
+#   cp .env.example .env && nano .env
+#   docker compose up -d
+#
+# Security note:
+#   By default, /var/run/docker.sock is mounted directly so ContainerYard can
+#   inspect containers, stream logs, and execute ADMIN container/stack lifecycle
+#   actions. Access to the Docker socket is root-equivalent on the host.
+#   See the commented `socket-proxy` example below if you want to interpose a
+#   filtering proxy.
+
+services:
+  app:
+    image: 0xwulf/containeryard:${CY_TAG:-latest}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - ${CY_ENV_FILE:-.env}
+    environment:
+      NODE_ENV: production
+      PORT: "5008"
+      DATABASE_URL: ${CY_DATABASE_URL:-file:/data/app.db}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      DOCKER_HOST: ${DOCKER_HOST:-unix:///var/run/docker.sock}
+    ports:
+      - "${CY_BIND:-127.0.0.1}:${CY_PORT:-5008}:5008"
+    volumes:
+      - cy-data:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Optional: mount host nginx and PM2 logs read-only for the Host Logs page
+      # (or use `-f docker-compose.yml -f deploy/piapps/docker-compose.piapps.yml`):
+      # - /var/log/nginx:/host/nginx:ro
+      # - ${PM2_LOGS:-/home/zk/.pm2/logs}:/host/pm2:ro
+    group_add:
+      - "${DOCKER_GID:-113}"
+      - "${ADM_GID:-4}"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - cy-internal
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    labels:
+      com.centurylinklabs.watchtower.enable: "false"
+
+  redis:
+    image: redis:7-alpine@sha256:c5d34a98396a4775e223c74e929162c35c5a2182901ba26b50ade939941ce14b
+    command:
+      - redis-server
+      - --requirepass
+      - ${REDIS_PASSWORD:?REDIS_PASSWORD must be set in .env}
+      - --appendonly
+      - "yes"
+      - --save
+      - "60"
+      - "100"
+    volumes:
+      - cy-redis:/data
+    environment:
+      REDISCLI_AUTH: ${REDIS_PASSWORD}
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    cap_drop:
+      - ALL
+    cap_add:
+      - SETUID
+      - SETGID
+      - DAC_OVERRIDE
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    networks:
+      - cy-internal
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    labels:
+      com.centurylinklabs.watchtower.enable: "false"
+
+  # Optional: Docker Socket Proxy (example only).
+  # Note: Dockerode uses unix sockets; to use a TCP socket proxy you would need a
+  # socat UNIX-to-TCP bridge or Dockerode TCP support. Kept as a documented
+  # reference for environments that restrict raw socket calls.
+  # socket-proxy:
+  #   image: tecnativa/docker-socket-proxy:latest
+  #   profiles: ["socket-proxy"]
+  #   environment:
+  #     CONTAINERS: 1
+  #     INFO: 1
+  #     POST: 1       # set to 0 for strictly read-only monitoring (disables start/stop/restart)
+  #     EXEC: 0
+  #   volumes:
+  #     - /var/run/docker.sock:/var/run/docker.sock:ro
+  #   networks:
+  #     - cy-internal
+  #   restart: unless-stopped
+  #   labels:
+  #     com.centurylinklabs.watchtower.enable: "false"
+
+volumes:
+  cy-data:
+  cy-redis:
+
+networks:
+  cy-internal:
+    driver: bridge

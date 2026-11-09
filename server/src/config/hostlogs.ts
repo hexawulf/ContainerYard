@@ -7,9 +7,9 @@
  * read them by exec'ing `tail` in a "cadvisor" container that does not exist
  * on piapps, so the page never worked.
  *
- * PM2 file names include the process name and sometimes a numeric suffix
- * (containeryard-api-out-9.log), so they are resolved at request time to the
- * most recently written matching file instead of being hard-coded.
+ * All paths are configurable via environment variables so containerized
+ * deployments can bind-mount host log directories read-only (e.g. /host/nginx
+ * and /host/pm2) while PM2 deployments use the defaults seamlessly.
  */
 import fs from "fs";
 import os from "os";
@@ -17,24 +17,36 @@ import path from "path";
 
 export const LOCAL_HOST_ID = process.env.HOSTLOGS_LOCAL_HOST ?? "piapps";
 
-const PM2_LOG_DIR = process.env.PM2_LOG_DIR ?? path.join(os.homedir(), ".pm2", "logs");
-const PM2_APP_NAME = process.env.PM2_APP_NAME ?? "containeryard-api";
+export function getNginxLogDir(env: NodeJS.ProcessEnv = process.env): string {
+  return env.HOSTLOG_NGINX_DIR ?? "/var/log/nginx";
+}
 
-type Source = string | (() => string | null);
+export function getNginxAccessFile(env: NodeJS.ProcessEnv = process.env): string {
+  return env.HOSTLOG_NGINX_ACCESS_FILE ?? "container.piapps.dev.access.log";
+}
 
-const LOCAL_SOURCES: Record<string, Source> = {
-  nginx_access: "/var/log/nginx/container.piapps.dev.access.log",
-  nginx_error: "/var/log/nginx/container.piapps.dev.error.log",
-  pm2_out: () => newestPm2Log("out"),
-  pm2_err: () => newestPm2Log("error"),
-};
+export function getNginxErrorFile(env: NodeJS.ProcessEnv = process.env): string {
+  return env.HOSTLOG_NGINX_ERROR_FILE ?? "container.piapps.dev.error.log";
+}
+
+export function getPm2LogDir(env: NodeJS.ProcessEnv = process.env): string {
+  return env.PM2_LOG_DIR ?? path.join(os.homedir(), ".pm2", "logs");
+}
+
+export function getPm2AppName(env: NodeJS.ProcessEnv = process.env): string {
+  return env.PM2_APP_NAME ?? "containeryard-api";
+}
 
 function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 /** Most recently modified <app>-<kind>[-N].log (rotated .gz files excluded). */
-export function newestPm2Log(kind: "out" | "error", dir = PM2_LOG_DIR, app = PM2_APP_NAME): string | null {
+export function newestPm2Log(
+  kind: "out" | "error",
+  dir = getPm2LogDir(),
+  app = getPm2AppName(),
+): string | null {
   const rx = new RegExp(`^${escapeRegex(app)}-${kind}(-\\d+)?\\.log$`);
   let best: { file: string; mtime: number } | null = null;
   let entries: string[];
@@ -57,10 +69,26 @@ export function newestPm2Log(kind: "out" | "error", dir = PM2_LOG_DIR, app = PM2
 }
 
 /** name -> absolute file path for a host ({} for hosts without local logs). */
-export function resolveHostLogs(hostId: string): Record<string, string> {
-  if (hostId !== LOCAL_HOST_ID) return {};
+export function resolveHostLogs(
+  hostId: string,
+  env: NodeJS.ProcessEnv = process.env,
+): Record<string, string> {
+  const localHostId = env.HOSTLOGS_LOCAL_HOST ?? LOCAL_HOST_ID;
+  if (hostId !== localHostId) return {};
+
+  const nginxDir = getNginxLogDir(env);
+  const pm2Dir = getPm2LogDir(env);
+  const pm2App = getPm2AppName(env);
+
+  const sources: Record<string, string | (() => string | null)> = {
+    nginx_access: path.join(nginxDir, getNginxAccessFile(env)),
+    nginx_error: path.join(nginxDir, getNginxErrorFile(env)),
+    pm2_out: () => newestPm2Log("out", pm2Dir, pm2App),
+    pm2_err: () => newestPm2Log("error", pm2Dir, pm2App),
+  };
+
   const out: Record<string, string> = {};
-  for (const [name, source] of Object.entries(LOCAL_SOURCES)) {
+  for (const [name, source] of Object.entries(sources)) {
     const file = typeof source === "function" ? source() : source;
     if (file) out[name] = file;
   }

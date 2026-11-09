@@ -10,10 +10,14 @@ export default defineConfig(async () => {
     : path.resolve(process.cwd(), "package.json");
   const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8")) as { version: string };
 
+  const buildDate = process.env.SOURCE_DATE_EPOCH
+    ? new Date(Number(process.env.SOURCE_DATE_EPOCH) * 1000).toISOString().slice(0, 10)
+    : new Date().toISOString().slice(0, 10);
+
   return {
     define: {
       __APP_VERSION__: JSON.stringify(pkg.version),
-      __BUILD_DATE__: JSON.stringify(new Date().toISOString().slice(0, 10)),
+      __BUILD_DATE__: JSON.stringify(buildDate),
     },
     plugins: [
       react(),

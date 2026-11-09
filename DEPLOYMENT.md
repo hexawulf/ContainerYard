@@ -1,500 +1,263 @@
 # ContainerYard Deployment Guide
 
-This guide covers deploying ContainerYard in various environments, from local development to production deployments.
+This guide covers deploying ContainerYard in production with **Docker Compose** (recommended, v4.0+) as well as legacy bare-metal **PM2** deployments.
 
 ## Table of Contents
-- [Local Development](#local-development)
-- [Building for Production](#building-for-production)
-- [Deployment Options](#deployment-options)
-  - [Vercel](#deploying-to-vercel)
-  - [Railway](#deploying-to-railway)
-  - [Netlify](#deploying-to-netlify)
-  - [Self-Hosted](#self-hosted-deployment)
-- [Remote Agent Setup](#remote-agent-setup)
-  - [Synology NAS](#synology-nas-setup)
-  - [Raspberry Pi](#raspberry-pi-setup)
-- [Docker Containerization](#docker-containerization-future)
-- [Environment Configuration](#environment-configuration)
+- [Architecture Overview](#architecture-overview)
+- [Run with Docker Compose (Recommended)](#run-with-docker-compose-recommended)
+  - [Prerequisites](#prerequisites)
+  - [Quick Start (3 Commands)](#quick-start-3-commands)
+  - [Host Logs Overlay (Nginx & PM2 Logs)](#host-logs-overlay-nginx--pm2-logs)
+  - [Upgrading](#upgrading)
+  - [Backup & Restore](#backup--restore)
+- [Reverse Proxy (Nginx + TLS)](#reverse-proxy-nginx--tls)
+- [Docker Socket Security](#docker-socket-security)
+- [Remote Hosts (cAdvisor & Dozzle)](#remote-hosts-cadvisor--dozzle)
+- [Environment Reference](#environment-reference)
+- [Migrating from PM2 to Docker (Phase C Cutover)](#migrating-from-pm2-to-docker-phase-c-cutover)
+- [Legacy Deployment: PM2 on Bare Metal](#legacy-deployment-pm2-on-bare-metal)
 
 ---
 
-## Local Development
+## Architecture Overview
+
+```text
+Internet / LAN
+      │  HTTPS (TLS termination)
+      ▼
+┌───────────────────────────────────────────────────────────┐
+│ Nginx Reverse Proxy (host)                                │
+│   proxy_pass http://127.0.0.1:5008                        │
+│   X-Forwarded-Proto: https                                │
+└───────────────────────────┬───────────────────────────────┘
+                            │ 127.0.0.1:5008
+                            ▼
+┌───────────────────────────────────────────────────────────┐
+│ Docker Compose network (cy-internal)                      │
+│                                                           │
+│  ┌─────────────────────────────────────────────────────┐  │
+│  │ app (0xwulf/containeryard:4.0.0)                    │  │
+│  │  • uid 1000 (node), tini PID 1, read-only rootfs    │  │
+│  │  •cy-data:/data (SQLite app.db)                     │  │
+│  │  • /var/run/docker.sock (local Docker API)          │  │
+│  │  • /host/nginx:ro, /host/pm2:ro (optional logs)     │  │
+│  └──────────────┬──────────────────────────┬───────────┘  │
+│                 │                          │              │
+│                 ▼                          ▼              │
+│  ┌──────────────────────────┐   ┌──────────────────────┐  │
+│  │ redis (redis:7-alpine)   │   │ Remote Hosts (HTTP)  │  │
+│  │  • cy-redis:/data (AOF)  │   │  • piapps2 cAdvisor  │  │
+│  │  • internal-only         │   │  • synology cAdvisor │  │
+│  └──────────────────────────┘   └──────────────────────┘  │
+└───────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Run with Docker Compose (Recommended)
+
+Published multi-arch images (`linux/amd64` and `linux/arm64`) are available on Docker Hub at [`0xwulf/containeryard`](https://hub.docker.com/r/0xwulf/containeryard).
 
 ### Prerequisites
-- Node.js 18+ and npm
-- (Optional) Docker daemon for REMOTE provider
-- (Optional) PostgreSQL for saved searches
+- **Docker Engine** 24+ and **Docker Compose** v2+
+- A **TLS reverse proxy** (e.g. Nginx, Caddy, Traefik) forwarding `X-Forwarded-Proto: https` to `127.0.0.1:5008`. Session cookies are always `Secure`, so login requires HTTPS termination.
+- Know your host's `docker` group GID (`getent group docker | cut -d: -f3`, usually `113` or `999`) so the non-root container user (`uid 1000`) can access `/var/run/docker.sock`.
 
-### Quick Start
+### Quick Start (3 Commands)
 
 ```bash
-# Clone and install
-git clone git@github.com:hexawulf/ContainerYard.git
-cd ContainerYard
-npm install
-
-# Configure environment
-cp .env.example .env
-
-# Start development server
-npm run dev
+cp .env.example .env && nano .env     # Set SESSION_SECRET, REDIS_PASSWORD, ADMIN_*, ALLOWED_ORIGINS, CADVISOR_URLs
+docker compose pull
+docker compose up -d
 ```
 
-Access at: `http://localhost:3000` (or configured PORT)
+On first boot, `docker/entrypoint.sh` automatically:
+1. Verifies all required environment variables (without echoing secrets).
+2. Creates `/data` and runs `prisma db push --skip-generate` to initialize or migrate the SQLite database (`/data/app.db`).
+3. Runs `server/prisma/seed.js` to create the initial `ADMIN` account from `ADMIN_EMAIL` and `ADMIN_PASSWORD` (no-op if any user already exists).
+4. Starts the Express + React server on port `5008`.
 
-### Development with Mock Data
+Verify health:
+```bash
+curl -fsS http://127.0.0.1:5008/health
+# {"ok":true,"uptime":12.34,"ts":...}
+```
 
-Set `PROVIDER=MOCK` in `.env` - no Docker needed!
+### Host Logs Overlay (Nginx & PM2 Logs)
+
+To expose host-level Nginx and PM2 logs on the ADMIN **Host Logs** page while keeping the container isolated, merge the `deploy/piapps/docker-compose.piapps.yml` override file:
 
 ```bash
-PROVIDER=MOCK
-PORT=3000
-NODE_ENV=development
+docker compose -f docker-compose.yml -f deploy/piapps/docker-compose.piapps.yml up -d
+```
+
+This bind-mounts `/var/log/nginx` to `/host/nginx:ro` and `~/.pm2/logs` to `/host/pm2:ro`, and sets `HOSTLOG_NGINX_DIR=/host/nginx` and `PM2_LOG_DIR=/host/pm2`. Ensure `ADM_GID` (default `4` on Debian/Ubuntu) matches the group owner of `/var/log/nginx/*.log`.
+
+### Upgrading
+
+Use `scripts/docker-deploy.sh` to pull a new version, back up the `cy-data` SQLite database volume, recreate the container, and verify `/health`:
+
+```bash
+scripts/docker-deploy.sh 4.0.0 --dry-run   # preview actions
+scripts/docker-deploy.sh 4.0.0             # deploy and verify
+```
+
+### Backup & Restore
+
+**Volumes:**
+- `cy-data` (`/data/app.db`): SQLite database containing users, password hashes, `sessionVersion`, audit logs, log bookmarks, and saved searches.
+- `cy-redis` (`/data`): Redis AOF persistence for active login sessions.
+
+**Backup SQLite database:**
+```bash
+mkdir -p ~/backups/containeryard
+docker run --rm \
+  -v containeryard_cy-data:/data:ro \
+  -v "$HOME/backups/containeryard:/backup" \
+  --entrypoint /bin/cp \
+  0xwulf/containeryard:latest -a /data/app.db "/backup/app.db.bak-$(date +%Y%m%d-%H%M%S)"
+```
+
+**Restore SQLite database:**
+```bash
+docker compose stop app
+docker run --rm \
+  -v containeryard_cy-data:/data \
+  -v "$HOME/backups/containeryard:/backup:ro" \
+  --entrypoint /bin/sh \
+  0xwulf/containeryard:latest -c "cp -a /backup/app.db.bak-YYYYMMDD-HHMMSS /data/app.db && chown 1000:1000 /data/app.db"
+docker compose start app
 ```
 
 ---
 
-## Building for Production
+## Reverse Proxy (Nginx + TLS)
 
-### Build the Application
-
-```bash
-# Install dependencies
-npm install
-
-# Build frontend and backend
-npm run build
-```
-
-This creates optimized production files in `dist/`.
-
-### Production Environment Variables
-
-Create a production `.env`:
-
-```bash
-NODE_ENV=production
-PORT=3000
-PROVIDER=REMOTE
-DOCKER_HOST=http://your-docker-host:2375
-DOCKER_AUTH_TOKEN=your-secure-token
-ALLOWED_ORIGINS=https://yourdomain.com
-DATABASE_URL=postgresql://user:pass@host:5432/containeryard
-SESSION_SECRET=your-secure-random-string
-```
-
----
-
-## Deployment Options
-
-### Deploying to Vercel
-
-Vercel is ideal for the frontend, but requires a separate backend deployment.
-
-1. **Deploy Frontend:**
-```bash
-npm install -g vercel
-vercel
-```
-
-2. **Configure Environment Variables** in Vercel dashboard:
-```
-VITE_API_URL=https://your-backend-url.com
-```
-
-3. **Deploy Backend Separately** (see Railway or self-hosted)
-
-### Deploying to Railway
-
-Railway supports full-stack Node.js applications perfectly.
-
-1. **Install Railway CLI:**
-```bash
-npm install -g @railway/cli
-railway login
-```
-
-2. **Initialize and Deploy:**
-```bash
-railway init
-railway up
-```
-
-3. **Set Environment Variables** in Railway dashboard:
-```
-NODE_ENV=production
-PROVIDER=REMOTE
-DOCKER_HOST=http://your-docker-host:2375
-DOCKER_AUTH_TOKEN=your-token
-ALLOWED_ORIGINS=https://your-railway-app.railway.app
-DATABASE_URL=postgresql://...
-SESSION_SECRET=random-secret
-```
-
-4. **Configure Domain** in Railway dashboard
-
-### Deploying to Netlify
-
-Similar to Vercel - frontend only, requires separate backend.
-
-1. **Deploy:**
-```bash
-npm install -g netlify-cli
-netlify deploy --prod
-```
-
-2. **Configure build settings:**
-   - Build command: `npm run build`
-   - Publish directory: `dist`
-
-3. **Set environment variables** in Netlify dashboard
-
-### Self-Hosted Deployment
-
-Perfect for running on your own server, VPS, or homelab.
-
-#### Using PM2 (Recommended)
-
-```bash
-# Install PM2 globally
-npm install -g pm2
-
-# Build the application
-npm run build
-
-# Start with PM2
-pm2 start server/index.js --name containeryard
-
-# Enable startup script
-pm2 startup
-pm2 save
-```
-
-#### Using systemd (Linux)
-
-Create `/etc/systemd/system/containeryard.service`:
-
-```ini
-[Unit]
-Description=ContainerYard Docker Dashboard
-After=network.target
-
-[Service]
-Type=simple
-User=youruser
-WorkingDirectory=/path/to/ContainerYard
-Environment=NODE_ENV=production
-ExecStart=/usr/bin/node server/index.js
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-```
-
-```bash
-sudo systemctl enable containeryard
-sudo systemctl start containeryard
-```
-
-#### Nginx Reverse Proxy
+ContainerYard binds to `127.0.0.1:5008` by default (`CY_BIND=127.0.0.1`, `CY_PORT=5008`), relies on `app.set("trust proxy", 1)`, and sets `Secure` session cookies. Your reverse proxy **must** terminate TLS and forward `X-Forwarded-Proto https`:
 
 ```nginx
 server {
-    listen 80;
-    server_name containeryard.yourdomain.com;
+    listen 443 ssl http2;
+    server_name containeryard.example.com;
+
+    ssl_certificate     /etc/letsencrypt/live/containeryard.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/containeryard.example.com/privkey.pem;
 
     location / {
-        proxy_pass http://localhost:3000;
+        proxy_pass http://127.0.0.1:5008;
         proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
         proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
-    }
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
 
-    # WebSocket support
-    location /ws {
-        proxy_pass http://localhost:3000;
-        proxy_http_version 1.1;
+        # Required for SSE live log streaming and WebSocket terminal
         proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "Upgrade";
-        proxy_set_header Host $host;
+        proxy_set_header Connection "upgrade";
+        proxy_buffering off;
+        proxy_read_timeout 3600s;
     }
 }
 ```
 
 ---
 
-## Remote Agent Setup
+## Docker Socket Security
 
-For monitoring Docker containers on remote hosts (NAS, Raspberry Pi, servers).
-
-### Prerequisites
-
-1. **Enable Docker API** on target host
-2. **Configure CORS** for security
-3. **Set authentication token** (recommended)
-
-### Synology NAS Setup
-
-#### Step 1: Enable Docker API
-
-1. SSH into your Synology NAS:
-```bash
-ssh admin@your-nas-ip
-```
-
-2. Edit Docker daemon config:
-```bash
-sudo vi /var/packages/Docker/etc/dockerd.json
-```
-
-3. Add hosts configuration:
-```json
-{
-  "data-root": "/volume1/@docker",
-  "hosts": [
-    "unix:///var/run/docker.sock",
-    "tcp://0.0.0.0:2375"
-  ]
-}
-```
-
-4. Restart Docker:
-```bash
-sudo synoservicectl --restart pkgctl-Docker
-```
-
-#### Step 2: Configure Firewall
-
-Add firewall rule to allow port 2375 from your ContainerYard host only.
-
-#### Step 3: ContainerYard Configuration
-
-```bash
-PROVIDER=REMOTE
-DOCKER_HOST=http://your-nas-ip:2375
-ALLOWED_ORIGINS=https://your-containeryard-domain.com
-```
-
-### Raspberry Pi Setup
-
-#### Step 1: Install Docker
-
-```bash
-curl -fsSL https://get.docker.com -o get-docker.sh
-sudo sh get-docker.sh
-```
-
-#### Step 2: Enable Docker API
-
-Edit `/etc/docker/daemon.json`:
-
-```json
-{
-  "hosts": [
-    "unix:///var/run/docker.sock",
-    "tcp://0.0.0.0:2375"
-  ]
-}
-```
-
-Override systemd service:
-
-```bash
-sudo mkdir -p /etc/systemd/system/docker.service.d
-```
-
-Create `/etc/systemd/system/docker.service.d/override.conf`:
-
-```ini
-[Service]
-ExecStart=
-ExecStart=/usr/bin/dockerd
-```
-
-Restart Docker:
-
-```bash
-sudo systemctl daemon-reload
-sudo systemctl restart docker
-```
-
-#### Step 3: Security (Optional but Recommended)
-
-Generate TLS certificates for secure communication:
-
-```bash
-# Generate CA and certificates
-openssl genrsa -out ca-key.pem 4096
-openssl req -new -x509 -days 365 -key ca-key.pem -sha256 -out ca.pem
-```
-
-Configure Docker for TLS and set `DOCKER_AUTH_TOKEN` environment variable.
-
-### Security Best Practices
-
-1. **Use TLS encryption** for Docker API
-2. **Set authentication tokens** via `DOCKER_AUTH_TOKEN`
-3. **Restrict ALLOWED_ORIGINS** to your dashboard domain only
-4. **Use firewall rules** to limit access to port 2375
-5. **Consider VPN** for accessing remote Docker hosts
-6. **Regular security updates** on all hosts
+ContainerYard accesses the local Docker daemon via `/var/run/docker.sock`.
+- **Root equivalence:** Mounting `/var/run/docker.sock` grants effective root privileges on the host. ContainerYard mitigates container escape surface by running as non-root (`uid 1000`), dropping all Linux capabilities (`cap_drop: [ALL]`), enabling `no-new-privileges:true`, mounting the root filesystem read-only (`read_only: true`), and binding only to `127.0.0.1:5008`.
+- **Never expose Docker over unauthenticated TCP (`tcp://0.0.0.0:2375`).** To monitor remote hosts (`piapps2`, `synology`), run **cAdvisor** (and optionally **Dozzle**) on those hosts and configure `PIAPPS2_CADVISOR_URL` / `SYNOLOGY_CADVISOR_URL`.
+- **Watchtower opt-out:** Both `app` and `redis` services carry `com.centurylinklabs.watchtower.enable=false` so Watchtower does not restart them unannounced.
 
 ---
 
-## Docker Containerization (Future)
+## Remote Hosts (cAdvisor & Dozzle)
 
-### Dockerfile (Coming Soon)
-
-```dockerfile
-FROM node:18-alpine AS builder
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci
-COPY . .
-RUN npm run build
-
-FROM node:18-alpine
-WORKDIR /app
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/package*.json ./
-COPY --from=builder /app/server ./server
-RUN npm ci --production
-EXPOSE 3000
-CMD ["node", "server/index.js"]
-```
-
-### Docker Compose (Coming Soon)
-
-```yaml
-version: '3.8'
-services:
-  containeryard:
-    build: .
-    ports:
-      - "3000:3000"
-    environment:
-      - PROVIDER=REMOTE
-      - DOCKER_HOST=http://host.docker.internal:2375
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-```
+Remote hosts defined in `server/src/config/hosts.ts` (`piapps2`, `synology`) use the `CADVISOR_ONLY` provider:
+- ContainerYard queries their cAdvisor HTTP endpoints (`PIAPPS2_CADVISOR_URL`, `SYNOLOGY_CADVISOR_URL`) for container lists and real-time CPU/memory/network telemetry.
+- Lifecycle actions (start/stop/restart) are disabled on `CADVISOR_ONLY` hosts (`501`).
+- If `PIAPPS2_DOZZLE_URL` or `SYNOLOGY_DOZZLE_URL` is set, ContainerYard links out to Dozzle for remote container logs.
 
 ---
 
-## Environment Configuration
+## Environment Reference
 
-### Required Variables
-
-| Variable | Description | Default | Required |
-|----------|-------------|---------|----------|
-| `PORT` | Server port | `3000` | No |
-| `NODE_ENV` | Environment | `development` | No |
-| `PROVIDER` | Data source | `MOCK` | Yes |
-
-### Provider-Specific Variables
-
-#### REMOTE Provider
-
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `DOCKER_HOST` | Docker API endpoint | Yes |
-| `DOCKER_AUTH_TOKEN` | Bearer token | No |
-| `ALLOWED_ORIGINS` | CORS origins | Yes |
-
-#### Database (Optional)
-
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `DATABASE_URL` | PostgreSQL connection | For saved searches |
-| `SESSION_SECRET` | Session encryption key | For sessions |
-
-### Provider Configuration Examples
-
-#### MOCK (Development/Demo)
-```bash
-PROVIDER=MOCK
-PORT=3000
-```
-
-#### SIMULATION (Testing)
-```bash
-PROVIDER=SIMULATION
-PORT=3000
-```
-
-#### REMOTE (Production)
-```bash
-PROVIDER=REMOTE
-DOCKER_HOST=http://docker-host:2375
-DOCKER_AUTH_TOKEN=secret-token
-ALLOWED_ORIGINS=https://containeryard.yourdomain.com
-DATABASE_URL=postgresql://user:pass@db:5432/containeryard
-SESSION_SECRET=random-secret-key
-```
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `SESSION_SECRET` | **Yes** | — | Session signing secret (`>= 32` chars, e.g. `openssl rand -hex 32`) |
+| `REDIS_PASSWORD` | **Yes** (Compose) | — | Password for the bundled Redis container (`openssl rand -hex 24`) |
+| `REDIS_URL` | **Yes** | `redis://:${REDIS_PASSWORD}@redis:6379/0` | Redis connection URL (set automatically in `docker-compose.yml`) |
+| `ALLOWED_ORIGINS` | **Yes** | — | Comma-separated CORS origins (e.g. `https://containeryard.org`) |
+| `DATABASE_URL` | **Yes** | `file:/data/app.db` | Prisma database URL (`file:/data/app.db` in Compose, or `postgresql://...`) |
+| `PIAPPS2_CADVISOR_URL` | **Yes** | — | cAdvisor base URL for `piapps2` |
+| `SYNOLOGY_CADVISOR_URL` | **Yes** | — | cAdvisor base URL for `synology` |
+| `ADMIN_EMAIL` | **Yes** | — | Bootstrap ADMIN email (used when `User` table is empty) |
+| `ADMIN_PASSWORD` | **Yes** | — | Bootstrap ADMIN password (`>= 12` chars) |
+| `PORT` | No | `5008` | HTTP server listen port inside the container |
+| `NODE_ENV` | No | `production` | Runtime environment (`development`, `test`, `production`) |
+| `LOG_LEVEL` | No | `info` | Server log verbosity |
+| `DOCKER_HOST` | No | `unix:///var/run/docker.sock` | Local Docker socket path |
+| `COOKIE_NAME` | No | `__Secure-cy.sid` | Session cookie name |
+| `COOKIE_DOMAIN` | No | unset | Optional session cookie domain |
+| `COOKIE_SAMESITE` | No | `none` | Cookie SameSite policy (`lax` recommended when UI & API share origin) |
+| `PIAPPS2_DOZZLE_URL` | No | unset | Optional Dozzle URL for `piapps2` |
+| `SYNOLOGY_DOZZLE_URL` | No | unset | Optional Dozzle URL for `synology` |
+| `METRICS_TOKEN` | No | unset | Optional bearer token for `GET /metrics` |
+| `PUBLIC_API_BASE` | No | request origin | Optional override returned by `/api/runtime-config` |
+| `WEBHOOK_ALLOW_PRIVATE` | No | `false` | Allow alert webhooks to private/LAN IPs |
+| `WEBHOOK_ALLOWED_HOSTS` | No | empty | Comma-separated webhook hostnames exempt from private IP block |
+| `AUDIT_RETENTION_DAYS` | No | `180` | Days to retain `AuditLog` entries |
+| `HOSTLOGS_LOCAL_HOST` | No | `piapps` | Host ID that serves local host logs |
+| `HOSTLOG_NGINX_DIR` | No | `/var/log/nginx` | Directory containing nginx access/error logs |
+| `HOSTLOG_NGINX_ACCESS_FILE` | No | `container.piapps.dev.access.log` | Nginx access log filename inside `HOSTLOG_NGINX_DIR` |
+| `HOSTLOG_NGINX_ERROR_FILE` | No | `container.piapps.dev.error.log` | Nginx error log filename inside `HOSTLOG_NGINX_DIR` |
+| `PM2_LOG_DIR` | No | `~/.pm2/logs` | Directory containing PM2 log files |
+| `PM2_APP_NAME` | No | `containeryard-api` | PM2 process name prefix for log resolution |
+| `CY_SKIP_DB_PUSH` | No | `0` | Set to `1` to skip `prisma db push` and `seed.js` in `entrypoint.sh` |
+| `CY_TAG` | No | `latest` | Docker image tag used by `docker-compose.yml` |
+| `CY_BIND` | No | `127.0.0.1` | Host IP bound by `docker-compose.yml` |
+| `CY_PORT` | No | `5008` | Host port bound by `docker-compose.yml` |
+| `DOCKER_GID` | No | `113` | Host `docker` group GID passed to `group_add` |
+| `ADM_GID` | No | `4` | Host `adm` group GID passed to `group_add` for reading `/var/log/nginx` |
 
 ---
 
-## Monitoring & Maintenance
+## Migrating from PM2 to Docker (Phase C Cutover)
 
-### Health Checks
+If you are currently running ContainerYard under PM2 on `:5008`:
 
-ContainerYard exposes health endpoints:
+1. Ensure `REDIS_PASSWORD` is set in `/home/zk/projects/ContainerYard/.env` (`openssl rand -hex 24`).
+2. Preview the cutover with `--dry-run`:
+   ```bash
+   scripts/cutover-to-docker.sh --dry-run --tag 4.0.0
+   ```
+3. Execute the cutover with operator approval:
+   ```bash
+   scripts/cutover-to-docker.sh --i-have-approval --tag 4.0.0
+   ```
+   The script backs up `server/prisma/app.db` and `.env` to `~/backups/containeryard/<timestamp>/`, stops `pm2 containeryard-api`, copies `app.db` into the `containeryard_cy-data` Docker volume, starts the Docker Compose stack on `127.0.0.1:5008`, and verifies local `/health`, public `https://containeryard.org/health`, and `/api/auth/csrf`. If any check fails, it automatically rolls back to PM2.
+4. Once verified, remove the legacy PM2 process:
+   ```bash
+   pm2 delete containeryard-api && pm2 save
+   ```
+5. To roll back to PM2 at any point:
+   ```bash
+   scripts/rollback-to-pm2.sh --i-have-approval --sync-db
+   ```
 
-- `GET /api/health` - Application health
-- `GET /api/containers` - Container list (verifies provider)
+---
 
-### Logs
+## Legacy Deployment: PM2 on Bare Metal
+
+For bare-metal deployments without Docker Compose:
 
 ```bash
-# PM2 logs
-pm2 logs containeryard
-
-# Systemd logs
-journalctl -u containeryard -f
-
-# Docker logs (if containerized)
-docker logs -f containeryard
+npm ci
+cp .env.example .env && nano .env
+npm run db:push:prisma
+node server/prisma/seed.js
+npm run build
+pm2 startOrReload ecosystem.config.cjs && pm2 save
 ```
 
-### Performance Tuning
-
-1. **Enable PostgreSQL** for persistent saved searches
-2. **Configure log retention** in provider settings
-3. **Use WebSocket compression** for log streaming
-4. **Implement rate limiting** for API endpoints
-
----
-
-## Troubleshooting
-
-### Common Issues
-
-**Cannot connect to Docker API:**
-- Verify Docker daemon is running
-- Check Docker API is enabled on port 2375
-- Ensure firewall allows connection
-- Verify `DOCKER_HOST` URL is correct
-
-**CORS errors:**
-- Add your domain to `ALLOWED_ORIGINS`
-- Include protocol (http:// or https://)
-- Check for trailing slashes
-
-**WebSocket connection fails:**
-- Ensure reverse proxy supports WebSocket upgrades
-- Check `Upgrade` and `Connection` headers
-- Verify firewall allows WebSocket connections
-
----
-
-## Support
-
-For issues and questions:
-- GitHub Issues: https://github.com/hexawulf/ContainerYard/issues
-- Documentation: https://github.com/hexawulf/ContainerYard
-
----
-
-Made with ❤️ by [hexawulf](https://github.com/hexawulf)
+The legacy helper `scripts/deploy-static.sh [--dry-run]` remains available for PM2 updates.

@@ -1,0 +1,16 @@
+# Piapps host-log overlay for ContainerYard
+# Usage:
+#   docker compose -f docker-compose.yml -f deploy/piapps/docker-compose.piapps.yml up -d
+
+services:
+  app:
+    environment:
+      HOSTLOGS_LOCAL_HOST: ${HOSTLOGS_LOCAL_HOST:-piapps}
+      HOSTLOG_NGINX_DIR: /host/nginx
+      HOSTLOG_NGINX_ACCESS_FILE: ${HOSTLOG_NGINX_ACCESS_FILE:-container.piapps.dev.access.log}
+      HOSTLOG_NGINX_ERROR_FILE: ${HOSTLOG_NGINX_ERROR_FILE:-container.piapps.dev.error.log}
+      PM2_LOG_DIR: /host/pm2
+      PM2_APP_NAME: ${PM2_APP_NAME:-containeryard-api}
+    volumes:
+      - /var/log/nginx:/host/nginx:ro
+      - ${PM2_LOGS:-/home/zk/.pm2/logs}:/host/pm2:ro

@@ -8,6 +8,10 @@ import dotenv from "dotenv";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, "../.env") });
 
+const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../package.json"), "utf-8")) as {
+  version: string;
+};
+const EXPECTED_VERSION_TEXT = `v${pkg.version}`;
 const SCREENSHOT_DIR = path.resolve(__dirname, "../docs/screenshots/header-actions");
 const TEST_ADMIN_EMAIL = "cy-test-admin@example.invalid";
 const TEST_VIEWER_EMAIL = "cy-test-viewer@example.invalid";
@@ -72,14 +76,21 @@ let viewerCookies: Array<{ name: string; value: string; url: string }> = [];
 let createdUserIds: string[] = [];
 
 async function assertNoHorizontalOverflow(page: Page, width: number) {
-  const overflow = await page.evaluate(() => {
-    const doc = document.documentElement;
-    return doc.scrollWidth - doc.clientWidth;
-  });
-  expect(
-    overflow,
-    `Expected zero horizontal scroll at ${width}px, got overflow=${overflow}px`,
-  ).toBeLessThanOrEqual(0);
+  await page.mouse.move(0, 0);
+  await expect
+    .poll(
+      async () => {
+        return page.evaluate(() => {
+          const doc = document.documentElement;
+          return doc.scrollWidth - doc.clientWidth;
+        });
+      },
+      {
+        message: `Expected zero horizontal scroll at ${width}px`,
+        timeout: 2000,
+      },
+    )
+    .toBeLessThanOrEqual(0);
 }
 
 async function applyTheme(page: Page, theme: "light" | "dark") {
@@ -234,7 +245,7 @@ test.describe.serial("Header actions, modals, responsive layout, and RBAC", () =
         await page.getByTestId("button-about").click();
         const dialog = page.getByTestId("about-dialog");
         await expect(dialog).toBeVisible();
-        await expect(page.getByTestId("about-version")).toContainText("v3.2.0");
+        await expect(page.getByTestId("about-version")).toContainText(EXPECTED_VERSION_TEXT);
         await expect(
           dialog.locator('a[href="https://github.com/hexawulf/ContainerYard"]'),
         ).toBeVisible();
@@ -248,8 +259,10 @@ test.describe.serial("Header actions, modals, responsive layout, and RBAC", () =
 
         await page.keyboard.press("Escape");
         await expect(dialog).toBeHidden();
+        // Wait for Radix Dialog Close animation + ScrollLock / FocusGuards cleanup
+        await page.waitForFunction(() => !document.querySelector('[role="dialog"]'));
         await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
-        await page.waitForTimeout(200);
+        await page.waitForTimeout(100);
       }
     }
 

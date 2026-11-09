@@ -1,13 +1,14 @@
 [![Website](https://img.shields.io/badge/website-containeryard.org-blue)](https://containeryard.org)
 [![GitHub](https://img.shields.io/github/stars/hexawulf/ContainerYard?style=social)](https://github.com/hexawulf/ContainerYard)
 
-# ContainerYard 3.2 🐳
+# ContainerYard 4.0 🐳
 
 > A complete Docker stack monitoring platform with log analysis, alerting, and historical trends
 
-[![Release](https://img.shields.io/badge/release-v3.2.0-brightgreen)](https://github.com/hexawulf/ContainerYard/releases/tag/v3.2.0)
+[![Release](https://img.shields.io/badge/release-v4.0.0-brightgreen)](https://github.com/hexawulf/ContainerYard/releases/tag/v4.0.0)
+[![Docker Hub](https://img.shields.io/badge/docker-0xwulf%2Fcontaineryard-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/0xwulf/containeryard)
 
-**ContainerYard 3.0** is the first major release since v2.0.0 (Phase 1, November 2025). It brings multi-host monitoring (Docker + cAdvisor-only hosts), SQLite as a first-class database, Metric-to-Log Quick Jump, hardened auth and CSRF, and SEO and landing-page polish. **3.1** adds per-container lifecycle actions, an audit log, working Log Moment bookmarks, restored CSRF enforcement and SSRF-safe webhooks. **3.2** introduces a light-by-default theme system with a persistent light/dark mode toggle on every page, zero flash on load, a full WCAG AA UI refresh across both themes, and a unified top-right header action bar (About modal with build metadata & diagnostics, self-service password change, ADMIN user management, and instant `sessionVersion` session revocation). See [What's new in 3.2](#-whats-new-in-32), [3.1](#-whats-new-in-31), and [3.0](#-whats-new-in-30).
+**ContainerYard 4.0** ships official multi-arch Docker images (`0xwulf/containeryard` for `linux/amd64` and `linux/arm64`) with a hardened non-root runtime, bundled Redis session store, automated Prisma schema sync + bootstrap seeding at container start, environment-driven host log paths, and GitHub Actions CI/CD with SBOM and provenance attestations. **3.2** introduced a light-by-default theme system with a persistent light/dark mode toggle on every page, zero flash on load, a full WCAG AA UI refresh across both themes, and a unified top-right header action bar (About modal with build metadata & diagnostics, self-service password change, ADMIN user management, and instant `sessionVersion` session revocation). **3.1** added per-container lifecycle actions, an audit log, working Log Moment bookmarks, restored CSRF enforcement, and SSRF-safe webhooks. **3.0** brought multi-host monitoring (Docker + cAdvisor-only hosts) and SQLite as a first-class database. See [What's new in 4.0](#-whats-new-in-40), [3.2](#-whats-new-in-32), [3.1](#-whats-new-in-31), and [3.0](#-whats-new-in-30).
 
 ContainerYard is a comprehensive Docker observability platform that goes beyond simple log viewing. It provides Docker Compose stack management, proactive alerting, historical metrics analysis, and real-time log streaming—all in one sleek, developer-friendly interface. Built with React 18 and Express, it bridges the gap between lightweight viewers and enterprise monitoring solutions.
 
@@ -60,6 +61,15 @@ ContainerYard is a comprehensive Docker observability platform that goes beyond 
 - 🔄 **Restart Comparison** - Before/after restart analysis with error pattern detection
 - 💾 **Saved Searches** - Persist search queries with PostgreSQL for quick reuse
 - 🌐 **Environment Viewer** - Search, filter, and bulk export container environment variables
+
+## 🆕 What's New in 4.0
+
+### Official Multi-Arch Docker Image (`0xwulf/containeryard`) & Release Pipeline
+- **Multi-arch Docker Hub image (`linux/amd64`, `linux/arm64`):** Built from `node:22-bookworm-slim` (digest-pinned) with a `$BUILDPLATFORM` bundle stage and target-arch native dependency stage (`bcrypt` + Prisma engines). Runs as non-root `node` (`uid 1000`) under `tini` PID 1 with a built-in Node `fetch` `HEALTHCHECK` against `/health`, OCI labels, SBOM, and SLSA provenance attestations.
+- **Zero-touch container entrypoint (`docker/entrypoint.sh`):** Validates required environment variables on startup (without printing secret values), creates the SQLite `/data` directory, runs `prisma db push --skip-generate`, seeds the bootstrap `ADMIN` user when the `User` table is empty, and execs `node dist/index.js`. Set `CY_SKIP_DB_PUSH=1` to skip schema sync on boot.
+- **Hardened `docker-compose.yml` + `deploy/piapps/` overlay:** Bundles `redis:7-alpine` (digest-pinned, AOF persistence, internal network only), mounts `cy-data:/data` and `/var/run/docker.sock`, drops all Linux capabilities (`cap_drop: [ALL]`), enforces `read_only: true` rootfs + `no-new-privileges:true`, binds to `127.0.0.1:5008`, and sets `com.centurylinklabs.watchtower.enable=false`.
+- **Environment-driven host log & socket paths:** `HOSTLOG_NGINX_DIR`, `HOSTLOG_NGINX_ACCESS_FILE`, `HOSTLOG_NGINX_ERROR_FILE`, `PM2_LOG_DIR`, `PM2_APP_NAME`, `HOSTLOGS_LOCAL_HOST`, and `DOCKER_HOST` allow containerized deployments to read bind-mounted host logs (`/host/nginx:ro`, `/host/pm2:ro`) while degrading cleanly to "not available" when absent.
+- **Automated CI/CD & ops scripts:** `.github/workflows/ci.yml` runs typecheck, lint, unit tests, production build, and the full integration test suite against the built Docker Compose stack; `.github/workflows/release.yml` verifies tag == `package.json` version, runs CI on the tag, and publishes `:4.0.0`, `:4.0`, and `:latest`. Operations scripts (`scripts/docker-deploy.sh`, `scripts/cutover-to-docker.sh`, `scripts/rollback-to-pm2.sh`) provide `--dry-run` previews, SQLite volume backups, and automated rollback.
 
 ## 🆕 What's New in 3.2
 
@@ -159,14 +169,43 @@ npm run build && pm2 restart containeryard-api
 
 ## 🚀 Quick Start
 
-### Prerequisites
-- **Node.js 22** and npm (the lockfile is npm's; `pnpm-lock.yaml` is stale)
-- **Redis** for sessions (`REDIS_URL`)
-- **Docker** on the host ContainerYard runs on; it talks to `/var/run/docker.sock` directly, so the user running it must be in the `docker` group
-- **cAdvisor** on each remote host you want to monitor read-only
-- A **TLS reverse proxy** (e.g. nginx) in front of the app. Session cookies are always `Secure`, so login only works over HTTPS (the app trusts `X-Forwarded-Proto` from the first proxy)
+### Run with Docker (Recommended)
 
-### Installation
+ContainerYard is published to Docker Hub as **[`0xwulf/containeryard`](https://hub.docker.com/r/0xwulf/containeryard)** (`linux/amd64` and `linux/arm64`).
+
+```bash
+cp .env.example .env && nano .env     # Set SESSION_SECRET, REDIS_PASSWORD, ADMIN_*, ALLOWED_ORIGINS, CADVISOR_URLs
+docker compose pull
+docker compose up -d
+```
+
+The app and UI listen on **`127.0.0.1:5008`** by default (`CY_BIND=127.0.0.1`, `CY_PORT=5008`). Point your TLS reverse proxy (Nginx, Caddy, Traefik) at `http://127.0.0.1:5008` with `X-Forwarded-Proto: https` (session cookies are `Secure`, and Express runs with `trust proxy = 1`).
+
+To also mount local host Nginx and PM2 logs read-only for the ADMIN **Host Logs** page:
+```bash
+docker compose -f docker-compose.yml -f deploy/piapps/docker-compose.piapps.yml up -d
+```
+
+#### Volumes & Backup / Restore
+- **`cy-data` (`/data/app.db`):** SQLite database storing users (`sessionVersion`), `AuditLog`, `LogBookmark`, and `SavedSearch`.
+- **`cy-redis` (`/data`):** Redis AOF storage for active login sessions.
+- **Backup DB:**
+  ```bash
+  mkdir -p ~/backups/containeryard
+  docker run --rm -v containeryard_cy-data:/data:ro -v "$HOME/backups/containeryard:/backup" \
+    --entrypoint /bin/cp 0xwulf/containeryard:latest -a /data/app.db "/backup/app.db.bak-$(date +%Y%m%d-%H%M%S)"
+  ```
+- **Deploy / Upgrade:** `scripts/docker-deploy.sh 4.0.0 [--dry-run]` pulls the tag, backs up `cy-data`, runs `docker compose up -d`, waits for the container healthcheck, and verifies `/health`.
+
+#### Upgrading from PM2 (v3.x → v4.0 Docker)
+If you run a legacy PM2 install (`containeryard-api`) on `:5008`:
+```bash
+scripts/cutover-to-docker.sh --dry-run --tag 4.0.0          # preview preflight, backup & cutover steps
+scripts/cutover-to-docker.sh --i-have-approval --tag 4.0.0  # backup app.db + .env, stop pm2, copy DB to cy-data, start Docker
+```
+If any health check fails during cutover, `cutover-to-docker.sh` automatically stops the Docker stack and restarts PM2. Use `scripts/rollback-to-pm2.sh --i-have-approval [--sync-db]` to roll back manually at any time.
+
+### Bare-Metal / Development Installation
 
 ```bash
 git clone git@github.com:hexawulf/ContainerYard.git
@@ -180,64 +219,65 @@ npm run db:push:prisma               # create the SQLite/PostgreSQL tables (user
 node server/prisma/seed.js           # create the first ADMIN from ADMIN_EMAIL / ADMIN_PASSWORD (no-op if users exist)
 
 npm run build
-pm2 startOrReload ecosystem.config.cjs && pm2 save   # or: npm start
+npm start                            # or legacy PM2: pm2 startOrReload ecosystem.config.cjs && pm2 save
 ```
 
-The API and UI are served on `PORT` (default **5008**); point your reverse proxy at it. `scripts/deploy-static.sh [--dry-run]` runs the whole update (DB backup → `npm ci` → schema push → build → pm2 reload → health check).
-
-For development, `npm run dev` serves the same port with Vite hot reload; you still need the TLS proxy (or a tunnel) to sign in.
+For development, `npm run dev` serves port `5008` with Vite hot reload.
 
 ## ⚙️ Configuration
 
 ### Environment Variables
 
-The server validates these at startup (`server/src/config/env.ts`) and exits if a required one is missing.
+The server (`server/src/config/env.ts`) and container entrypoint (`docker/entrypoint.sh`) validate these at startup and exit with a clear error if any required variable is missing.
 
-**Required**
-
-| Variable | Purpose |
-|---|---|
-| `SESSION_SECRET` | Session signing secret, **at least 32 characters** (`openssl rand -hex 32`) |
-| `REDIS_URL` | Session store, e.g. `redis://127.0.0.1:6379` |
-| `ALLOWED_ORIGINS` | Comma-separated origins allowed to make credentialed CORS requests, e.g. `https://containeryard.org` |
-| `DATABASE_URL` | `file:/abs/path/app.db` (SQLite) or a `postgresql://…` URL. See [Database](#database) |
-| `PIAPPS2_CADVISOR_URL` | cAdvisor base URL for the `piapps2` host |
-| `SYNOLOGY_CADVISOR_URL` | cAdvisor base URL for the `synology` host |
-| `ADMIN_EMAIL`, `ADMIN_PASSWORD` | Used by `server/prisma/seed.js` to create the first ADMIN (password ≥ 12 chars) |
-
-**Optional**
-
-| Variable | Default | Purpose |
-|---|---|---|
-| `PORT` | `5008` | Listen port |
-| `NODE_ENV` | `development` | `production` serves the built client from `dist/public` |
-| `COOKIE_NAME` | `__Secure-cy.sid` | Session cookie name |
-| `COOKIE_DOMAIN` | unset | Cookie domain |
-| `COOKIE_SAMESITE` | `none` | `lax` is recommended when UI and API share an origin |
-| `PIAPPS2_DOZZLE_URL`, `SYNOLOGY_DOZZLE_URL` | unset | Optional Dozzle links shown for those hosts |
-| `METRICS_TOKEN` | unset | Bearer token required for the Prometheus `/metrics` endpoint |
-| `PUBLIC_API_BASE` | derived from request | API base URL returned by `/api/runtime-config` |
-| `WEBHOOK_ALLOW_PRIVATE` | `false` | Allow alert webhooks to LAN/loopback targets |
-| `WEBHOOK_ALLOWED_HOSTS` | empty | Comma-separated webhook hostnames that skip the IP checks |
-| `AUDIT_RETENTION_DAYS` | `180` | Audit log retention |
-| `HOSTLOGS_LOCAL_HOST` | `piapps` | Host ID whose local log files the Host Logs page reads |
-| `PM2_APP_NAME`, `PM2_LOG_DIR` | `containeryard-api`, `~/.pm2/logs` | Where the pm2 host logs are found |
+| Variable | Required | Default | Example / Purpose |
+|---|---|---|---|
+| `SESSION_SECRET` | **Yes** | — | Session signing secret, **≥ 32 chars** (`openssl rand -hex 32`) |
+| `REDIS_PASSWORD` | **Yes** (Compose) | — | Password for bundled Redis container (`openssl rand -hex 24`) |
+| `REDIS_URL` | **Yes** | `redis://:${REDIS_PASSWORD}@redis:6379/0` | Redis connection URL (`redis://127.0.0.1:6379` on bare metal) |
+| `ALLOWED_ORIGINS` | **Yes** | — | Comma-separated CORS origins, e.g. `https://containeryard.org` |
+| `DATABASE_URL` | **Yes** | `file:/data/app.db` | `file:/data/app.db` (Docker SQLite), `file:/abs/path/app.db`, or `postgresql://…` |
+| `PIAPPS2_CADVISOR_URL` | **Yes** | — | cAdvisor base URL for `piapps2` |
+| `SYNOLOGY_CADVISOR_URL` | **Yes** | — | cAdvisor base URL for `synology` |
+| `ADMIN_EMAIL` | **Yes** | — | Bootstrap ADMIN email (used by `seed.js` when `User` table is empty) |
+| `ADMIN_PASSWORD` | **Yes** | — | Bootstrap ADMIN password (**≥ 12 chars**, ≤ 72 UTF-8 bytes) |
+| `PORT` | No | `5008` | Server listen port |
+| `NODE_ENV` | No | `production` | `production` serves the built client from `dist/public` |
+| `LOG_LEVEL` | No | `info` | Server log level |
+| `DOCKER_HOST` | No | `unix:///var/run/docker.sock` | Local Docker socket path |
+| `COOKIE_NAME` | No | `__Secure-cy.sid` | Session cookie name |
+| `COOKIE_DOMAIN` | No | unset | Cookie domain |
+| `COOKIE_SAMESITE` | No | `none` | `lax` is recommended when UI and API share an origin |
+| `PIAPPS2_DOZZLE_URL`, `SYNOLOGY_DOZZLE_URL` | No | unset | Optional Dozzle links shown for remote hosts |
+| `METRICS_TOKEN` | No | unset | Bearer token required for the Prometheus `/metrics` endpoint |
+| `PUBLIC_API_BASE` | No | derived from request | API base URL returned by `/api/runtime-config` |
+| `WEBHOOK_ALLOW_PRIVATE` | No | `false` | Allow alert webhooks to LAN/loopback targets |
+| `WEBHOOK_ALLOWED_HOSTS` | No | empty | Comma-separated webhook hostnames that skip IP checks |
+| `AUDIT_RETENTION_DAYS` | No | `180` | Audit log retention in days |
+| `HOSTLOGS_LOCAL_HOST` | No | `piapps` | Host ID whose local log files the Host Logs page reads |
+| `HOSTLOG_NGINX_DIR` | No | `/var/log/nginx` | Directory containing nginx access/error logs (`/host/nginx` in piapps overlay) |
+| `HOSTLOG_NGINX_ACCESS_FILE` | No | `container.piapps.dev.access.log` | Nginx access log filename inside `HOSTLOG_NGINX_DIR` |
+| `HOSTLOG_NGINX_ERROR_FILE` | No | `container.piapps.dev.error.log` | Nginx error log filename inside `HOSTLOG_NGINX_DIR` |
+| `PM2_LOG_DIR` | No | `~/.pm2/logs` | Directory where PM2 writes log files (`/host/pm2` in piapps overlay) |
+| `PM2_APP_NAME` | No | `containeryard-api` | PM2 process name prefix for log resolution |
+| `CY_SKIP_DB_PUSH` | No | `0` | Set to `1` in Docker to skip `prisma db push` and `seed.js` on startup |
+| `CY_TAG` | No | `latest` | Image tag for `0xwulf/containeryard` in `docker-compose.yml` |
+| `CY_BIND`, `CY_PORT` | No | `127.0.0.1`, `5008` | Host bind address and port for `docker-compose.yml` |
+| `DOCKER_GID`, `ADM_GID` | No | `113`, `4` | Supplementary GIDs added to the container user for Docker socket & nginx logs |
 
 Client build-time (optional): `VITE_API_BASE` (default `/api`), `VITE_APP_NAME`, `VITE_AUTH_DISABLED=true` (UI demo without login).
 
-### Hosts
+### Hosts & Docker Socket Security
 
 The monitored hosts are defined in `server/src/config/hosts.ts`:
 
 | Host ID | Provider | Access |
 |---|---|---|
-| `piapps` | `DOCKER` | Full access through the local Docker socket: logs, live tail, stats, inspect, container and stack actions, host logs |
+| `piapps` | `DOCKER` | Full access through the local Docker socket (`/var/run/docker.sock`): logs, live tail, stats, inspect, container and stack actions, host logs |
 | `piapps2` | `CADVISOR_ONLY` | Read-only containers and stats from cAdvisor |
 | `synology` | `CADVISOR_ONLY` | Read-only containers and stats from cAdvisor |
 
-To add or rename hosts, edit that file (and the `HostId` type) and add the matching `*_CADVISOR_URL` to `env.ts`.
-
-> ⚠️ Do **not** expose the Docker daemon over TCP (`tcp://0.0.0.0:2375`) to monitor another host: that grants unauthenticated root on it. Run cAdvisor there instead.
+> ⚠️ **Docker Socket Security:** Mounting `/var/run/docker.sock` gives the container root-equivalent control over the host's Docker daemon (needed for container/stack lifecycle actions). ContainerYard runs as unprivileged `uid 1000` with `read_only: true`, `cap_drop: [ALL]`, `no-new-privileges:true`, and binds to `127.0.0.1:5008`. Never expose `dockerd` over unauthenticated TCP (`tcp://0.0.0.0:2375`) to monitor another host—run cAdvisor there instead. See `docker-compose.yml` for an optional `docker-socket-proxy` reference.
 
 ### Database
 
@@ -556,10 +596,11 @@ PW_CHROMIUM_PATH=/path/to/chrome-headless-shell BASE_URL=http://127.0.0.1:5008 n
 
 ## 📚 Documentation
 
-- [Releases](https://github.com/hexawulf/ContainerYard/releases) - Changelog and release notes (current: v3.2.0)
-- [Phase 1 Implementation](docs/_archive/PHASE1_IMPLEMENTATION_SUMMARY.md) - Complete feature breakdown
-- [Deployment Guide](DEPLOYMENT.md) - Production deployment instructions
+- [Releases](https://github.com/hexawulf/ContainerYard/releases) - Changelog and release notes (current: v4.0.0)
+- [Changelog](CHANGELOG.md) - Full release history
+- [Deployment Guide](DEPLOYMENT.md) - Production Docker Compose & legacy PM2 deployment instructions
 - [Environment Variables](.env.example) - Configuration reference
+- [Phase 1 Implementation](docs/_archive/PHASE1_IMPLEMENTATION_SUMMARY.md) - Complete feature breakdown
 - [Architecture](docs/_archive/replit.md) - Technical architecture details
 - [Original Plan](docs/_archive/plan.md) - Phase 1 relaunch strategy
 
