@@ -111,19 +111,19 @@ export function ContainerActions({ container, host }: ContainerActionsProps) {
         return (
           <Button
             key={action}
-            size="sm"
+            size="icon"
             variant="ghost"
             title={action[0].toUpperCase() + action.slice(1)}
             aria-label={`${action} ${container.name}`}
             data-testid={`button-${action}-${container.name}`}
             disabled={mutation.isPending}
-            className={action === "remove" ? "text-destructive hover:text-destructive" : undefined}
+            className={`h-7 w-7 ${action === "remove" ? "text-destructive hover:text-destructive" : ""}`}
             onClick={(event) => {
               event.stopPropagation();
               run(action);
             }}
           >
-            <Icon className="h-4 w-4" />
+            <Icon className="h-3.5 w-3.5" />
           </Button>
         );
       })}

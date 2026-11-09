@@ -103,7 +103,7 @@ export function RestartComparison({ logs, restartTimestamp, onClose }: RestartCo
                 {analysis.logRateDelta > 0 ? (
                   <TrendingUp className="h-4 w-4 text-destructive" />
                 ) : (
-                  <TrendingDown className="h-4 w-4 text-[hsl(142,76%,45%)]" />
+                  <TrendingDown className="h-4 w-4 text-status-running" />
                 )}
               </div>
               <div className="flex items-baseline gap-2">
@@ -120,7 +120,7 @@ export function RestartComparison({ logs, restartTimestamp, onClose }: RestartCo
                 {analysis.errorRateDelta > 0 ? (
                   <TrendingUp className="h-4 w-4 text-destructive" />
                 ) : (
-                  <TrendingDown className="h-4 w-4 text-[hsl(142,76%,45%)]" />
+                  <TrendingDown className="h-4 w-4 text-status-running" />
                 )}
               </div>
               <div className="flex items-baseline gap-2">

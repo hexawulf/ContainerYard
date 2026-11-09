@@ -114,12 +114,18 @@ export function Terminal({ containerId, onData, onResize, isConnected = false }:
   }, []);
 
   return (
-    <div className="h-full flex flex-col bg-[hsl(var(--card))]" data-testid={`terminal-${containerId}`}>
-      <div className="flex items-center justify-between px-3 py-2 border-b">
+    <div
+      className="h-full flex flex-col rounded-lg border border-border overflow-hidden bg-card shadow-sm"
+      data-testid={`terminal-${containerId}`}
+    >
+      <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-muted/50">
         <div className="flex items-center gap-2">
           <span className="text-xs font-mono text-muted-foreground">Shell</span>
           {isConnected ? (
-            <Badge variant="outline" className="text-xs bg-[hsl(142,76%,45%)]/10 text-[hsl(142,76%,45%)] border-[hsl(142,76%,45%)]/20">
+            <Badge
+              variant="outline"
+              className="text-xs bg-status-running/10 text-status-running border-status-running/30"
+            >
               Connected
             </Badge>
           ) : (
@@ -130,7 +136,7 @@ export function Terminal({ containerId, onData, onResize, isConnected = false }:
           )}
         </div>
       </div>
-      <div ref={terminalRef} className="flex-1 p-2" />
+      <div ref={terminalRef} className="flex-1 p-2 bg-[hsl(222,24%,7%)]" />
     </div>
   );
 }

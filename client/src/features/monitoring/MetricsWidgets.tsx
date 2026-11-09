@@ -37,7 +37,7 @@ interface MetricsSummary {
 
 function WidgetCard({ title, icon: Icon, children }: { title: string; icon: any; children: React.ReactNode }) {
   return (
-    <Card>
+    <Card className="min-w-0 overflow-hidden">
       <CardHeader className="pb-3">
         <div className="flex items-center gap-2">
           <Icon className="h-5 w-5 text-muted-foreground" />
@@ -61,20 +61,20 @@ function TopConsumersList({ data, type }: { data: TopConsumer[]; type: "cpu" | "
   return (
     <div className="space-y-2">
       {data.map((item, index) => (
-        <div key={item.containerId} className="flex items-center justify-between py-2 border-b last:border-0">
-          <div className="flex items-center gap-2 min-w-0">
-            <Badge variant="outline" className="text-xs">
+        <div key={item.containerId} className="flex items-center justify-between gap-2 py-2 border-b last:border-0 min-w-0">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <Badge variant="outline" className="text-xs shrink-0">
               #{index + 1}
             </Badge>
-            <span className="text-sm font-medium truncate">{item.containerName}</span>
+            <span className="text-sm font-medium truncate" title={item.containerName}>{item.containerName}</span>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1.5 shrink-0">
             {type === "cpu" ? (
-              <Cpu className="h-3 w-3 text-orange-500" />
+              <Cpu className="h-3.5 w-3.5 text-[hsl(var(--chart-3))]" />
             ) : (
-              <MemoryStick className="h-3 w-3 text-blue-500" />
+              <MemoryStick className="h-3.5 w-3.5 text-[hsl(var(--chart-1))]" />
             )}
-            <span className="text-sm font-semibold">
+            <span className="text-sm font-semibold tabular-nums">
               {type === "cpu" ? item.avgCpuPercent : item.avgMemoryPercent}%
             </span>
           </div>
@@ -86,13 +86,18 @@ function TopConsumersList({ data, type }: { data: TopConsumer[]; type: "cpu" | "
 
 function HealthIndicator({ title, value, trend }: { title: string; value: string; trend: "up" | "down" | "stable" }) {
   const TrendIcon = trend === "up" ? TrendingUp : trend === "down" ? TrendingDown : Activity;
-  const trendColor = trend === "up" ? "text-green-600" : trend === "down" ? "text-red-600" : "text-gray-600";
-  
+  const trendColor =
+    trend === "up"
+      ? "text-status-running"
+      : trend === "down"
+        ? "text-status-danger"
+        : "text-muted-foreground";
+
   return (
-    <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+    <div className="flex items-center justify-between p-3 bg-muted/50 border border-border/60 rounded-lg">
       <div>
-        <p className="text-sm text-muted-foreground">{title}</p>
-        <p className="text-2xl font-bold">{value}</p>
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{title}</p>
+        <p className="text-2xl font-bold tabular-nums mt-0.5">{value}</p>
       </div>
       <TrendIcon className={`h-5 w-5 ${trendColor}`} />
     </div>

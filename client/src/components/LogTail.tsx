@@ -129,9 +129,9 @@ export function LogTail({
 
   const getContainerColor = (containerId: string) => {
     const colors = [
-      'bg-blue-500/20 text-blue-400 border-blue-500/30',
-      'bg-green-500/20 text-green-400 border-green-500/30',
-      'bg-purple-500/20 text-purple-400 border-purple-500/30',
+      'bg-status-info/15 text-status-info border-status-info/30',
+      'bg-status-running/15 text-status-running border-status-running/30',
+      'bg-[hsl(var(--chart-4))]/15 text-[hsl(var(--chart-4))] border-[hsl(var(--chart-4))]/30',
     ];
     const hash = containerId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
     return colors[hash % colors.length];

@@ -83,16 +83,16 @@ export default function HostLogs({ hostId }: { hostId: string }) {
 
   if (isLoading) {
     return (
-      <div className="p-6">
-        <div className="text-muted-foreground">Loading available logs...</div>
+      <div className="mx-auto max-w-container px-4 sm:px-6 py-6">
+        <div className="text-muted-foreground text-sm">Loading available logs...</div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="p-6">
-        <div className="text-destructive">
+      <div className="mx-auto max-w-container px-4 sm:px-6 py-6">
+        <div className="text-destructive text-sm">
           Error loading logs: {(error as Error).message}
         </div>
       </div>
@@ -103,16 +103,16 @@ export default function HostLogs({ hostId }: { hostId: string }) {
 
   return (
     <>
-      <div className="p-6 space-y-6">
-        <div className="flex items-center justify-between">
+      <div className="mx-auto max-w-container px-4 sm:px-6 py-6 space-y-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold">Host Logs for {hostId}</h1>
-            <p className="text-muted-foreground mt-2">
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Host Logs for {hostId}</h1>
+            <p className="text-muted-foreground text-sm mt-1">
               View system and application logs from the {hostId} host
             </p>
           </div>
           <Link href="/dashboard">
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" className="self-start sm:self-auto">
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Dashboard
             </Button>

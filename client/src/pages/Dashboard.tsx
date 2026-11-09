@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { X, List, Layers } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { NormalizedStats } from "@shared/monitoring";
 import { ensureArray } from "@/lib/utils";
 
@@ -383,10 +384,10 @@ export default function Dashboard() {
 
   return (
     <DashboardErrorBoundary>
-    <div className="container max-w-container py-6">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-display">Dashboard</h1>
-        <div className="flex items-center gap-3">
+    <div className="mx-auto max-w-container px-4 sm:px-6 py-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
+        <h1 className="text-2xl sm:text-display font-semibold tracking-tight">Dashboard</h1>
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <Button
             variant="outline"
             size="sm"
@@ -402,7 +403,7 @@ export default function Dashboard() {
             </Link>
           )}
           {user && (
-            <Badge variant="outline" className="uppercase tracking-wide">
+            <Badge variant="outline" className="uppercase tracking-wide font-mono text-xs">
               {user.role}
             </Badge>
           )}
@@ -419,19 +420,19 @@ export default function Dashboard() {
         </div>
       )}
 
-      <div className="grid gap-6 md:grid-cols-[320px_1fr]">
-        <Card className="overflow-hidden">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
+        <Card className="overflow-hidden min-w-0">
           <CardHeader className="space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <CardTitle>Hosts</CardTitle>
               <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as "containers" | "stacks")}>
                 <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="containers" className="gap-2">
-                    <List className="h-4 w-4" />
+                  <TabsTrigger value="containers" className="gap-1.5 text-xs sm:text-sm">
+                    <List className="h-3.5 w-3.5" />
                     Containers
                   </TabsTrigger>
-                  <TabsTrigger value="stacks" className="gap-2">
-                    <Layers className="h-4 w-4" />
+                  <TabsTrigger value="stacks" className="gap-1.5 text-xs sm:text-sm">
+                    <Layers className="h-3.5 w-3.5" />
                     Stacks
                   </TabsTrigger>
                 </TabsList>
@@ -450,13 +451,13 @@ export default function Dashboard() {
               {viewMode === "containers" && (
               <>
               {/* Filter Controls */}
-              <div className="p-4 space-y-3 border-b">
+              <div className="p-4 space-y-3 border-b bg-muted/20">
                 <div className="flex flex-wrap gap-2 items-center">
-                  <span className="text-sm font-medium">Filters:</span>
+                  <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Filters:</span>
                   
                   {/* State Filter */}
                   <Select value={filters.state} onValueChange={(value) => setFilters(prev => ({ ...prev, state: value }))}>
-                    <SelectTrigger className="w-28">
+                    <SelectTrigger className="w-28 h-8 text-xs">
                       <SelectValue placeholder="State" />
                     </SelectTrigger>
                     <SelectContent>
@@ -471,7 +472,7 @@ export default function Dashboard() {
                     placeholder="Label filter"
                     value={filters.label}
                     onChange={(e) => setFilters(prev => ({ ...prev, label: e.target.value }))}
-                    className="w-40"
+                    className="flex-1 min-w-[110px] sm:w-36 h-8 text-xs"
                   />
 
                   {/* Image Filter */}
@@ -479,7 +480,7 @@ export default function Dashboard() {
                     placeholder="Image filter"
                     value={filters.image}
                     onChange={(e) => setFilters(prev => ({ ...prev, image: e.target.value }))}
-                    className="w-40"
+                    className="flex-1 min-w-[110px] sm:w-36 h-8 text-xs"
                   />
 
                   {/* Clear Filters */}
@@ -487,6 +488,7 @@ export default function Dashboard() {
                     <Button
                       variant="ghost"
                       size="sm"
+                      className="h-8 px-2"
                       onClick={() => setFilters({ state: "all", label: "", image: "" })}
                     >
                       <X className="h-4 w-4" />
@@ -495,13 +497,13 @@ export default function Dashboard() {
                 </div>
 
                 {/* Sort Controls */}
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium">Sort by:</span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Sort by:</span>
                   <Select 
                     value={sort.field} 
                     onValueChange={(field) => setSort(prev => ({ ...prev, field }))}
                   >
-                    <SelectTrigger className="w-32">
+                    <SelectTrigger className="w-32 h-8 text-xs">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -516,7 +518,7 @@ export default function Dashboard() {
                     value={sort.direction} 
                     onValueChange={(direction) => setSort(prev => ({ ...prev, direction }))}
                   >
-                    <SelectTrigger className="w-24">
+                    <SelectTrigger className="w-28 h-8 text-xs">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -555,7 +557,7 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <div className="space-y-6">
+        <div className="space-y-6 min-w-0">
            {Array.isArray(normalizedHistory) && normalizedHistory.length > 0 && (
             <Card>
               <CardHeader>
@@ -572,8 +574,14 @@ export default function Dashboard() {
               <CardHeader>
                 <CardTitle>Container overview</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-4">
                 <p className="text-sm text-muted-foreground">Loading container details…</p>
+                <Skeleton className="h-6 w-48" />
+                <Skeleton className="h-28 w-full" />
+                <div className="grid grid-cols-2 gap-4">
+                  <Skeleton className="h-12 w-full" />
+                  <Skeleton className="h-12 w-full" />
+                </div>
               </CardContent>
             </Card>
           ) : (
