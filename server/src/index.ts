@@ -17,12 +17,13 @@ import { metricsRouter } from "./routes/metrics";
 import summaryRouter from "./routes/summary";
 import inspectRouter from "./routes/inspect";
 import { registerRuntimeConfigRoute } from "./routes/runtimeConfig";
-import { attachUserToResponse, globalRateLimiter, requireAuth } from "./middleware/auth";
+import { attachUserToResponse, globalRateLimiter, requireAuth, requireRole } from "./middleware/auth";
 import { verifyCsrf } from "./middleware/csrf";
 import { actionsRouter } from "./routes/actions";
 import { bookmarksRouter } from "./routes/bookmarks";
 import { savedSearchesRouter } from "./routes/savedSearches";
 import { auditRouter } from "./routes/audit";
+import { usersRouter } from "./routes/users";
 import { pruneAudit } from "./services/audit";
 import { log, setupVite } from "../vite";
 import { registerMetrics } from "./metrics";
@@ -111,6 +112,7 @@ export async function createApp() {
   app.use("/api/bookmarks", requireAuth, bookmarksRouter);
   app.use("/api/saved-searches", requireAuth, savedSearchesRouter);
   app.use("/api/audit", requireAuth, auditRouter);
+  app.use("/api/users", requireAuth, requireRole("ADMIN"), usersRouter);
   registerMetrics(app);
 
   // Runtime config endpoint (public)
