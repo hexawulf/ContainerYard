@@ -23,6 +23,12 @@ const envSchema = z.object({
   ADMIN_EMAIL: z.string().email(),
   ADMIN_PASSWORD: z.string().min(12),
   METRICS_TOKEN: z.string().optional(),
+  HOSTLOGS_LOCAL_HOST: z.string().default("piapps"),
+  HOSTLOG_NGINX_DIR: z.string().default("/var/log/nginx"),
+  HOSTLOG_NGINX_ACCESS_FILE: z.string().default("container.piapps.dev.access.log"),
+  HOSTLOG_NGINX_ERROR_FILE: z.string().default("container.piapps.dev.error.log"),
+  PM2_LOG_DIR: z.string().optional(),
+  PM2_APP_NAME: z.string().default("containeryard-api"),
 });
 
 export const env = envSchema.parse(rawEnv);

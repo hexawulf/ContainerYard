@@ -67,6 +67,8 @@ vite.config.ts.*
 # Env and local
 .env
 .env.*
+!.env.example
+!deploy/**/.env.*.example
 
 # Local OpenCode instructions
 plan.md

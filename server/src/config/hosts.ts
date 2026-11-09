@@ -13,13 +13,15 @@ export interface HostConfig extends HostSummary {
   cadvisor?: { baseUrl: string };
 }
 
+const dockerSocketPath = env.DOCKER_HOST.replace(/^unix:\/\//, "") || "/var/run/docker.sock";
+
 const hostDefinitions: Record<HostId, HostConfig> = {
   piapps: {
     id: "piapps",
     name: "Pi Apps (piapps)",
     provider: "DOCKER",
     nodeLabel: "piapps",
-    docker: { socketPath: "/var/run/docker.sock" }
+    docker: { socketPath: dockerSocketPath }
   },
   piapps2: {
     id: "piapps2",

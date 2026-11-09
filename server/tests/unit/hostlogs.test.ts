@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { newestPm2Log } from "../../src/config/hostlogs";
+import { newestPm2Log, resolveHostLogs } from "../../src/config/hostlogs";
 
 test("newestPm2Log picks the most recently written matching file, ignoring .gz and other apps", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pm2logs-"));
@@ -22,6 +22,30 @@ test("newestPm2Log picks the most recently written matching file, ignoring .gz a
     assert.equal(newestPm2Log("out", dir, "containeryard-api"), path.join(dir, "containeryard-api-out-9.log"));
     assert.equal(newestPm2Log("error", dir, "containeryard-api"), path.join(dir, "containeryard-api-error-9.log"));
     assert.equal(newestPm2Log("out", path.join(dir, "missing"), "containeryard-api"), null);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("resolveHostLogs respects env overrides for nginx and pm2 directories and degrades gracefully when missing", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "hostlogs-env-"));
+  try {
+    fs.writeFileSync(path.join(dir, "my-app-out-1.log"), "ok");
+    const resolved = resolveHostLogs("custom-host", {
+      HOSTLOGS_LOCAL_HOST: "custom-host",
+      HOSTLOG_NGINX_DIR: "/host/nginx",
+      HOSTLOG_NGINX_ACCESS_FILE: "custom.access.log",
+      HOSTLOG_NGINX_ERROR_FILE: "custom.error.log",
+      PM2_LOG_DIR: dir,
+      PM2_APP_NAME: "my-app",
+    });
+    assert.equal(resolved.nginx_access, "/host/nginx/custom.access.log");
+    assert.equal(resolved.nginx_error, "/host/nginx/custom.error.log");
+    assert.equal(resolved.pm2_out, path.join(dir, "my-app-out-1.log"));
+    assert.equal(resolved.pm2_err, undefined);
+
+    // Non-local host returns empty map
+    assert.deepEqual(resolveHostLogs("other-host", { HOSTLOGS_LOCAL_HOST: "custom-host" }), {});
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
