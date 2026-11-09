@@ -24,8 +24,11 @@ dist
 logs
 .pm2
 
-# Docs, screenshots, assets & tests (not needed to build or run the app)
+# Docs, screenshots, assets, scripts & tests (not needed to build or run the app)
 docs
+deploy
+scripts/*
+!scripts/verify-dist.sh
 e2e
 screenshots
 attached_assets

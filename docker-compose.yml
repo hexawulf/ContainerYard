@@ -31,9 +31,9 @@ services:
       - cy-data:/data
       - /var/run/docker.sock:/var/run/docker.sock
       # Optional: mount host nginx and PM2 logs read-only for the Host Logs page
-      # (or use `-f docker-compose.yml -f deploy/piapps/docker-compose.piapps.yml`):
+      # (or use `-f docker-compose.yml -f deploy/hostlogs/docker-compose.hostlogs.yml`):
       # - /var/log/nginx:/host/nginx:ro
-      # - ${PM2_LOGS:-/home/zk/.pm2/logs}:/host/pm2:ro
+      # - ${PM2_LOGS:-./logs/pm2}:/host/pm2:ro
     group_add:
       - "${DOCKER_GID:-113}"
       - "${ADM_GID:-4}"

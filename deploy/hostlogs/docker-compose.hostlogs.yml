@@ -1,0 +1,16 @@
+# Host-log overlay for ContainerYard
+# Usage:
+#   docker compose -f docker-compose.yml -f deploy/hostlogs/docker-compose.hostlogs.yml up -d
+
+services:
+  app:
+    environment:
+      HOSTLOGS_LOCAL_HOST: ${HOSTLOGS_LOCAL_HOST:-local}
+      HOSTLOG_NGINX_DIR: /host/nginx
+      HOSTLOG_NGINX_ACCESS_FILE: ${HOSTLOG_NGINX_ACCESS_FILE:-access.log}
+      HOSTLOG_NGINX_ERROR_FILE: ${HOSTLOG_NGINX_ERROR_FILE:-error.log}
+      PM2_LOG_DIR: /host/pm2
+      PM2_APP_NAME: ${PM2_APP_NAME:-containeryard-api}
+    volumes:
+      - /var/log/nginx:/host/nginx:ro
+      - ${PM2_LOGS:-./logs/pm2}:/host/pm2:ro

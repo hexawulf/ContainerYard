@@ -1,7 +1,7 @@
-import { env } from "./env";
+import { env, remoteHostsConfig } from "./env";
 import type { HostSummary, HostProvider } from "../models/containers";
 
-export type HostId = "piapps" | "piapps2" | "synology" | "ds718";
+export type HostId = string;
 
 export interface HostConfig extends HostSummary {
   id: HostId;
@@ -15,47 +15,28 @@ export interface HostConfig extends HostSummary {
 
 const dockerSocketPath = env.DOCKER_HOST.replace(/^unix:\/\//, "") || "/var/run/docker.sock";
 
-const hostDefinitions: Partial<Record<HostId, HostConfig>> = {
-  piapps: {
-    id: "piapps",
-    name: "Pi Apps (piapps)",
+const hostDefinitions: Record<string, HostConfig> = {
+  [env.CY_LOCAL_HOST_ID]: {
+    id: env.CY_LOCAL_HOST_ID,
+    name: env.CY_LOCAL_HOST_NAME,
     provider: "DOCKER",
-    nodeLabel: "piapps",
-    docker: { socketPath: dockerSocketPath }
+    nodeLabel: env.CY_LOCAL_HOST_ID,
+    docker: { socketPath: dockerSocketPath },
   },
-  piapps2: {
-    id: "piapps2",
-    name: "Pi Apps 2 (piapps2)",
-    provider: "CADVISOR_ONLY",
-    nodeLabel: "piapps2",
-    dozzleUrl: env.PIAPPS2_DOZZLE_URL ?? null,
-    cadvisorUrl: env.PIAPPS2_CADVISOR_URL,
-    cadvisor: { baseUrl: env.PIAPPS2_CADVISOR_URL! }
-  },
-  synology: {
-    id: "synology",
-    name: "Synology (synology)",
-    provider: "CADVISOR_ONLY",
-    nodeLabel: "synology",
-    dozzleUrl: env.SYNOLOGY_DOZZLE_URL ?? null,
-    cadvisorUrl: env.SYNOLOGY_CADVISOR_URL,
-    cadvisor: { baseUrl: env.SYNOLOGY_CADVISOR_URL! }
-  },
-  // Optional: brixhouse DS718+ (Flensburg), reached over WireGuard via a socat
-  // relay on piapps4. Only listed when DS718_CADVISOR_URL is set.
-  ...(env.DS718_CADVISOR_URL
-    ? {
-        ds718: {
-          id: "ds718",
-          name: "DS718+ brixhouse (ds718)",
-          provider: "CADVISOR_ONLY",
-          nodeLabel: "ds718",
-          dozzleUrl: env.DS718_DOZZLE_URL ?? null,
-          cadvisorUrl: env.DS718_CADVISOR_URL,
-          cadvisor: { baseUrl: env.DS718_CADVISOR_URL },
-        } satisfies HostConfig,
-      }
-    : {}),
+  ...Object.fromEntries(
+    remoteHostsConfig.map((remote) => [
+      remote.id,
+      {
+        id: remote.id,
+        name: remote.name,
+        provider: "CADVISOR_ONLY",
+        nodeLabel: remote.id,
+        dozzleUrl: remote.dozzleUrl ?? null,
+        cadvisorUrl: remote.cadvisorUrl,
+        cadvisor: { baseUrl: remote.cadvisorUrl },
+      } satisfies HostConfig,
+    ]),
+  ),
 };
 
 export function listHosts(): HostSummary[] {
@@ -69,8 +50,8 @@ export function listHosts(): HostSummary[] {
 }
 
 export function getHost(id: string): HostConfig {
-  const host = Object.prototype.hasOwnProperty.call(hostDefinitions, id as HostId)
-    ? hostDefinitions[id as HostId]
+  const host = Object.prototype.hasOwnProperty.call(hostDefinitions, id)
+    ? hostDefinitions[id]
     : undefined;
   if (!host) {
     const error = new Error(`Unknown host: ${id}`);

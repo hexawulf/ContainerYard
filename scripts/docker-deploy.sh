@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Author: 0xWulf (zk@hexawulf.dev)
+# Author: 0xWulf <dev@0xwulf.dev>
 # Description: Pull and deploy a tagged 0xwulf/containeryard Docker image,
 #              backing up the SQLite database in cy-data beforehand.
 #              Usage: scripts/docker-deploy.sh <X.Y.Z> [--dry-run]
@@ -99,8 +99,8 @@ IMAGE="0xwulf/containeryard:${TAG}"
 PROJECT="${CY_COMPOSE_PROJECT:-containeryard}"
 PORT="${CY_PORT:-5008}"
 COMPOSE_FILES=(-f docker-compose.yml)
-if [ -f deploy/piapps/docker-compose.piapps.yml ] && [ "${CY_USE_PIAPPS_OVERRIDE:-1}" = "1" ]; then
-  COMPOSE_FILES+=(-f deploy/piapps/docker-compose.piapps.yml)
+if [ -f deploy/hostlogs/docker-compose.hostlogs.yml ] && [ "${CY_USE_HOSTLOGS_OVERRIDE:-1}" = "1" ]; then
+  COMPOSE_FILES+=(-f deploy/hostlogs/docker-compose.hostlogs.yml)
 fi
 
 log "ContainerYard Docker deploy starting (tag=${TAG}, project=${PROJECT}, dry_run=${DRY_RUN})"

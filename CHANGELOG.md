@@ -3,7 +3,13 @@
 All notable changes to ContainerYard are documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [5.0.0] - 2026-11-09
+
+### Breaking
+- **Generic environment-driven host configuration (`CY_LOCAL_HOST_ID`, `CY_LOCAL_HOST_NAME`, `CY_REMOTE_HOSTS`):** Removed the hard-coded host definitions and host-specific environment variables in favor of generic configuration.
+  - Local Docker host: `CY_LOCAL_HOST_ID` (default `local`, matching `/^[a-z0-9-]{1,32}$/`) and `CY_LOCAL_HOST_NAME` (default `Local Docker`).
+  - Remote cAdvisor-only hosts: `CY_REMOTE_HOSTS` as a JSON array of `{"id","name","cadvisorUrl","dozzleUrl"?}` entries validated with Zod on startup (unique IDs, valid URLs, empty/unset = no remote hosts).
+  - Host log defaults are now neutral: `HOSTLOGS_LOCAL_HOST` defaults to `CY_LOCAL_HOST_ID`, `HOSTLOG_NGINX_ACCESS_FILE` defaults to `access.log`, `HOSTLOG_NGINX_ERROR_FILE` defaults to `error.log`, and the host-log Compose overlay lives at `deploy/hostlogs/docker-compose.hostlogs.yml`.
 
 ### Security
 - **Smaller runtime attack surface:** the runtime image no longer ships npm, npx, corepack or yarn from the Node base image (the app only runs `node` and the local Prisma CLI). This removes all 22 npm-package findings that came from the bundled npm tree (Trivy: npm HIGH 11 → 0, MEDIUM 12 → 0).
@@ -27,12 +33,12 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 ## [4.1.1] - 2026-11-09
 
 ### Fixed
-- **cAdvisor hosts list only real containers:** an entry is kept only when its cgroup path ends in a Docker container ID (`/docker/<id>` or `docker-<id>.scope`). Synology hosts (`synology`, `ds718`) no longer show the parent `docker` cgroup or `system.slice/pkg-ContainerManager-dockerd.service` as containers.
+- **cAdvisor hosts list only real containers:** an entry is kept only when its cgroup path ends in a Docker container ID (`/docker/<id>` or `docker-<id>.scope`). Remote NAS/cAdvisor hosts no longer show the parent `docker` cgroup or `system.slice/pkg-ContainerManager-dockerd.service` as containers.
 
 ## [4.1.0] - 2026-11-09
 
 ### Added
-- **DS718+ host (`ds718`):** optional fourth host, a `CADVISOR_ONLY` view of the brixhouse DS718+ enabled by `DS718_CADVISOR_URL` (plus optional `DS718_DOZZLE_URL`). The host stays hidden when the URL is unset, so existing deployments need no new env.
+- **Optional additional remote cAdvisor host:** added support for an optional remote `CADVISOR_ONLY` host configured via environment variables (with optional Dozzle URL). The host stays hidden when the URL is unset, so existing deployments need no new env.
 
 ### Fixed
 - **Dozzle links:** "Open in Dozzle" for remote containers now links to `<dozzle>/container/<12-char id>`. It used to build `<dozzle>/#/container/<cAdvisor cgroup path>`, which current Dozzle cannot resolve.
@@ -52,10 +58,10 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 ### Added
 - **Multi-arch Docker Hub image (`0xwulf/containeryard`):** Official `linux/amd64` and `linux/arm64` images built from `node:22-bookworm-slim` (pinned by digest) with `tini` as PID 1, non-root `node` user (`uid 1000`), built-in `HEALTHCHECK` against `/health`, OCI image labels, SBOM, and provenance attestations.
 - **Container entrypoint (`docker/entrypoint.sh`):** Validates required environment variables without leaking secrets, prepares the SQLite `/data` directory, runs `prisma db push --skip-generate` + bootstrap admin seed on startup (skippable via `CY_SKIP_DB_PUSH=1`), and starts the server.
-- **Production `docker-compose.yml` & `deploy/piapps/` overlay:** Bundled `redis:7-alpine` session store on an internal network, `cy-data` and `cy-redis` volumes, read-only root filesystem (`read_only: true` + `/tmp` tmpfs), `cap_drop: [ALL]`, `no-new-privileges:true`, Watchtower opt-out labels (`com.centurylinklabs.watchtower.enable=false`), and optional read-only host-log bind mounts (`/host/nginx`, `/host/pm2`).
+- **Production `docker-compose.yml` & `deploy/hostlogs/` overlay:** Bundled `redis:7-alpine` session store on an internal network, `cy-data` and `cy-redis` volumes, read-only root filesystem (`read_only: true` + `/tmp` tmpfs), `cap_drop: [ALL]`, `no-new-privileges:true`, Watchtower opt-out labels (`com.centurylinklabs.watchtower.enable=false`), and optional read-only host-log bind mounts (`/host/nginx`, `/host/pm2`).
 - **Environment-driven host log & socket paths:** `HOSTLOG_NGINX_DIR`, `HOSTLOG_NGINX_ACCESS_FILE`, `HOSTLOG_NGINX_ERROR_FILE`, `PM2_LOG_DIR`, `PM2_APP_NAME`, `HOSTLOGS_LOCAL_HOST`, and `DOCKER_HOST` socket path resolution with graceful degradation when log files or directories are absent.
 - **GitHub Actions CI & Release pipelines (`.github/workflows/ci.yml`, `release.yml`):** Automated typecheck, ESLint, unit tests, production build, Docker Compose + Redis integration suite on every PR/push, and tag-verified multi-arch Docker Hub publishing on `v*.*.*` tags.
-- **Operations & cutover scripts:** `scripts/docker-deploy.sh`, `scripts/cutover-to-docker.sh` (gated by `--dry-run` / `--i-have-approval` with automatic rollback on failure), and `scripts/rollback-to-pm2.sh`.
+- **Operations & deploy scripts:** `scripts/docker-deploy.sh` for pulling tagged releases, backing up the `cy-data` SQLite database volume, recreating the container, and verifying `/health`.
 - **Reproducible build dates:** `vite.config.ts` respects `SOURCE_DATE_EPOCH` when injecting `__BUILD_DATE__`.
 
 ### Included from 3.2 (PR #3 & PR #4)

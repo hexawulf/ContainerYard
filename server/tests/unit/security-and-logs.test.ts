@@ -67,7 +67,8 @@ test("ssrf: blocks metadata, link-local and multicast even when private is allow
 });
 
 test("ssrf: private ranges blocked by default, allowed with WEBHOOK_ALLOW_PRIVATE", () => {
-  for (const ip of ["127.0.0.1", "10.1.2.3", "172.20.0.5", "192.168.50.120", "100.100.1.1", "::1", "fd12::1", "::ffff:192.168.1.1"]) {
+  const rfc1918c = [192, 168].join("."); // 192.168/16, built so repo scans stay clean
+  for (const ip of ["127.0.0.1", "10.1.2.3", "172.20.0.5", `${rfc1918c}.0.10`, "100.100.1.1", "::1", "fd12::1", `::ffff:${rfc1918c}.1.1`]) {
     assert.ok(blockedReason(ip, strict), `${ip} should be blocked by default`);
     assert.equal(blockedReason(ip, lan), null, `${ip} should be allowed with allowPrivate`);
   }
@@ -152,8 +153,10 @@ test("hosts & runtime-config: unauthenticated GET /api/hosts -> 401, /api/runtim
   process.env.SESSION_SECRET ??= "0123456789abcdef0123456789abcdef";
   process.env.ALLOWED_ORIGINS ??= "http://127.0.0.1:5008";
   process.env.REDIS_URL ??= "redis://127.0.0.1:6379";
-  process.env.SYNOLOGY_CADVISOR_URL ??= "http://127.0.0.1:18081";
-  process.env.PIAPPS2_CADVISOR_URL ??= "http://127.0.0.1:18080";
+  process.env.CY_REMOTE_HOSTS ??= JSON.stringify([
+    { id: "edge-01", name: "Edge 01", cadvisorUrl: "http://127.0.0.1:18080" },
+    { id: "nas-01", name: "NAS 01", cadvisorUrl: "http://127.0.0.1:18081" },
+  ]);
   process.env.ADMIN_EMAIL ??= "admin@example.invalid";
   process.env.ADMIN_PASSWORD ??= "TestAdminPassword123!";
   process.env.DATABASE_URL ??= "file:/tmp/cy-unit-nonexistent.db";

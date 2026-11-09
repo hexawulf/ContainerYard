@@ -103,8 +103,9 @@ jobs:
           REDIS_PASSWORD=$(openssl rand -hex 24)
           ALLOWED_ORIGINS=http://127.0.0.1:5008
           DATABASE_URL=file:/data/app.db
-          PIAPPS2_CADVISOR_URL=http://127.0.0.1:18080/
-          SYNOLOGY_CADVISOR_URL=http://127.0.0.1:18081/
+          CY_LOCAL_HOST_ID=local
+          CY_LOCAL_HOST_NAME=Local Docker
+          CY_REMOTE_HOSTS=[{"id":"edge-01","name":"Edge 01","cadvisorUrl":"http://127.0.0.1:18080/"},{"id":"nas-01","name":"NAS 01","cadvisorUrl":"http://127.0.0.1:18081/"}]
           ADMIN_EMAIL=ci-admin@example.invalid
           ADMIN_PASSWORD=CiAdmin_Pass_2026!
           COOKIE_SAMESITE=lax

@@ -21,7 +21,7 @@ Package ContainerYard as a multi-arch (`linux/amd64`, `linux/arm64`) Docker imag
   - Run as `USER node` (`uid 1000`), `EXPOSE 5008`, `HEALTHCHECK` using `node -e "fetch('http://127.0.0.1:' + (process.env.PORT || 5008) + '/health')..."`.
   - OCI image labels (`title`, `description`, `source`, `url`, `licenses`, `version`, `revision`, `created`).
 - **`docker/entrypoint.sh`**:
-  - Validates required env vars (`SESSION_SECRET`, `DATABASE_URL`, `REDIS_URL`, `ALLOWED_ORIGINS`, `PIAPPS2_CADVISOR_URL`, `SYNOLOGY_CADVISOR_URL`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`) without printing values.
+  - Validates required env vars (`SESSION_SECRET`, `DATABASE_URL`, `REDIS_URL`, `ALLOWED_ORIGINS`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`) without printing values.
   - Ensures SQLite parent directory exists if `DATABASE_URL` starts with `file:`.
   - Runs `prisma db push --skip-generate --schema=server/prisma/schema.prisma` (unless `CY_SKIP_DB_PUSH=1`) and `node server/prisma/seed.js`.
   - `exec node dist/index.js`.
@@ -29,23 +29,23 @@ Package ContainerYard as a multi-arch (`linux/amd64`, `linux/arm64`) Docker imag
 ## Step 2: Config Refactor (Env-Driven Host Paths)
 - `server/src/config/hostlogs.ts`:
   - `HOSTLOG_NGINX_DIR` (default `/var/log/nginx`)
-  - `HOSTLOG_NGINX_ACCESS_FILE` (default `container.piapps.dev.access.log`)
-  - `HOSTLOG_NGINX_ERROR_FILE` (default `container.piapps.dev.error.log`)
+  - `HOSTLOG_NGINX_ACCESS_FILE` (default `access.log`)
+  - `HOSTLOG_NGINX_ERROR_FILE` (default `error.log`)
   - `PM2_LOG_DIR` (default `~/.pm2/logs`)
   - `PM2_APP_NAME` (default `containeryard-api`)
-  - `HOSTLOGS_LOCAL_HOST` (default `piapps`)
+  - `HOSTLOGS_LOCAL_HOST` (default: the local host id, `CY_LOCAL_HOST_ID`)
 - `server/src/config/hosts.ts`:
-  - `piapps` socket path derived from `env.DOCKER_HOST` (stripping `unix://` prefix, default `/var/run/docker.sock`).
+  - Local Docker host socket path derived from `env.DOCKER_HOST` (stripping `unix://` prefix, default `/var/run/docker.sock`).
 - Document all variables in `.env.example` and `README.md`. Add unit tests in `server/tests/unit/hostlogs.test.ts`.
 
-## Step 3: Docker Compose & Piapps Overlay
+## Step 3: Docker Compose & Host-Logs Overlay
 - `docker-compose.yml`:
   - `app`: `0xwulf/containeryard:${CY_TAG:-latest}`, `build: .`, `127.0.0.1:${CY_PORT:-5008}:5008`, `cy-data:/data`, `/var/run/docker.sock:/var/run/docker.sock`, `group_add: [${DOCKER_GID:-113}, ${ADM_GID:-4}]`, `read_only: true`, `tmpfs: [/tmp]`, `cap_drop: [ALL]`, `security_opt: [no-new-privileges:true]`, Watchtower opt-out label (`com.centurylinklabs.watchtower.enable=false`).
   - `redis`: `redis:7-alpine@sha256:c5d34a98396a4775e223c74e929162c35c5a2182901ba26b50ade939941ce14b`, `--requirepass ${REDIS_PASSWORD} --appendonly yes`, `cy-redis:/data`, internal network only, Watchtower opt-out label.
   - Commented optional `socket-proxy` example (`tecnativa/docker-socket-proxy`).
-- `deploy/piapps/`:
-  - `docker-compose.piapps.yml` (mounts `/var/log/nginx:/host/nginx:ro` and `/home/zk/.pm2/logs:/host/pm2:ro`, sets `HOSTLOG_NGINX_DIR=/host/nginx` and `PM2_LOG_DIR=/host/pm2`).
-  - `.env.piapps.example` (variable names and placeholders only).
+- `deploy/hostlogs/`:
+  - `docker-compose.hostlogs.yml` (mounts `/var/log/nginx:/host/nginx:ro` and `${PM2_LOGS}:/host/pm2:ro`, sets `HOSTLOG_NGINX_DIR=/host/nginx` and `PM2_LOG_DIR=/host/pm2`).
+  - `.env.hostlogs.example` (variable names and placeholders only).
 
 ## Step 4: GitHub Actions CI & Release
 - `.github/workflows/ci.yml`:
@@ -64,4 +64,4 @@ Package ContainerYard as a multi-arch (`linux/amd64`, `linux/arm64`) Docker imag
 
 ## Step 6–7: Local Verification, PR, Merge & v4.0.0 Release
 - Verify unit tests, build, image size/security, `cy-test` compose stack on `127.0.0.1:5098`, integration tests (with throwaway `cy-test-busybox` container), and Playwright E2E tests.
-- Open PR, pass CI, merge to `main`, bump to `4.0.0`, push signed tag `v4.0.0`, verify multi-arch image from Docker Hub on `piapps`, and create GitHub Release.
+- Open PR, pass CI, merge to `main`, bump to `4.0.0`, push signed tag `v4.0.0`, verify multi-arch image from Docker Hub on the production host, and create GitHub Release.

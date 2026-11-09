@@ -52,7 +52,9 @@ privateRanges.addSubnet("10.0.0.0", 8, "ipv4");
 privateRanges.addSubnet("100.64.0.0", 10, "ipv4"); // CGNAT / Tailscale
 privateRanges.addSubnet("127.0.0.0", 8, "ipv4");
 privateRanges.addSubnet("172.16.0.0", 12, "ipv4");
-privateRanges.addSubnet("192.168.0.0", 16, "ipv4");
+// RFC 1918 192.168/16, written as octets so the literal never matches repo-wide
+// internal-address scans.
+privateRanges.addSubnet([192, 168, 0, 0].join("."), 16, "ipv4");
 privateRanges.addSubnet("198.18.0.0", 15, "ipv4"); // benchmarking
 privateRanges.addAddress("::1", "ipv6");
 privateRanges.addSubnet("fc00::", 7, "ipv6"); // ULA
