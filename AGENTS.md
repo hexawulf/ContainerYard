@@ -5,26 +5,32 @@ Simple full-stack TypeScript project (not a monorepo). React 18 + Express.js + P
 
 ## Root Setup Commands
 ```bash
-# Install dependencies
-npm install
-
-# Generate Prisma client (runs automatically after install)
-npm run postinstall
+# Install dependencies (also runs `prisma generate` via postinstall)
+npm ci
 
 # Start development server (client + server)
-npm run dev                    # Available at http://localhost:5000
+npm run dev                    # Available at http://localhost:5008
 
 # Build everything
 npm run build                  # Builds server (esbuild) + client (vite) + verification
 
 # Type checking
-npm run check                  # TypeScript compiler
+npm run check                  # TypeScript compiler (app)
+npm run check:tests            # TypeScript compiler (tests)
 
 # Linting
 npm run lint                   # ESLint
 
+# Unit & integration tests
+npm test                       # Unit tests (node:test)
+npm run test:integration       # Live integration tests against CY_BASE_URL
+
 # E2E tests
 npm run e2e                    # Playwright tests
+
+# Docker Compose (production)
+docker compose up -d           # Pull/run 0xwulf/containeryard + redis on 127.0.0.1:5008
+scripts/docker-deploy.sh 4.0.0 # Pull tagged release, backup cy-data DB, recreate & verify
 ```
 
 ## Universal Conventions
