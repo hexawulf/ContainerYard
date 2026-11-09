@@ -71,6 +71,17 @@ function shouldLogError(hostId: string): boolean {
   return true;
 }
 
+/**
+ * True only for cgroups that are Docker containers: the path ends in a 64-hex
+ * container ID, as `/docker/<id>` (cgroup v1, e.g. Synology DSM) or
+ * `/system.slice/docker-<id>.scope` (cgroup v2). Excludes the parent `/docker`
+ * cgroup and daemon units such as `/system.slice/pkg-ContainerManager-dockerd.service`,
+ * which the old "path contains docker" test let through on Synology hosts.
+ */
+export function isDockerContainerPath(name: string): boolean {
+  return /\/docker[-/][0-9a-f]{64}(?:\.scope)?$/i.test(name);
+}
+
 function extractContainerId(name: string): string {
   // Handle different container ID formats
   // Format 1: /system.slice/docker-{containerId}.scope
@@ -262,12 +273,7 @@ class CadvisorService {
       const endpoint = await this.probeEndpoint();
       const containers = await this.fetchJson<CadvisorContainer[]>(endpoint);
       
-      const dockerContainers = containers.filter((container) => {
-        // Accept containers with docker in path or aliases
-        const hasDockerPath = container.name.includes("docker");
-        const hasAliases = container.aliases && container.aliases.length > 0;
-        return hasDockerPath || hasAliases;
-      });
+      const dockerContainers = containers.filter((container) => isDockerContainerPath(container.name));
       
       return dockerContainers.map((container) => toSummary(host, container));
     } catch (error: any) {
@@ -402,11 +408,7 @@ export async function listContainersOld(baseUrl: string): Promise<CadStat[]> {
   
   const out: CadStat[] = [];
   for (const c of data) {
-    // More lenient filtering - accept containers with docker in path or aliases
-    const hasDockerPath = c.name.includes("docker");
-    const hasAliases = c.aliases && c.aliases.length > 0;
-    
-    if (!hasDockerPath && !hasAliases) continue;
+    if (!isDockerContainerPath(c.name)) continue;
     
     // Improved name extraction
     const name = (c.aliases?.[0] || c.name || "")

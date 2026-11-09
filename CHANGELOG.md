@@ -3,6 +3,11 @@
 All notable changes to ContainerYard are documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [4.1.1] - 2026-11-09
+
+### Fixed
+- **cAdvisor hosts list only real containers:** an entry is kept only when its cgroup path ends in a Docker container ID (`/docker/<id>` or `docker-<id>.scope`). Synology hosts (`synology`, `ds718`) no longer show the parent `docker` cgroup or `system.slice/pkg-ContainerManager-dockerd.service` as containers.
+
 ## [4.1.0] - 2026-11-09
 
 ### Added
