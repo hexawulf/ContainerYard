@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState, lazy, Suspense, Component, type ErrorInfo, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/components/AuthGate";
@@ -120,7 +119,7 @@ function createHistoryKey(hostId: string, containerId: string) {
 }
 
 export default function Dashboard() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const [selectedHostId, setSelectedHostId] = useState<string | null>(() => localStorage.getItem(HOST_STORAGE_KEY));
   const [selectedContainerId, setSelectedContainerId] = useState<string | null>(null);
   const [statsHistory, setStatsHistory] = useState<Record<string, ContainerStats[]>>({});
@@ -402,14 +401,6 @@ export default function Dashboard() {
               </Button>
             </Link>
           )}
-          {user && (
-            <Badge variant="outline" className="uppercase tracking-wide font-mono text-xs">
-              {user.role}
-            </Badge>
-          )}
-          <Button variant="outline" size="sm" onClick={logout}>
-            Logout
-          </Button>
         </div>
       </div>
 

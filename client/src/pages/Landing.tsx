@@ -3,7 +3,7 @@ import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Github, Mail, Ship, Terminal, GitFork, Activity, Search, ShieldCheck } from "lucide-react";
+import { Ship, Terminal, GitFork, Activity, Search, ShieldCheck } from "lucide-react";
 import { Helmet } from "react-helmet-async";
 
 const SAMPLE_LOGS = [
@@ -47,18 +47,11 @@ const LandingPage: React.FC = () => {
                 <Link href="/dashboard">
                   <Button size="lg">Open Dashboard</Button>
                 </Link>
-                <a href="https://github.com/hexawulf/ContainerYard" target="_blank" rel="noreferrer">
-                  <Button size="lg" variant="outline" className="gap-2">
-                    <Github className="h-4 w-4" />
-                    GitHub
+                <Link href="/styleguide">
+                  <Button size="lg" variant="outline">
+                    Style Guide
                   </Button>
-                </a>
-                <a href="mailto:dev@0xwulf.dev">
-                  <Button size="lg" variant="outline" className="gap-2">
-                    <Mail className="h-4 w-4" />
-                    dev@0xwulf.dev
-                  </Button>
-                </a>
+                </Link>
               </div>
             </div>
 
