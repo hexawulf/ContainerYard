@@ -1,8 +1,42 @@
-node_modules
+# Git & version control
 .git
-.env
-.env.local
+.github
+.gitignore
+
+# Dependencies & build output
+node_modules
 dist
+
+# Environment & secrets (never include in image context)
+.env
+.env.*
+!.env.example
+
+# Databases & backups
+*.db
+*.db-*
+*.db.*
+*.sqlite
+*.sqlite-*
+
+# Logs & runtime state
 *.log
-.DS_Store
+logs
 .pm2
+
+# Docs, screenshots, assets & tests (not needed to build or run the app)
+docs
+e2e
+screenshots
+attached_assets
+server/tests
+coverage
+playwright-report
+test-results
+*.md
+
+# Worktrees & editor clutter
+ContainerYard-*
+.DS_Store
+.vscode
+.idea
