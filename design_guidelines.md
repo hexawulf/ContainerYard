@@ -106,3 +106,17 @@
 - **Persistence**: `localStorage` key `'containeryard-theme'`. Stored `'dark'` resolves to `'dark'`; `'light'`, missing, invalid, or legacy `'system'` resolves to `'light'`
 - **No-Flash Script**: Inline `<script>` in `client/index.html` sets `<html class="light|dark">`, `document.documentElement.style.colorScheme`, and `<meta name="theme-color">` before any module loads
 - **Transition**: 150ms color transition applied only on user toggle (`html.theme-transition`) and disabled under `prefers-reduced-motion: reduce` and during first paint
+
+### E. Header Action Row (`Navbar`)
+
+The top-right `Navbar` action row follows a strict left-to-right visual and tab order across all routes:
+
+`[Open Dashboard (off /dashboard only)] · (i) About · Theme · Change password · Users (ADMIN only) · Logout (always last)`
+
+- **Shared Icon Button Specification**: `36px × 36px` (`h-9 w-9`), `rounded-md`, `border-border/60`, `bg-background/60`, `hover:bg-accent`, `focus-visible:ring-2 focus-visible:ring-ring`, paired with an accessible `aria-label`, `title`, and Radix `Tooltip`.
+- **Visibility Rules**:
+  - `About` (`data-testid="button-about"`, `Info` icon) and `ThemeToggle` (`data-testid="button-theme-toggle"`, `Sun`/`Moon` icon) render on every route (authenticated or unauthenticated).
+  - `Change password` (`data-testid="button-change-password"`, `KeyRound` icon) and `Logout` (`data-testid="button-logout"`, `LogOut` icon, always the last child) render only for authenticated users.
+  - `Users` (`data-testid="button-users"`, `Users` icon) renders only when `user.role === "ADMIN"`.
+- **Responsive Behavior (`360px`–`639px`)**: Below `sm`, the `"ContainerYard"` wordmark text is hidden and `Open Dashboard` collapses to an icon-only button (`LayoutDashboard`) with `aria-label="Open Dashboard"`, keeping all header controls reachable with zero horizontal overflow down to `360px`.
+- **Footer Attribution**: Repository, documentation, issue tracker, and developer contact links live inside the `About` modal so the footer remains concise (`Logo`, copyright + version line, and internal `Style Guide` link).

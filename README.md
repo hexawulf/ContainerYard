@@ -48,6 +48,7 @@ ContainerYard is a comprehensive Docker observability platform that goes beyond 
 - 💻 **Integrated Terminal** - Web-based shell access for container debugging
 - ⌨️ **Keyboard Shortcuts** - Navigate efficiently with keyboard-driven controls
 - ☀️ **Light/Dark Mode Toggle** - Light mode by default with a persistent per-browser toggle on every page, zero flash on load, and WCAG AA contrast tuned for log readability in both themes
+- 👥 **User Administration & Session Revocation** - Self-service password change, ADMIN user management modal (create users, assign `ADMIN`/`VIEWER` roles, reset passwords, delete users), and instant `sessionVersion`-based revocation across active sessions
 
 ### Advanced Features
 - 🎨 **Multi-Container Log Interleaving** - Stream and compare logs from up to 3 containers simultaneously
@@ -407,7 +408,16 @@ Errors: `400` invalid action or container reference · `403` not ADMIN / bad CSR
 
 **GET** `/api/audit?limit=100&before=<id>&action=container.`
 
-ADMIN only. Returns `{ entries: [...], nextBefore }`, newest first; pass `before=nextBefore` to get the next page. Each entry has `action` (`container.stop`, `stack.restart`, `auth.login`, …), `outcome` (`success` | `failure` | `denied`), `userEmail`, `hostId`, `target`, `detail`, `ip` and `createdAt`.
+ADMIN only. Returns `{ entries: [...], nextBefore }`, newest first; pass `before=nextBefore` to get the next page. Each entry has `action` (`container.stop`, `stack.restart`, `auth.login`, `auth.password_change`, `user.create`, `user.role_change`, `user.password_reset`, `user.delete`, …), `outcome` (`success` | `failure` | `denied`), `userEmail`, `hostId`, `target`, `detail`, `ip` and `createdAt`.
+
+### Authentication & User Management
+
+- **POST** `/api/auth/change-password` — Any signed-in user (`requireAuth`, CSRF-protected, rate-limited). Body: `{ "currentPassword": "…", "newPassword": "…" }`. Validates `newPassword` (`12`–`72` UTF-8 bytes, must differ from `currentPassword`), hashes with `bcrypt` (cost 12), increments `sessionVersion`, and regenerates the caller's session so other active sessions for that user are revoked (`401`). Audited as `auth.password_change`.
+- **GET** `/api/users` — `ADMIN` only. Lists `[{ id, email, role, createdAt, updatedAt }]` (never exposes password hashes or `totpSecret`).
+- **POST** `/api/users` — `ADMIN` only, CSRF-protected. Body: `{ "email": "…", "role": "ADMIN" | "VIEWER", "password": "…" }` → `201` (`409` on duplicate email). Audited as `user.create`.
+- **PATCH** `/api/users/:id` — `ADMIN` only, CSRF-protected. Body: `{ "role": "ADMIN" | "VIEWER" }` → `200`. Bumps `sessionVersion` when the role changes; blocks self-demotion (`403`) and demoting the last remaining `ADMIN` (`409`). Audited as `user.role_change`.
+- **POST** `/api/users/:id/reset-password` — `ADMIN` only, CSRF-protected. Body: `{ "newPassword": "…" }` → `200`. Hashes with `bcrypt` (cost 12) and bumps `sessionVersion` to revoke active sessions. Audited as `user.password_reset`.
+- **DELETE** `/api/users/:id` — `ADMIN` only, CSRF-protected. Deletes the user's `LogBookmark` and `SavedSearch` rows and the `User` row in a single Prisma transaction (`$transaction`). Blocks self-deletion (`403`) and deleting the last remaining `ADMIN` (`409`). Audited as `user.delete`.
 
 ### Log Bookmarks (v3.1)
 
