@@ -1,17 +1,17 @@
 [![Website](https://img.shields.io/badge/website-containeryard.org-blue)](https://containeryard.org)
 [![GitHub](https://img.shields.io/github/stars/hexawulf/ContainerYard?style=social)](https://github.com/hexawulf/ContainerYard)
 
-# ContainerYard 3.1 🐳
+# ContainerYard 3.2 🐳
 
 > A complete Docker stack monitoring platform with log analysis, alerting, and historical trends
 
-[![Release](https://img.shields.io/badge/release-v3.1.2-brightgreen)](https://github.com/hexawulf/ContainerYard/releases/tag/v3.1.2)
+[![Release](https://img.shields.io/badge/release-v3.2.0-brightgreen)](https://github.com/hexawulf/ContainerYard/releases/tag/v3.2.0)
 
-**ContainerYard 3.0** is the first major release since v2.0.0 (Phase 1, November 2025). It brings multi-host monitoring (Docker + cAdvisor-only hosts), SQLite as a first-class database, Metric-to-Log Quick Jump, hardened auth and CSRF, and SEO and landing-page polish. **3.1** adds per-container lifecycle actions, an audit log, working Log Moment bookmarks, restored CSRF enforcement and SSRF-safe webhooks. See [What's new in 3.1](#-whats-new-in-31) and [3.0](#-whats-new-in-30).
+**ContainerYard 3.0** is the first major release since v2.0.0 (Phase 1, November 2025). It brings multi-host monitoring (Docker + cAdvisor-only hosts), SQLite as a first-class database, Metric-to-Log Quick Jump, hardened auth and CSRF, and SEO and landing-page polish. **3.1** adds per-container lifecycle actions, an audit log, working Log Moment bookmarks, restored CSRF enforcement and SSRF-safe webhooks. **3.2** introduces a light-by-default theme system with a persistent light/dark mode toggle on every page, zero flash on load, and a full WCAG AA UI refresh across both themes. See [What's new in 3.2](#-whats-new-in-32), [3.1](#-whats-new-in-31), and [3.0](#-whats-new-in-30).
 
 ContainerYard is a comprehensive Docker observability platform that goes beyond simple log viewing. It provides Docker Compose stack management, proactive alerting, historical metrics analysis, and real-time log streaming—all in one sleek, developer-friendly interface. Built with React 18 and Express, it bridges the gap between lightweight viewers and enterprise monitoring solutions.
 
-![ContainerYard Dashboard](https://github.com/hexawulf/ContainerYard/blob/main/attached_assets/screenshot.png?raw=true)
+![ContainerYard Dashboard](https://github.com/hexawulf/ContainerYard/blob/main/docs/screenshots/ui-refresh/dashboard-light-1440x900.png?raw=true)
 
 
 ## ✨ Features
@@ -47,7 +47,7 @@ ContainerYard is a comprehensive Docker observability platform that goes beyond 
 - 🔍 **Powerful Search & Filtering** - Regex support, log level filtering, and custom DSL queries
 - 💻 **Integrated Terminal** - Web-based shell access for container debugging
 - ⌨️ **Keyboard Shortcuts** - Navigate efficiently with keyboard-driven controls
-- 🌓 **Dark/Light Mode** - Beautiful themes optimized for log readability
+- ☀️ **Light/Dark Mode Toggle** - Light mode by default with a persistent per-browser toggle on every page, zero flash on load, and WCAG AA contrast tuned for log readability in both themes
 
 ### Advanced Features
 - 🎨 **Multi-Container Log Interleaving** - Stream and compare logs from up to 3 containers simultaneously
@@ -59,6 +59,13 @@ ContainerYard is a comprehensive Docker observability platform that goes beyond 
 - 🔄 **Restart Comparison** - Before/after restart analysis with error pattern detection
 - 💾 **Saved Searches** - Persist search queries with PostgreSQL for quick reuse
 - 🌐 **Environment Viewer** - Search, filter, and bulk export container environment variables
+
+## 🆕 What's New in 3.2
+
+### 3.2.0: light-by-default theme toggle & UI refresh
+- **Light-by-default theme system (`containeryard-theme`):** Light mode is now the default across the app, paired with a persistent `ThemeToggle` (`Sun`/`Moon`) in the navbar on every route (Landing, Login, Dashboard, Host Logs, Style Guide, 404). An inline `<head>` script sets `<html class="light|dark">`, `colorScheme`, and `<meta name="theme-color">` before first paint so there is zero flash of the wrong theme on load. Stored `"dark"` resolves to dark; `"light"`, missing, invalid, or legacy `"system"` values resolve to light
+- **WCAG AA token & UI refresh:** Retuned `:root` (light) and `.dark` CSS tokens (`≥ 4.5:1` contrast for body/muted text, badges, and log levels), added semantic status variables (`--status-running`, `--status-warning`, `--status-danger`, `--status-info`, `--status-neutral`) and theme-aware `.log-error`/`.log-warn`/`.log-info`/`.log-debug`/`.log-fatal` classes, replaced hardcoded colors across charts, monitoring widgets, stack cards, and log viewers, and kept the interactive `xterm.js` terminal canvas dark (`#0d1117`) in both themes inside a clean card frame
+- **Responsive layout & repo hygiene:** Fixed mobile horizontal overflow down to `375px` viewports across Dashboard and Host Logs, archived stale root markdown notes into `docs/_archive/`, and added unit (`server/tests/unit/theme.test.ts`) and Playwright E2E (`e2e/theme.spec.ts`) tests
 
 ## 🆕 What's New in 3.1
 
@@ -522,7 +529,7 @@ PW_CHROMIUM_PATH=/path/to/chrome-headless-shell BASE_URL=http://127.0.0.1:5008 n
 
 ## 📚 Documentation
 
-- [Releases](https://github.com/hexawulf/ContainerYard/releases) - Changelog and release notes (current: v3.1.2)
+- [Releases](https://github.com/hexawulf/ContainerYard/releases) - Changelog and release notes (current: v3.2.0)
 - [Phase 1 Implementation](docs/_archive/PHASE1_IMPLEMENTATION_SUMMARY.md) - Complete feature breakdown
 - [Deployment Guide](DEPLOYMENT.md) - Production deployment instructions
 - [Environment Variables](.env.example) - Configuration reference
