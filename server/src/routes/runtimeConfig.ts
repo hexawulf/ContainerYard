@@ -1,5 +1,4 @@
 import type { Request, Response } from "express";
-import { listHosts } from "../config/hosts";
 import { isSQLite, isPostgreSQL } from "../config/databaseCapabilities";
 
 export function registerRuntimeConfigRoute(app: import("express").Express) {
@@ -7,18 +6,10 @@ export function registerRuntimeConfigRoute(app: import("express").Express) {
     const protocol = req.protocol || "https";
     const apiBase =
       process.env.PUBLIC_API_BASE ??
-      `${protocol}://${req.headers.host ?? "container.piapps.dev"}`;
-
-    const hosts = listHosts().map((h) => ({
-      id: h.id,
-      name: h.name,
-      provider: h.provider,
-      nodeLabel: h.nodeLabel,
-    }));
+      `${protocol}://${req.headers.host ?? "localhost"}`;
 
     res.json({
       apiBase,
-      hosts,
       database: {
         type: isSQLite ? 'sqlite' : (isPostgreSQL ? 'postgresql' : 'unknown'),
         isSQLite,

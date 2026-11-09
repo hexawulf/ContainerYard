@@ -157,6 +157,7 @@ export default function Dashboard() {
 
   const { data: hostsData, isLoading: hostsLoading } = useQuery<HostSummary[]>({
     queryKey: ["/api/hosts"],
+    enabled: Boolean(user) || import.meta.env.VITE_AUTH_DISABLED === "true",
   });
 
   const hosts = useMemo(() => ensureArray<HostSummary>(hostsData), [hostsData]);
@@ -194,7 +195,7 @@ export default function Dashboard() {
 
   const { data: containersData, isLoading: containersLoading } = useQuery<ContainerSummary[]>({
     queryKey: containersQueryKey ?? [],
-    queryFn: containersQueryKey ? getQueryFn<ContainerSummary[]>({ on401: "throw" }) : undefined,
+    queryFn: getQueryFn<ContainerSummary[]>({ on401: "throw" }),
     enabled: Boolean(containersQueryKey),
   });
 
@@ -207,7 +208,7 @@ export default function Dashboard() {
     }
 
     // Ensure a container is selected when containers are loaded
-    // This fixes the issue where piapps2 containers wouldn't auto-select
+    // This fixes the issue where remote host containers wouldn't auto-select
     if (!selectedContainerId || !containers.some((container) => container.id === selectedContainerId)) {
       setSelectedContainerId(containers[0].id);
     }
@@ -220,7 +221,7 @@ export default function Dashboard() {
 
   const { data: containerDetail, isLoading: detailLoading, error: detailError } = useQuery<ContainerDetail | null>({
     queryKey: detailQueryKey ?? [],
-    queryFn: detailQueryKey ? getQueryFn<ContainerDetail>({ on401: "throw" }) : undefined,
+    queryFn: getQueryFn<ContainerDetail>({ on401: "throw" }),
     enabled: Boolean(detailQueryKey),
   });
 
@@ -241,7 +242,7 @@ export default function Dashboard() {
 
   const statsQuery = useQuery<NormalizedStats>({
     queryKey: statsQueryKey ?? [],
-    queryFn: statsQueryKey ? getQueryFn<NormalizedStats>({ on401: "throw" }) : undefined,
+    queryFn: getQueryFn<NormalizedStats>({ on401: "throw" }),
     enabled: Boolean(statsQueryKey),
     refetchInterval: 2000,
     refetchIntervalInBackground: true,
@@ -395,7 +396,7 @@ export default function Dashboard() {
             {showHistoricalMetrics ? "Hide" : "Show"} Historical Metrics
           </Button>
           {user?.role === "ADMIN" && (
-            <Link href={`/hosts/${selectedHostId ?? "piapps"}/logs`}>
+            <Link href={`/hosts/${selectedHostId ?? hosts[0]?.id ?? "local"}/logs`}>
               <Button variant="outline" size="sm">
                 Host Logs
               </Button>

@@ -145,3 +145,75 @@ test("csrf: tokensMatch rejects length mismatch and non-strings", () => {
   assert.equal(tokensMatch(undefined, "abc"), false);
   assert.equal(tokensMatch("", ""), false);
 });
+
+// ---------- Public exposure lockdown (/api/hosts & /api/runtime-config) ----------
+
+test("hosts & runtime-config: unauthenticated GET /api/hosts -> 401, /api/runtime-config omits hosts, authenticated GET /api/hosts returns list", async () => {
+  process.env.SESSION_SECRET ??= "0123456789abcdef0123456789abcdef";
+  process.env.ALLOWED_ORIGINS ??= "http://127.0.0.1:5008";
+  process.env.REDIS_URL ??= "redis://127.0.0.1:6379";
+  process.env.SYNOLOGY_CADVISOR_URL ??= "http://127.0.0.1:18081";
+  process.env.PIAPPS2_CADVISOR_URL ??= "http://127.0.0.1:18080";
+  process.env.ADMIN_EMAIL ??= "admin@example.invalid";
+  process.env.ADMIN_PASSWORD ??= "TestAdminPassword123!";
+  process.env.DATABASE_URL ??= "file:/tmp/cy-unit-nonexistent.db";
+
+  const express = (await import("express")).default;
+  const { registerRuntimeConfigRoute } = await import("../../src/routes/runtimeConfig");
+  const { hostsRouter } = await import("../../src/routes/hosts");
+  const { listHosts } = await import("../../src/config/hosts");
+  const dbMod = await import("../../src/db/client");
+
+  // Stub prisma.user.findUnique for authenticated session check without hitting disk DB
+  const origFindUnique = dbMod.prisma?.user.findUnique;
+  if (dbMod.prisma) {
+    (dbMod.prisma.user as any).findUnique = async ({ where }: { where: { id: string } }) =>
+      where.id === "u-admin"
+        ? { id: "u-admin", email: "admin@example.invalid", role: "ADMIN", sessionVersion: 0 }
+        : null;
+  }
+
+  const app = express();
+  app.use((req: any, _res, next) => {
+    req.session = req.headers["x-test-auth"] === "admin"
+      ? { user: { id: "u-admin", email: "admin@example.invalid", role: "ADMIN", sessionVersion: 0 } }
+      : {};
+    next();
+  });
+  registerRuntimeConfigRoute(app);
+  app.use("/api/hosts", hostsRouter);
+
+  const server = http.createServer(app);
+  await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+  const { port } = server.address() as AddressInfo;
+  const base = `http://127.0.0.1:${port}`;
+
+  try {
+    // 1. Unauthenticated GET /api/hosts -> 401
+    const unauthRes = await fetch(`${base}/api/hosts`);
+    assert.equal(unauthRes.status, 401);
+
+    // 2. /api/runtime-config contains no hosts key and no configured host ids or names
+    const rcRes = await fetch(`${base}/api/runtime-config`, { headers: { host: "containeryard.org" } });
+    assert.equal(rcRes.status, 200);
+    const rcText = await rcRes.text();
+    const rcJson = JSON.parse(rcText) as Record<string, unknown>;
+    assert.equal("hosts" in rcJson, false, "runtime-config must not include hosts");
+    for (const h of listHosts()) {
+      assert.equal(rcText.includes(h.id), false, `runtime-config leaked host id ${h.id}`);
+      assert.equal(rcText.includes(h.name), false, `runtime-config leaked host name ${h.name}`);
+    }
+
+    // 3. Authenticated GET /api/hosts returns the list
+    const authRes = await fetch(`${base}/api/hosts`, { headers: { "x-test-auth": "admin" } });
+    assert.equal(authRes.status, 200);
+    const hosts = (await authRes.json()) as Array<{ id: string; name: string }>;
+    assert.ok(Array.isArray(hosts) && hosts.length > 0);
+    assert.deepEqual(hosts.map((h) => h.id), listHosts().map((h) => h.id));
+  } finally {
+    if (dbMod.prisma && origFindUnique) {
+      (dbMod.prisma.user as any).findUnique = origFindUnique;
+    }
+    server.close();
+  }
+});

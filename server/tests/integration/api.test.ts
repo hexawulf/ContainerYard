@@ -96,8 +96,26 @@ test("CSRF: mutating request without a token is rejected", { skip: skipAll }, as
 
 test("protected routes need a session", { skip: skipAll }, async () => {
   const anon = new Client();
-  for (const p of [`/api/hosts/${HOST}/containers`, "/api/bookmarks", "/api/saved-searches", "/api/audit", `/api/hosts/${HOST}/logs`]) {
+  for (const p of ["/api/hosts", `/api/hosts/${HOST}/containers`, "/api/bookmarks", "/api/saved-searches", "/api/audit", `/api/hosts/${HOST}/logs`]) {
     assert.equal((await anon.req(p)).status, 401, p);
+  }
+});
+
+test("runtime-config omits hosts and authenticated GET /api/hosts returns list", { skip: skipAll }, async () => {
+  const anon = new Client();
+  const hostsRes = await admin.req("/api/hosts");
+  assert.equal(hostsRes.status, 200);
+  const hosts = (await hostsRes.json()) as Array<{ id: string; name: string }>;
+  assert.ok(Array.isArray(hosts) && hosts.length > 0);
+
+  const rcRes = await anon.req("/api/runtime-config");
+  assert.equal(rcRes.status, 200);
+  const rcText = await rcRes.text();
+  const rcJson = JSON.parse(rcText) as Record<string, unknown>;
+  assert.equal("hosts" in rcJson, false, "runtime-config must not include hosts");
+  for (const h of hosts) {
+    assert.equal(rcText.includes(h.id), false, `runtime-config leaked host id ${h.id}`);
+    assert.equal(rcText.includes(h.name), false, `runtime-config leaked host name ${h.name}`);
   }
 });
 

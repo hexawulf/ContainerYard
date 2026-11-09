@@ -71,7 +71,7 @@ const StyleGuidePage: React.FC = () => {
                 </span>
               </div>
               <div className="rounded-md border border-[hsl(214,32%,89%)] bg-white p-4 space-y-2">
-                <div className="font-semibold text-sm">api-gateway (piapps)</div>
+                <div className="font-semibold text-sm">api-gateway (edge-01)</div>
                 <div className="font-mono text-xs space-y-1">
                   <div className="text-[hsl(201,90%,34%)]">INFO  07:14:02 Ready on port 5008</div>
                   <div className="text-[hsl(32,95%,33%)]">WARN  07:14:05 Memory usage above 80%</div>
@@ -92,7 +92,7 @@ const StyleGuidePage: React.FC = () => {
                 </span>
               </div>
               <div className="rounded-md border border-[hsl(220,16%,18%)] bg-[hsl(222,21%,10%)] p-4 space-y-2">
-                <div className="font-semibold text-sm">api-gateway (piapps)</div>
+                <div className="font-semibold text-sm">api-gateway (edge-01)</div>
                 <div className="font-mono text-xs space-y-1">
                   <div className="text-[hsl(199,92%,62%)]">INFO  07:14:02 Ready on port 5008</div>
                   <div className="text-[hsl(38,95%,60%)]">WARN  07:14:05 Memory usage above 80%</div>

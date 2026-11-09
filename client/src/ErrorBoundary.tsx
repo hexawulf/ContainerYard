@@ -38,7 +38,6 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     console.error('[ErrorBoundary] Undefined value:', undefinedValue);
     console.error('[ErrorBoundary] Window CY variables:', {
       __CY_API_BASE__: (window as any).__CY_API_BASE__,
-      __CY_HOSTS__: (window as any).__CY_HOSTS__,
       __CY_APP_NAME__: (window as any).__CY_APP_NAME__,
       __CY_FEATURES__: (window as any).__CY_FEATURES__
     });
@@ -47,14 +46,12 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   render() {
     if (this.state.err) {
       const api = (window as any).__CY_API_BASE__ || (import.meta as any).env?.VITE_API_BASE;
-      const hosts = (window as any).__CY_HOSTS__;
       
       return (
         <pre style={{ padding: 24, color: '#ff8', background: '#222', margin: 0, minHeight: '100vh', whiteSpace: 'pre-wrap' }}>
           {`UI crashed: ${this.state.err}
 
 API_BASE=${api || 'undefined'}
-Hosts data: ${hosts ? `Array(${hosts.length})` : 'undefined'}
 
 Component stack:
 ${this.state.componentStack || 'Not available'}

@@ -10,7 +10,7 @@ const SAMPLE_LOGS = [
   { ts: "07:14:02.104", level: "INFO", cls: "log-info", msg: "container=api-gateway status=healthy latency_ms=4.2" },
   { ts: "07:14:02.418", level: "INFO", cls: "log-info", msg: "container=worker-queue job=sync_metrics duration_ms=19" },
   { ts: "07:14:03.009", level: "WARN", cls: "log-warn", msg: "container=redis-cache memory_pct=82.4 threshold=80" },
-  { ts: "07:14:03.512", level: "DEBUG", cls: "log-debug", msg: "container=traefik route=/api/hosts/piapps/containers 200" },
+  { ts: "07:14:03.512", level: "DEBUG", cls: "log-debug", msg: "container=traefik route=/api/hosts/edge-01/containers 200" },
   { ts: "07:14:04.110", level: "ERROR", cls: "log-error", msg: "container=billing-svc upstream_timeout retry=1/3" },
 ];
 
@@ -61,7 +61,7 @@ const LandingPage: React.FC = () => {
                 <div className="flex items-center justify-between border-b border-border bg-muted/50 px-4 py-2.5">
                   <div className="flex items-center gap-2">
                     <span className="h-2.5 w-2.5 rounded-full bg-status-running" />
-                    <span className="font-mono text-xs font-medium text-foreground">piapps • live tail</span>
+                    <span className="font-mono text-xs font-medium text-foreground">edge-01 • live tail</span>
                   </div>
                   <Badge variant="outline" className="font-mono text-[11px] text-status-running border-status-running/30 bg-status-running/10">
                     SSE Connected

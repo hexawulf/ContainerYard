@@ -3,6 +3,13 @@
 All notable changes to ContainerYard are documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [4.2.0] - 2026-11-09
+
+### Security
+- **Require authentication for `GET /api/hosts`:** unauthenticated requests to `/api/hosts` now return `401 Unauthorized` instead of exposing the configured host inventory.
+- **Omit host list from `GET /api/runtime-config`:** the public runtime configuration response no longer includes host IDs, names, or provider metadata; the dashboard loads hosts from `/api/hosts` after login.
+- **Neutral demo labels:** public landing and style-guide previews use generic example host names (`edge-01`).
+
 ## [4.1.1] - 2026-11-09
 
 ### Fixed
