@@ -3,6 +3,14 @@
 All notable changes to ContainerYard are documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [4.1.0] - 2026-11-09
+
+### Added
+- **DS718+ host (`ds718`):** optional fourth host, a `CADVISOR_ONLY` view of the brixhouse DS718+ enabled by `DS718_CADVISOR_URL` (plus optional `DS718_DOZZLE_URL`). The host stays hidden when the URL is unset, so existing deployments need no new env.
+
+### Fixed
+- **Dozzle links:** "Open in Dozzle" for remote containers now links to `<dozzle>/container/<12-char id>`. It used to build `<dozzle>/#/container/<cAdvisor cgroup path>`, which current Dozzle cannot resolve.
+
 ## [4.0.2] - 2026-11-09
 
 ### Fixed

@@ -48,6 +48,7 @@ Internet / LAN
 │  │ redis (redis:7-alpine)   │   │ Remote Hosts (HTTP)  │  │
 │  │  • cy-redis:/data (AOF)  │   │  • piapps2 cAdvisor  │  │
 │  │  • internal-only         │   │  • synology cAdvisor │  │
+│  │                          │   │  • ds718 cAdvisor    │  │
 │  └──────────────────────────┘   └──────────────────────┘  │
 └───────────────────────────────────────────────────────────┘
 ```
@@ -173,10 +174,11 @@ ContainerYard accesses the local Docker daemon via `/var/run/docker.sock`.
 
 ## Remote Hosts (cAdvisor & Dozzle)
 
-Remote hosts defined in `server/src/config/hosts.ts` (`piapps2`, `synology`) use the `CADVISOR_ONLY` provider:
+Remote hosts defined in `server/src/config/hosts.ts` (`piapps2`, `synology`, and optional `ds718`) use the `CADVISOR_ONLY` provider:
 - ContainerYard queries their cAdvisor HTTP endpoints (`PIAPPS2_CADVISOR_URL`, `SYNOLOGY_CADVISOR_URL`) for container lists and real-time CPU/memory/network telemetry.
 - Lifecycle actions (start/stop/restart) are disabled on `CADVISOR_ONLY` hosts (`501`).
-- If `PIAPPS2_DOZZLE_URL` or `SYNOLOGY_DOZZLE_URL` is set, ContainerYard links out to Dozzle for remote container logs.
+- If `PIAPPS2_DOZZLE_URL`, `SYNOLOGY_DOZZLE_URL` or `DS718_DOZZLE_URL` is set, ContainerYard links out to Dozzle for remote container logs (`<url>/container/<short id>`).
+- `ds718` is only listed when `DS718_CADVISOR_URL` is set. On piapps it points at `http://10.77.0.4:9819`, a socat relay on piapps4 (`cadvisor-fwd-ds718.service`) to the DS718+ cAdvisor at `192.168.178.36:9818` over WireGuard.
 
 ---
 
@@ -202,6 +204,8 @@ Remote hosts defined in `server/src/config/hosts.ts` (`piapps2`, `synology`) use
 | `COOKIE_SAMESITE` | No | `none` | Cookie SameSite policy (`lax` recommended when UI & API share origin) |
 | `PIAPPS2_DOZZLE_URL` | No | unset | Optional Dozzle URL for `piapps2` |
 | `SYNOLOGY_DOZZLE_URL` | No | unset | Optional Dozzle URL for `synology` |
+| `DS718_CADVISOR_URL` | No | unset | cAdvisor base URL for `ds718` (host hidden when unset) |
+| `DS718_DOZZLE_URL` | No | unset | Optional Dozzle URL for `ds718` |
 | `METRICS_TOKEN` | No | unset | Optional bearer token for `GET /metrics` |
 | `PUBLIC_API_BASE` | No | request origin | Optional override returned by `/api/runtime-config` |
 | `WEBHOOK_ALLOW_PRIVATE` | No | `false` | Allow alert webhooks to private/LAN IPs |

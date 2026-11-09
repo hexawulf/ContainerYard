@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { getHost, getDozzleLink, listHosts } from "../config/hosts";
+import { dozzleContainerLink } from "../config/dozzle";
 import { 
   listContainers as listDockerContainers, 
   getContainerDetail as getDockerContainerDetail, 
@@ -155,15 +156,15 @@ router.get("/:hostId/containers/:containerId/logs", requireAuth, async (req, res
     // Handle CADVISOR_ONLY hosts
     const dozzleUrl = getDozzleLink(host.id);
     if (dozzleUrl) {
-      // For Synology (has Dozzle), return Dozzle link
-      const link = `${dozzleUrl}/#/container/${containerId}`;
+      // Hosts with Dozzle: deep link to the container in the Dozzle hub
+      const link = dozzleContainerLink(dozzleUrl, containerId);
       return res.json({ 
         mode: "dozzle",
         message: "Open this container in Dozzle.",
         dozzleUrl: link 
       });
     } else {
-      // For piapps2 (no Dozzle), return clear message
+      // Hosts without a Dozzle URL: return clear message
       return res.json({ 
         mode: "unsupported",
         message: "Live logs are not available for this host yet."
