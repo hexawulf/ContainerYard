@@ -79,9 +79,16 @@ LABEL org.opencontainers.image.title="ContainerYard" \
 
 WORKDIR /app
 
+# Debian security updates + runtime packages, then drop the package managers that
+# ship with the node base image: the runtime only runs `node` and ./node_modules/.bin/prisma,
+# and the bundled npm/yarn/corepack trees carry most of the image's npm CVEs.
 RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
     && apt-get install -y --no-install-recommends tini openssl ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
+    && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+              /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
+              /opt/yarn-v* /usr/local/bin/yarn /usr/local/bin/yarnpkg \
     && mkdir -p /data \
     && chown -R node:node /data /app
 
