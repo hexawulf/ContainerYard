@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Author: 0xWulf (zk@hexawulf.dev)
+# Author: 0xWulf <dev@0xwulf.dev>
 # Description: ContainerYard Docker entrypoint — validates required env vars,
 #              prepares SQLite directory, runs Prisma schema push + bootstrap
 #              admin seed, and execs the production server.
@@ -18,8 +18,6 @@ required_vars=(
   DATABASE_URL
   REDIS_URL
   ALLOWED_ORIGINS
-  PIAPPS2_CADVISOR_URL
-  SYNOLOGY_CADVISOR_URL
   ADMIN_EMAIL
   ADMIN_PASSWORD
 )

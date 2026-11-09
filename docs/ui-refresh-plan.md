@@ -14,7 +14,7 @@
    - Fix duplicate nested `extend` in `tailwind.config.ts`.
    - Polish `Navbar`, `Footer`, `Landing`, `Login`, `Dashboard`, `HostLogs`, `not-found`, and `StyleGuide` for desktop (`1440x900`) and mobile (`390x844` / `375px` width) with zero horizontal scroll.
 3. **Repository Hygiene**:
-   - Use `git mv` to archive stale root clutter (`AMP_Apply_Fix_UIKit.md`, `implementation.md`, `implementationv2.md`, `LOGS_IMPL.md`, `MULTI_HOST_API_STATUS.md`, `MULTI_HOST_VERIFICATION.md`, `container-inventory-piapps-synology.md`, `after-wait.png`, `gpg-sign-test-hexawulf.txt`) into `docs/_archive/`.
+   - Use `git mv` to archive stale root clutter (old implementation notes, status reports, test screenshots and scratch files) into `docs/_archive/` (since removed).
 4. **Testing & Verification**:
    - Unit test `server/tests/unit/theme.test.ts` verifying `resolveTheme`, `readStoredTheme`, `writeStoredTheme`, and parity with the inline script in `client/index.html`.
    - E2E test `e2e/theme.spec.ts` verifying default light class at `DOMContentLoaded`, toggle visibility on Landing/Login, persistence across reloads, clearing storage, and legacy `"system"` fallback to `"light"`, plus capturing desktop and mobile light/dark screenshots into `docs/screenshots/ui-refresh/`.

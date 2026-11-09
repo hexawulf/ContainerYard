@@ -2,7 +2,7 @@ import { Router, Request, Response, NextFunction } from "express";
 import { log } from "../../vite";
 import { getHost } from "../config/hosts";
 import { getContainerLogs } from "../services/docker";
-import { resolveHostLogs } from "../config/hostlogs";
+import { LOCAL_HOST_ID, resolveHostLogs } from "../config/hostlogs";
 import { requireRole } from "../middleware/auth";
 import { spawn } from "child_process";
 import * as fs from "fs";
@@ -85,7 +85,7 @@ router.get("/", requireRole('ADMIN'), async (req, res, next) => {
         });
       }
 
-      const hostId = options.hostId || 'piapps';
+      const hostId = options.hostId || LOCAL_HOST_ID;
       const hostLogs = resolveHostLogs(hostId);
       const filePath = hostLogs?.[options.name!];
 

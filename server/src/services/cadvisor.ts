@@ -73,10 +73,10 @@ function shouldLogError(hostId: string): boolean {
 
 /**
  * True only for cgroups that are Docker containers: the path ends in a 64-hex
- * container ID, as `/docker/<id>` (cgroup v1, e.g. Synology DSM) or
+ * container ID, as `/docker/<id>` (cgroup v1, e.g. NAS appliances) or
  * `/system.slice/docker-<id>.scope` (cgroup v2). Excludes the parent `/docker`
  * cgroup and daemon units such as `/system.slice/pkg-ContainerManager-dockerd.service`,
- * which the old "path contains docker" test let through on Synology hosts.
+ * which the old "path contains docker" test let through on NAS hosts.
  */
 export function isDockerContainerPath(name: string): boolean {
   return /\/docker[-/][0-9a-f]{64}(?:\.scope)?$/i.test(name);

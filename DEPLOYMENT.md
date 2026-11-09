@@ -46,9 +46,9 @@ Internet / LAN
 │                 ▼                          ▼              │
 │  ┌──────────────────────────┐   ┌──────────────────────┐  │
 │  │ redis (redis:7-alpine)   │   │ Remote Hosts (HTTP)  │  │
-│  │  • cy-redis:/data (AOF)  │   │  • piapps2 cAdvisor  │  │
-│  │  • internal-only         │   │  • synology cAdvisor │  │
-│  │                          │   │  • ds718 cAdvisor    │  │
+│  │  • cy-redis:/data (AOF)  │   │  • edge-01 cAdvisor  │  │
+│  │  • internal-only         │   │  • nas-01 cAdvisor   │  │
+│  │                          │   │  • optional Dozzle   │  │
 │  └──────────────────────────┘   └──────────────────────┘  │
 └───────────────────────────────────────────────────────────┘
 ```
@@ -86,10 +86,10 @@ curl -fsS http://127.0.0.1:5008/health
 
 ### Host Logs Overlay (Nginx & PM2 Logs)
 
-To expose host-level Nginx and PM2 logs on the ADMIN **Host Logs** page while keeping the container isolated, merge the `deploy/piapps/docker-compose.piapps.yml` override file:
+To expose host-level Nginx and PM2 logs on the ADMIN **Host Logs** page while keeping the container isolated, merge the `deploy/hostlogs/docker-compose.hostlogs.yml` override file:
 
 ```bash
-docker compose -f docker-compose.yml -f deploy/piapps/docker-compose.piapps.yml up -d
+docker compose -f docker-compose.yml -f deploy/hostlogs/docker-compose.hostlogs.yml up -d
 ```
 
 This bind-mounts `/var/log/nginx` to `/host/nginx:ro` and `~/.pm2/logs` to `/host/pm2:ro`, and sets `HOSTLOG_NGINX_DIR=/host/nginx` and `PM2_LOG_DIR=/host/pm2`. Ensure `ADM_GID` (default `4` on Debian/Ubuntu) matches the group owner of `/var/log/nginx/*.log`.
@@ -167,18 +167,18 @@ server {
 
 ContainerYard accesses the local Docker daemon via `/var/run/docker.sock`.
 - **Root equivalence:** Mounting `/var/run/docker.sock` grants effective root privileges on the host. ContainerYard mitigates container escape surface by running as non-root (`uid 1000`), dropping all Linux capabilities (`cap_drop: [ALL]`), enabling `no-new-privileges:true`, mounting the root filesystem read-only (`read_only: true`), and binding only to `127.0.0.1:5008`.
-- **Never expose Docker over unauthenticated TCP (`tcp://0.0.0.0:2375`).** To monitor remote hosts (`piapps2`, `synology`), run **cAdvisor** (and optionally **Dozzle**) on those hosts and configure `PIAPPS2_CADVISOR_URL` / `SYNOLOGY_CADVISOR_URL`.
+- **Never expose Docker over unauthenticated TCP (`tcp://0.0.0.0:2375`).** To monitor remote hosts (`edge-01`, `nas-01`), run **cAdvisor** (and optionally **Dozzle**) on those hosts and configure `CY_REMOTE_HOSTS`.
 - **Watchtower opt-out:** Both `app` and `redis` services carry `com.centurylinklabs.watchtower.enable=false` so Watchtower does not restart them unannounced.
 
 ---
 
 ## Remote Hosts (cAdvisor & Dozzle)
 
-Remote hosts defined in `server/src/config/hosts.ts` (`piapps2`, `synology`, and optional `ds718`) use the `CADVISOR_ONLY` provider:
-- ContainerYard queries their cAdvisor HTTP endpoints (`PIAPPS2_CADVISOR_URL`, `SYNOLOGY_CADVISOR_URL`) for container lists and real-time CPU/memory/network telemetry.
+Remote hosts configured in `CY_REMOTE_HOSTS` (parsed by `server/src/config/env.ts` and `server/src/config/hosts.ts`) use the `CADVISOR_ONLY` provider:
+- `CY_REMOTE_HOSTS` is a JSON array of objects: `[{"id":"edge-01","name":"Edge 01","cadvisorUrl":"http://cadvisor.example.internal:8080","dozzleUrl":"https://dozzle.example.internal"}]`.
+- ContainerYard queries each remote host's `cadvisorUrl` for container lists and real-time CPU/memory/network telemetry.
 - Lifecycle actions (start/stop/restart) are disabled on `CADVISOR_ONLY` hosts (`501`).
-- If `PIAPPS2_DOZZLE_URL`, `SYNOLOGY_DOZZLE_URL` or `DS718_DOZZLE_URL` is set, ContainerYard links out to Dozzle for remote container logs (`<url>/container/<short id>`).
-- `ds718` is only listed when `DS718_CADVISOR_URL` is set. On piapps it points at `http://10.77.0.4:9819`, a socat relay on piapps4 (`cadvisor-fwd-ds718.service`) to the DS718+ cAdvisor at `192.168.178.36:9818` over WireGuard.
+- If `dozzleUrl` is set on a remote host entry, ContainerYard links out to Dozzle for remote container logs (`<dozzleUrl>/container/<short id>`).
 
 ---
 
@@ -191,10 +191,11 @@ Remote hosts defined in `server/src/config/hosts.ts` (`piapps2`, `synology`, and
 | `REDIS_URL` | **Yes** | `redis://:${REDIS_PASSWORD}@redis:6379/0` | Redis connection URL (set automatically in `docker-compose.yml`) |
 | `ALLOWED_ORIGINS` | **Yes** | — | Comma-separated CORS origins (e.g. `https://containeryard.org`) |
 | `DATABASE_URL` | **Yes** | `file:/data/app.db` | Prisma database URL (`file:/data/app.db` in Compose, or `postgresql://...`) |
-| `PIAPPS2_CADVISOR_URL` | **Yes** | — | cAdvisor base URL for `piapps2` |
-| `SYNOLOGY_CADVISOR_URL` | **Yes** | — | cAdvisor base URL for `synology` |
 | `ADMIN_EMAIL` | **Yes** | — | Bootstrap ADMIN email (used when `User` table is empty) |
 | `ADMIN_PASSWORD` | **Yes** | — | Bootstrap ADMIN password (`>= 12` chars) |
+| `CY_LOCAL_HOST_ID` | No | `local` | Local Docker host ID (`/^[a-z0-9-]{1,32}$/`) |
+| `CY_LOCAL_HOST_NAME` | No | `Local Docker` | Display name for the local Docker host |
+| `CY_REMOTE_HOSTS` | No | `[]` | JSON array of `{id, name, cadvisorUrl, dozzleUrl?}` for remote cAdvisor hosts |
 | `PORT` | No | `5008` | HTTP server listen port inside the container |
 | `NODE_ENV` | No | `production` | Runtime environment (`development`, `test`, `production`) |
 | `LOG_LEVEL` | No | `info` | Server log verbosity |
@@ -202,19 +203,15 @@ Remote hosts defined in `server/src/config/hosts.ts` (`piapps2`, `synology`, and
 | `COOKIE_NAME` | No | `__Secure-cy.sid` | Session cookie name |
 | `COOKIE_DOMAIN` | No | unset | Optional session cookie domain |
 | `COOKIE_SAMESITE` | No | `none` | Cookie SameSite policy (`lax` recommended when UI & API share origin) |
-| `PIAPPS2_DOZZLE_URL` | No | unset | Optional Dozzle URL for `piapps2` |
-| `SYNOLOGY_DOZZLE_URL` | No | unset | Optional Dozzle URL for `synology` |
-| `DS718_CADVISOR_URL` | No | unset | cAdvisor base URL for `ds718` (host hidden when unset) |
-| `DS718_DOZZLE_URL` | No | unset | Optional Dozzle URL for `ds718` |
 | `METRICS_TOKEN` | No | unset | Optional bearer token for `GET /metrics` |
 | `PUBLIC_API_BASE` | No | request origin | Optional override returned by `/api/runtime-config` |
 | `WEBHOOK_ALLOW_PRIVATE` | No | `false` | Allow alert webhooks to private/LAN IPs |
 | `WEBHOOK_ALLOWED_HOSTS` | No | empty | Comma-separated webhook hostnames exempt from private IP block |
 | `AUDIT_RETENTION_DAYS` | No | `180` | Days to retain `AuditLog` entries |
-| `HOSTLOGS_LOCAL_HOST` | No | `piapps` | Host ID that serves local host logs |
+| `HOSTLOGS_LOCAL_HOST` | No | `CY_LOCAL_HOST_ID` | Host ID that serves local host logs |
 | `HOSTLOG_NGINX_DIR` | No | `/var/log/nginx` | Directory containing nginx access/error logs |
-| `HOSTLOG_NGINX_ACCESS_FILE` | No | `container.piapps.dev.access.log` | Nginx access log filename inside `HOSTLOG_NGINX_DIR` |
-| `HOSTLOG_NGINX_ERROR_FILE` | No | `container.piapps.dev.error.log` | Nginx error log filename inside `HOSTLOG_NGINX_DIR` |
+| `HOSTLOG_NGINX_ACCESS_FILE` | No | `access.log` | Nginx access log filename inside `HOSTLOG_NGINX_DIR` |
+| `HOSTLOG_NGINX_ERROR_FILE` | No | `error.log` | Nginx error log filename inside `HOSTLOG_NGINX_DIR` |
 | `PM2_LOG_DIR` | No | `~/.pm2/logs` | Directory containing PM2 log files |
 | `PM2_APP_NAME` | No | `containeryard-api` | PM2 process name prefix for log resolution |
 | `CY_SKIP_DB_PUSH` | No | `0` | Set to `1` to skip `prisma db push` and `seed.js` in `entrypoint.sh` |
@@ -230,23 +227,11 @@ Remote hosts defined in `server/src/config/hosts.ts` (`piapps2`, `synology`, and
 
 If you are currently running ContainerYard under PM2 on `:5008`:
 
-1. Ensure `REDIS_PASSWORD` is set in `/home/zk/projects/ContainerYard/.env` (`openssl rand -hex 24`).
-2. Preview the cutover with `--dry-run`:
-   ```bash
-   scripts/cutover-to-docker.sh --dry-run --tag 4.0.0
-   ```
-3. Execute the cutover with operator approval:
-   ```bash
-   scripts/cutover-to-docker.sh --i-have-approval --tag 4.0.0
-   ```
-   The script backs up `server/prisma/app.db` and `.env` to `~/backups/containeryard/<timestamp>/`, stops `pm2 containeryard-api`, copies `app.db` into the `containeryard_cy-data` Docker volume, starts the Docker Compose stack on `127.0.0.1:5008`, and verifies local `/health`, public `https://containeryard.org/health`, and `/api/auth/csrf`. If any check fails, it automatically rolls back to PM2.
-4. Once verified, remove the legacy PM2 process:
+1. Ensure `REDIS_PASSWORD` is set in `.env` (`openssl rand -hex 24`).
+2. Back up `server/prisma/app.db` and `.env`, stop `pm2 containeryard-api`, copy `app.db` into the `containeryard_cy-data` Docker volume, and start the Compose stack with `scripts/docker-deploy.sh 5.0.0`.
+3. Once verified, remove the legacy PM2 process:
    ```bash
    pm2 delete containeryard-api && pm2 save
-   ```
-5. To roll back to PM2 at any point:
-   ```bash
-   scripts/rollback-to-pm2.sh --i-have-approval --sync-db
    ```
 
 ---

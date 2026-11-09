@@ -1,10 +1,10 @@
-// node scripts/test-sse.js https://container.piapps.dev piapps <cid> cy.sid=<cookie>
+// node scripts/test-sse.js https://containeryard.example.com local <cid> cy.sid=<cookie>
 const https = require('https');
 const [,, base, host, cid, cookie] = process.argv;
 
 if (!base || !host || !cid || !cookie) {
   console.error('Usage: node scripts/test-sse.js <base_url> <host_id> <container_id> <cookie>');
-  console.error('Example: node scripts/test-sse.js https://container.piapps.dev piapps abc123 "cy.sid=xxx"');
+  console.error('Example: node scripts/test-sse.js https://containeryard.example.com local abc123 "cy.sid=xxx"');
   process.exit(1);
 }
 

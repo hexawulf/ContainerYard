@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Author: 0xWulf
-# Description: [LEGACY — PM2 install] Build and (re)deploy ContainerYard under PM2 on piapps.
+# Description: [LEGACY — PM2 install] Build and (re)deploy ContainerYard under PM2.
 #              For Docker deployments (v4.0+), use scripts/docker-deploy.sh instead.
 #              Usage: scripts/deploy-static.sh [--dry-run]
 # Modified: 2026-11-09 (marked legacy for v4.0 Docker release; still functional for PM2)

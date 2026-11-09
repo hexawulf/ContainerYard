@@ -1,32 +1,31 @@
 /**
  * Host (non-container) log files that the Host Logs page can show.
  *
- * Files are read directly by the ContainerYard process, so only the host it
- * runs on (HOSTLOGS_LOCAL_HOST, default "piapps") has host logs. Earlier
- * versions listed the same piapps paths under piapps2 and synology too, and
- * read them by exec'ing `tail` in a "cadvisor" container that does not exist
- * on piapps, so the page never worked.
+ * Files are read directly by the ContainerYard process, so only the local host
+ * it runs on (`HOSTLOGS_LOCAL_HOST`, defaulting to `CY_LOCAL_HOST_ID` or `"local"`)
+ * has host logs. Remote cAdvisor-only hosts return an empty map.
  *
  * All paths are configurable via environment variables so containerized
  * deployments can bind-mount host log directories read-only (e.g. /host/nginx
- * and /host/pm2) while PM2 deployments use the defaults seamlessly.
+ * and /host/pm2) while bare-metal/PM2 deployments use the defaults seamlessly.
  */
 import fs from "fs";
 import os from "os";
 import path from "path";
 
-export const LOCAL_HOST_ID = process.env.HOSTLOGS_LOCAL_HOST ?? "piapps";
+export const LOCAL_HOST_ID =
+  process.env.HOSTLOGS_LOCAL_HOST || process.env.CY_LOCAL_HOST_ID || "local";
 
 export function getNginxLogDir(env: NodeJS.ProcessEnv = process.env): string {
   return env.HOSTLOG_NGINX_DIR ?? "/var/log/nginx";
 }
 
 export function getNginxAccessFile(env: NodeJS.ProcessEnv = process.env): string {
-  return env.HOSTLOG_NGINX_ACCESS_FILE ?? "container.piapps.dev.access.log";
+  return env.HOSTLOG_NGINX_ACCESS_FILE ?? "access.log";
 }
 
 export function getNginxErrorFile(env: NodeJS.ProcessEnv = process.env): string {
-  return env.HOSTLOG_NGINX_ERROR_FILE ?? "container.piapps.dev.error.log";
+  return env.HOSTLOG_NGINX_ERROR_FILE ?? "error.log";
 }
 
 export function getPm2LogDir(env: NodeJS.ProcessEnv = process.env): string {
@@ -73,7 +72,7 @@ export function resolveHostLogs(
   hostId: string,
   env: NodeJS.ProcessEnv = process.env,
 ): Record<string, string> {
-  const localHostId = env.HOSTLOGS_LOCAL_HOST ?? LOCAL_HOST_ID;
+  const localHostId = env.HOSTLOGS_LOCAL_HOST || env.CY_LOCAL_HOST_ID || LOCAL_HOST_ID;
   if (hostId !== localHostId) return {};
 
   const nginxDir = getNginxLogDir(env);

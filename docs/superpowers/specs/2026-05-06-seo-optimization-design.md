@@ -8,7 +8,7 @@
 Optimize `containeryard.org` for Google SEO by correctly configuring `sitemap.xml`, `robots.txt`, and HTML meta tags.
 
 ## Scope
-- Update primary domain from `containeryard.piapps.dev` to `containeryard.org`.
+- Update primary domain from the previous subdomain to `containeryard.org`.
 - Configure `sitemap.xml` with all public routes.
 - Configure `robots.txt` to point to the correct sitemap.
 - Update `index.html` with correct canonical and social meta tags.
@@ -17,7 +17,7 @@ Optimize `containeryard.org` for Google SEO by correctly configuring `sitemap.xm
 ## Implementation Details
 
 ### 1. Domain Migration
-Replace all instances of `https://containeryard.piapps.dev/` with `https://containeryard.org/` in the following files:
+Replace all instances of the previous domain with `https://containeryard.org/` in the following files:
 - `client/index.html`
 - `client/public/robots.txt`
 - `client/public/sitemap.xml`

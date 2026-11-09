@@ -4,7 +4,7 @@
  *
  *   CY_BASE_URL=http://127.0.0.1:5098 \
  *   CY_TEST_EMAIL=admin@example.com CY_TEST_PASSWORD=... \
- *   CY_TEST_HOST=piapps CY_TEST_CONTAINER=cy-test-busybox \
+ *   CY_TEST_HOST=local CY_TEST_CONTAINER=cy-test-busybox \
  *   CY_TEST_ALLOW_ACTIONS=1 \
  *   npm run test:integration
  *
@@ -25,7 +25,7 @@ if (process.env.CY_USE_ENV_ADMIN === "1") {
 const BASE = (process.env.CY_BASE_URL ?? "http://127.0.0.1:5008").replace(/\/+$/, "");
 const EMAIL = process.env.CY_TEST_EMAIL ?? (process.env.CY_USE_ENV_ADMIN === "1" ? process.env.ADMIN_EMAIL : undefined);
 const PASSWORD = process.env.CY_TEST_PASSWORD ?? (process.env.CY_USE_ENV_ADMIN === "1" ? process.env.ADMIN_PASSWORD : undefined);
-const HOST = process.env.CY_TEST_HOST ?? "piapps";
+const HOST = process.env.CY_TEST_HOST ?? "local";
 const CONTAINER = process.env.CY_TEST_CONTAINER;
 const ALLOW_ACTIONS = process.env.CY_TEST_ALLOW_ACTIONS === "1" && !!CONTAINER?.startsWith("cy-test");
 

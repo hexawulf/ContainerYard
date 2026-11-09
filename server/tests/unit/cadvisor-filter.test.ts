@@ -9,7 +9,7 @@ test("isDockerContainerPath keeps Docker containers on cgroup v1 and v2", () => 
   assert.equal(isDockerContainerPath(`/system.slice/docker-${ID}.scope`), true);
 });
 
-test("isDockerContainerPath drops Synology parent cgroup and daemon units", () => {
+test("isDockerContainerPath drops NAS parent cgroup and daemon units", () => {
   assert.equal(isDockerContainerPath("/docker"), false);
   assert.equal(isDockerContainerPath("/system.slice/pkg-ContainerManager-dockerd.service"), false);
   assert.equal(isDockerContainerPath("/system.slice/docker.service"), false);
