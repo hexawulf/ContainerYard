@@ -1,7 +1,7 @@
 import { Router, type Request, type Response, type NextFunction } from "express";
 import { randomBytes } from "crypto";
 import bcrypt from "bcrypt";
-import { ZodError } from "zod";
+import { z, ZodError } from "zod";
 import { prisma } from "../db/client";
 import { env } from "../config/env";
 import { loginRateLimiter, passwordChangeRateLimiter, requireAuth } from "../middleware/auth";
@@ -14,7 +14,7 @@ const BCRYPT_COST = 12;
 
 function handleError(error: unknown, _req: Request, res: Response, next: NextFunction) {
   if (error instanceof ZodError) {
-    return res.status(400).json({ message: "Invalid payload", issues: error.flatten() });
+    return res.status(400).json({ message: "Invalid payload", issues: z.flattenError(error) });
   }
   return next(error);
 }
@@ -81,7 +81,7 @@ router.post(
         });
         return res.status(400).json({
           message: "Current password and new password are required",
-          issues: parsed.error.flatten(),
+          issues: z.flattenError(parsed.error),
         });
       }
 

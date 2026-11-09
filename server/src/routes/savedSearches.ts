@@ -42,7 +42,7 @@ router.post("/", async (req, res, next) => {
   try {
     const parsed = createSchema.safeParse(req.body);
     if (!parsed.success) {
-      return res.status(400).json({ error: "Invalid saved search", issues: parsed.error.flatten() });
+      return res.status(400).json({ error: "Invalid saved search", issues: z.flattenError(parsed.error) });
     }
     const saved = await prisma!.savedSearch.create({
       data: {
