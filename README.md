@@ -5,7 +5,7 @@
 
 > A complete Docker stack monitoring platform with log analysis, alerting, and historical trends
 
-[![Release](https://img.shields.io/badge/release-v4.0.0-brightgreen)](https://github.com/hexawulf/ContainerYard/releases/tag/v4.0.0)
+[![Release](https://img.shields.io/badge/release-v4.0.1-brightgreen)](https://github.com/hexawulf/ContainerYard/releases/tag/v4.0.1)
 [![Docker Hub](https://img.shields.io/badge/docker-0xwulf%2Fcontaineryard-2496ED?logo=docker&logoColor=white)](https://hub.docker.com/r/0xwulf/containeryard)
 
 **ContainerYard 4.0** ships official multi-arch Docker images (`0xwulf/containeryard` for `linux/amd64` and `linux/arm64`) with a hardened non-root runtime, bundled Redis session store, automated Prisma schema sync + bootstrap seeding at container start, environment-driven host log paths, and GitHub Actions CI/CD with SBOM and provenance attestations. **3.2** introduced a light-by-default theme system with a persistent light/dark mode toggle on every page, zero flash on load, a full WCAG AA UI refresh across both themes, and a unified top-right header action bar (About modal with build metadata & diagnostics, self-service password change, ADMIN user management, and instant `sessionVersion` session revocation). **3.1** added per-container lifecycle actions, an audit log, working Log Moment bookmarks, restored CSRF enforcement, and SSRF-safe webhooks. **3.0** brought multi-host monitoring (Docker + cAdvisor-only hosts) and SQLite as a first-class database. See [What's new in 4.0](#-whats-new-in-40), [3.2](#-whats-new-in-32), [3.1](#-whats-new-in-31), and [3.0](#-whats-new-in-30).

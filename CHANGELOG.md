@@ -3,6 +3,11 @@
 All notable changes to ContainerYard are documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [4.0.1] - 2026-11-09
+
+### Added
+- **About modal:** Project Links now include the Docker Hub repository ([`0xwulf/containeryard`](https://hub.docker.com/repository/docker/0xwulf/containeryard/general)).
+
 ## [4.0.0] - 2026-11-09
 
 ### Added
