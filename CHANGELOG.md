@@ -3,6 +3,17 @@
 All notable changes to ContainerYard are documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [5.0.2] - 2026-11-10
+
+### Changed
+- Dependencies: dotenv 18 (seed script loads `.env` quietly), esbuild 0.28,
+  @types/dockerode 4 (matches dockerode 5), @xterm/addon-fit 0.11 and
+  @xterm/addon-web-links 0.12; GitHub Actions setup-node 7.1.0 and
+  docker/login-action 4.8.0. Supersedes Dependabot PRs #14, #15, #18 and #19
+  (their lockfile was not updated).
+- Dependabot: Prisma packages are grouped; major React and Prisma upgrades are
+  ignored until they are planned as migrations (#16 and #17 closed).
+
 ## [5.0.1] - 2026-11-10
 
 ### Fixed

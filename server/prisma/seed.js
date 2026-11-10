@@ -7,7 +7,7 @@ import { PrismaClient } from "@prisma/client";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-config({ path: path.resolve(__dirname, "../../.env") });
+config({ path: path.resolve(__dirname, "../../.env"), quiet: true });
 
 async function main() {
   const prisma = new PrismaClient();
