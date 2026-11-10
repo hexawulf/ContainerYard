@@ -13,6 +13,23 @@ updates:
     groups:
       npm-minor-patch:
         update-types: [minor, patch]
+      prisma:
+        patterns: [prisma, "@prisma/*"]
+    ignore:
+      # Majors that need a planned migration, not a bump: React 19 (types must
+      # match the runtime) and Prisma 7 (driver adapter + new client generator).
+      - dependency-name: react
+        update-types: [version-update:semver-major]
+      - dependency-name: react-dom
+        update-types: [version-update:semver-major]
+      - dependency-name: "@types/react"
+        update-types: [version-update:semver-major]
+      - dependency-name: "@types/react-dom"
+        update-types: [version-update:semver-major]
+      - dependency-name: prisma
+        update-types: [version-update:semver-major]
+      - dependency-name: "@prisma/*"
+        update-types: [version-update:semver-major]
 
   - package-ecosystem: docker
     directory: /
