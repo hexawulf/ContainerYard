@@ -388,13 +388,16 @@ export default function Dashboard() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
         <h1 className="text-2xl sm:text-display font-semibold tracking-tight">Dashboard</h1>
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowHistoricalMetrics(!showHistoricalMetrics)}
-          >
-            {showHistoricalMetrics ? "Hide" : "Show"} Historical Metrics
-          </Button>
+          {/* Needs PostgreSQL; the server reports it as unavailable in SQLite mode. */}
+          {(window as any).__CY_FEATURES__?.historicalMetrics !== false && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowHistoricalMetrics(!showHistoricalMetrics)}
+            >
+              {showHistoricalMetrics ? "Hide" : "Show"} Historical Metrics
+            </Button>
+          )}
           {user?.role === "ADMIN" && (
             <Link href={`/hosts/${selectedHostId ?? hosts[0]?.id ?? "local"}/logs`}>
               <Button variant="outline" size="sm">

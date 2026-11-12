@@ -11,7 +11,12 @@ export const isPostgreSQL = !isSQLite && !!process.env.DATABASE_URL;
 /**
  * Log a warning when a feature is disabled due to SQLite mode
  */
+const loggedDisabledFeatures = new Set<string>();
+
 export function logSQLiteDisabled(featureName: string): void {
+  // Once per feature per process: these are hit by polling requests.
+  if (loggedDisabledFeatures.has(featureName)) return;
+  loggedDisabledFeatures.add(featureName);
   log(`[SQLite Mode] ${featureName} is disabled. This feature requires PostgreSQL.`, "warn");
 }
 

@@ -6,8 +6,10 @@ import { requireAuth } from "../middleware/auth";
 
 const r = Router();
 r.get("/:hostId/summary", requireAuth, async (req, res) => {
-  const host = getHost(req.params.hostId);
   try {
+    // Inside the try: getHost throws for an unknown id, and Express 4 does not
+    // catch a rejected async handler, so the request used to hang.
+    const host = getHost(req.params.hostId);
     if (host.provider === "DOCKER") {
       if (!host.docker?.socketPath) {
         return res.status(500).json({ error: "Docker socket path not configured" });
@@ -22,6 +24,9 @@ r.get("/:hostId/summary", requireAuth, async (req, res) => {
     }
     res.status(400).json({ error: "Unknown provider" });
   } catch (e: any) {
+    if (e?.status === 404) {
+      return res.status(404).json({ error: e.message || "Unknown host" });
+    }
     res.status(502).json({ error: e.message || "summary failed" });
   }
 });

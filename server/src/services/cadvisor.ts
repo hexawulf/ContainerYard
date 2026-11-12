@@ -113,21 +113,45 @@ function computeName(container: CadvisorContainer): string {
   return name;
 }
 
+/**
+ * CPU use between two cAdvisor samples, as a percentage of ONE core (the
+ * `docker stats` convention, also used for Docker hosts): 100 = one core
+ * fully busy, 250 = two and a half cores.
+ *
+ * It needs no core count. The previous code divided by `per_cpu_usage.length`
+ * and, on cgroup v2 hosts where that array is absent, by `spec.cpu.limit`,
+ * which is CPU shares (e.g. 1024), so the result was close to zero.
+ */
+export function cpuPercentFromSamples(
+  previous: { timestamp: string; cpu?: { usage?: { total?: number } } } | undefined,
+  latest: { timestamp: string; cpu?: { usage?: { total?: number } } } | undefined,
+): number {
+  const prevTotal = previous?.cpu?.usage?.total;
+  const latestTotal = latest?.cpu?.usage?.total;
+  if (!previous || !latest || prevTotal === undefined || latestTotal === undefined) return 0;
+  const elapsedNs =
+    (new Date(latest.timestamp).getTime() - new Date(previous.timestamp).getTime()) * 1e6;
+  const usedNs = latestTotal - prevTotal;
+  if (!(elapsedNs > 0) || !(usedNs > 0)) return 0;
+  return (usedNs / elapsedNs) * 100;
+}
+
+function assertContainerPath(containerId: string): void {
+  // The id is appended to the cAdvisor URL. Only real container cgroup paths
+  // are allowed, so it cannot be used to reach other paths on that host.
+  if (!isDockerContainerPath(containerId)) {
+    const error = new Error("Container not found");
+    (error as any).status = 404;
+    throw error;
+  }
+}
+
 function computeStats(host: HostConfig, containerId: string, container: CadvisorContainer): ContainerStats {
   const stats = container.stats ?? [];
   const latest = stats[stats.length - 1];
   const previous = stats[stats.length - 2];
 
-  let cpuPercent = 0;
-  if (latest && previous && latest.cpu?.usage?.total && previous.cpu?.usage?.total) {
-    const cpuDelta = latest.cpu.usage.total - previous.cpu.usage.total;
-    const timeDeltaMs =
-      new Date(latest.timestamp).getTime() - new Date(previous.timestamp).getTime();
-    const cores = latest.cpu.usage.per_cpu_usage?.length ?? container.spec?.cpu?.limit ?? 1;
-    if (cpuDelta > 0 && timeDeltaMs > 0 && cores > 0) {
-      cpuPercent = (cpuDelta / (timeDeltaMs * 1e6 * cores)) * 100; // convert ns to ms
-    }
-  }
+  const cpuPercent = cpuPercentFromSamples(previous, latest);
 
   const memoryUsage = latest?.memory?.working_set ?? latest?.memory?.usage ?? 0;
   const memoryLimit = container.spec?.memory?.limit ?? 0;
@@ -315,6 +339,7 @@ class CadvisorService {
   }
 
   async getContainer(host: HostConfig, containerId: string): Promise<ContainerDetail> {
+    assertContainerPath(containerId);
     try {
       // For cAdvisor, containerId is the full container path (e.g., /docker/{id} or /system.slice/docker-{id}.scope)
       // We need to query cAdvisor using this exact path
@@ -340,6 +365,7 @@ class CadvisorService {
   }
 
   async getStats(host: HostConfig, containerId: string): Promise<ContainerStats> {
+    assertContainerPath(containerId);
     try {
       // containerId is the full cAdvisor path
       const container = await this.fetchJson<CadvisorContainer>(
@@ -388,17 +414,6 @@ export type CadStat = {
   memLimitBytes?: number;
 };
 
-function cpuPctFromSamples(prev: any, curr: any, onlineCpus = 1): number {
-  if (!prev || !curr) return 0;
-  const du = curr.cpu?.usage?.total || 0;
-  const duPrev = prev.cpu?.usage?.total || 0;
-  const dt = (new Date(curr.timestamp).getTime() - new Date(prev.timestamp).getTime()) / 1000;
-  if (dt <= 0) return 0;
-  const deltaUsage = du - duPrev; // ns
-  const pct = (deltaUsage / (dt * 1e9)) * 100;
-  return Math.max(0, Math.min(pct, 100 * onlineCpus));
-}
-
 export async function listContainersOld(baseUrl: string): Promise<CadStat[]> {
   const response = await fetch(`${baseUrl}/api/v1.3/subcontainers`, {
     signal: AbortSignal.timeout(10000),
@@ -418,14 +433,13 @@ export async function listContainersOld(baseUrl: string): Promise<CadStat[]> {
     const id = extractContainerId(c.name);
     const last = c.stats?.[c.stats.length - 1];
     const prev = c.stats?.[c.stats.length - 2];
-    const online = last?.cpu?.usage?.per_cpu_usage?.length || 1;
     const mem = last?.memory?.working_set ?? last?.memory?.usage ?? 0;
     const lim = c.spec?.memory?.limit ?? 0;
     
     out.push({
       name, id, image: c.spec?.image,
       state: "running",
-      cpuPct: cpuPctFromSamples(prev, last, online),
+      cpuPct: cpuPercentFromSamples(prev, last),
       memBytes: mem,
       memLimitBytes: lim
     });

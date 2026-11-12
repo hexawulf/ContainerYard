@@ -12,6 +12,18 @@ import { recordAudit } from "../services/audit";
 const router = Router();
 const BCRYPT_COST = 12;
 
+// A session that only exists to hold a CSRF token (anyone can request one
+// without signing in) lives this long instead of the 7 days of a login.
+export const ANONYMOUS_SESSION_MAX_AGE_MS = 30 * 60 * 1000;
+
+// Compared against when the e-mail is unknown, so that a login attempt takes
+// the same time whether or not the account exists.
+let dummyHash: Promise<string> | null = null;
+function getDummyHash(): Promise<string> {
+  dummyHash ??= bcrypt.hash(randomBytes(24).toString("hex"), BCRYPT_COST);
+  return dummyHash;
+}
+
 function handleError(error: unknown, _req: Request, res: Response, next: NextFunction) {
   if (error instanceof ZodError) {
     return res.status(400).json({ message: "Invalid payload", issues: z.flattenError(error) });
@@ -28,7 +40,7 @@ router.post("/login", loginRateLimiter, async (req, res, next) => {
     }
 
     const user = await prisma.user.findUnique({ where: { email } });
-    const passwordMatch = user ? await bcrypt.compare(password, user.password) : false;
+    const passwordMatch = await bcrypt.compare(password, user ? user.password : await getDummyHash());
     if (!user || !passwordMatch) {
       await recordAudit(req, { action: "auth.login", outcome: "failure", target: email.slice(0, 254) });
       return res.status(401).json({ message: "Invalid credentials" });
@@ -228,6 +240,11 @@ router.get("/csrf", (req, res, next) => {
     // Ensure session exists and has CSRF token
     if (!(req.session as any).csrfToken) {
       (req.session as any).csrfToken = randomBytes(24).toString("hex");
+    }
+    if (!req.session.user) {
+      // Not signed in: keep the stored session short-lived. Login regenerates
+      // the session, which gets the normal lifetime again.
+      req.session.cookie.maxAge = ANONYMOUS_SESSION_MAX_AGE_MS;
     }
 
     return res.json({ csrfToken: (req.session as any).csrfToken });

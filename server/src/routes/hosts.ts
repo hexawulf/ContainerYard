@@ -12,6 +12,7 @@ import {
 import { getDockerHostStats } from "../services/dockerHostStats";
 import { getCadvisorService } from "../services/cadvisor";
 import { requireAuth } from "../middleware/auth";
+import { envForRole } from "../lib/redact";
 import type { NormalizedStats, HostStats } from "@shared/monitoring";
 
 const router = Router();
@@ -76,7 +77,8 @@ router.get("/:hostId/containers/:containerId", requireAuth, async (req, res, nex
 
     if (host.provider === "DOCKER") {
       const container = await getDockerContainerDetail(host, containerId);
-      return res.json(container);
+      // Env values are credentials more often than not: admins only.
+      return res.json({ ...container, env: envForRole(container.env, req.session.user?.role) });
     }
 
     const service = getCadvisorService(host);
@@ -198,7 +200,20 @@ router.get("/:hostId/containers/:containerId/logs/stream", requireAuth, async (r
       res.write(':heartbeat\n\n');
     }, 15000);
 
+    // Registered before the await below: a client that goes away while the
+    // Docker stream is still being opened would otherwise never be noticed,
+    // leaving the heartbeat timer and the follow stream running for good.
     let cleanup: (() => void) | null = null;
+    let closed = false;
+    req.on('close', () => {
+      closed = true;
+      clearInterval(heartbeat);
+      cleanup?.();
+      if (!res.writableEnded) {
+        res.end();
+      }
+    });
+
     try {
       cleanup = await streamContainerLogs(
         host,
@@ -225,13 +240,10 @@ router.get("/:hostId/containers/:containerId/logs/stream", requireAuth, async (r
       return;
     }
 
-    req.on('close', () => {
-      clearInterval(heartbeat);
-      cleanup?.();
-      if (!res.writableEnded) {
-        res.end();
-      }
-    });
+    if (closed) {
+      // The client left while the stream was being opened.
+      cleanup();
+    }
   } catch (error) {
     if (!res.headersSent) {
       next(error);
