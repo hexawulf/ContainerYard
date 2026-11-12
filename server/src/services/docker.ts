@@ -504,20 +504,35 @@ interface ContainerStatSample {
   memLimit: number;
 }
 
+/** The two dockerode calls the summary needs; lets tests pass a fake client. */
+export interface SummaryDockerClient {
+  listContainers(opts: { all: boolean }): Promise<Array<{ Id: string; Names?: string[]; State: string }>>;
+  getContainer(id: string): { stats(opts: { stream: false }): Promise<unknown> };
+}
+
 export async function dockerHostSummary(socketPath: string) {
-  const d = dockerClient(socketPath);
+  return summarizeDockerClient(dockerClient(socketPath) as unknown as SummaryDockerClient);
+}
+
+export async function summarizeDockerClient(d: SummaryDockerClient) {
   const infos = await d.listContainers({ all: false });
-  const stats: ContainerStatSample[] = await Promise.all(infos.map(async (i: { Id: string; Names?: string[]; State: string }) => {
-    const c = d.getContainer(i.Id);
-    const s: any = await c.stats({ stream: false });
-    const cpuDelta = s.cpu_stats.cpu_usage.total_usage - s.precpu_stats.cpu_usage.total_usage;
-    const sysDelta = s.cpu_stats.system_cpu_usage - s.precpu_stats.system_cpu_usage;
-    const online = s.cpu_stats.online_cpus || (s.cpu_stats.cpu_usage?.percpu_usage?.length || 1);
-    const cpuPct = (sysDelta > 0 && online > 0) ? (cpuDelta / sysDelta) * online * 100 : 0;
-    const memBytes: number = s.memory_stats?.usage || 0;
-    const memLimit: number = s.memory_stats?.limit || 0;
-    return { name: i.Names?.[0]?.replace(/^\//, '') ?? i.Id, id: i.Id, state: i.State, cpuPct, memBytes, memLimit };
+  const samples = await Promise.all(infos.map(async (i): Promise<ContainerStatSample | null> => {
+    try {
+      const s: any = await d.getContainer(i.Id).stats({ stream: false });
+      const cpuDelta = (s?.cpu_stats?.cpu_usage?.total_usage ?? 0) - (s?.precpu_stats?.cpu_usage?.total_usage ?? 0);
+      const sysDelta = (s?.cpu_stats?.system_cpu_usage ?? 0) - (s?.precpu_stats?.system_cpu_usage ?? 0);
+      const online = s?.cpu_stats?.online_cpus || (s?.cpu_stats?.cpu_usage?.percpu_usage?.length || 1);
+      const cpuPct = (sysDelta > 0 && cpuDelta > 0 && online > 0) ? (cpuDelta / sysDelta) * online * 100 : 0;
+      const memBytes: number = s?.memory_stats?.usage || 0;
+      const memLimit: number = s?.memory_stats?.limit || 0;
+      return { name: i.Names?.[0]?.replace(/^\//, '') ?? i.Id, id: i.Id, state: i.State, cpuPct, memBytes, memLimit };
+    } catch {
+      // A container that exits between the list and the stats call (restart,
+      // image update) must not turn the whole host summary into an error.
+      return null;
+    }
   }));
+  const stats = samples.filter((s): s is ContainerStatSample => s !== null);
 
   const topCpu = stats.slice().sort((a, b) => b.cpuPct - a.cpuPct).slice(0, 5);
   const topMem = stats.slice().sort((a, b) => b.memBytes - a.memBytes).slice(0, 5);

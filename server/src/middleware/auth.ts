@@ -57,6 +57,13 @@ async function destroyRevokedSession(req: Request, res: Response): Promise<void>
 }
 
 async function verifySessionUser(req: Request, res: Response): Promise<boolean> {
+  // requireAuth is mounted on several routers and again on single routes, so
+  // one request passes through here up to six times. The database check is
+  // done once per request; later passes reuse its result.
+  if (res.locals.sessionVerified === true && req.session?.user?.id) {
+    return true;
+  }
+
   if (AUTH_DISABLED) {
     if (!req.session.user) {
       req.session.user = {
@@ -67,6 +74,7 @@ async function verifySessionUser(req: Request, res: Response): Promise<boolean> 
       };
     }
     res.locals.user = req.session.user;
+    res.locals.sessionVerified = true;
     return true;
   }
 
@@ -100,6 +108,7 @@ async function verifySessionUser(req: Request, res: Response): Promise<boolean> 
     sessionVersion: dbUser.sessionVersion,
   };
   res.locals.user = req.session.user;
+  res.locals.sessionVerified = true;
   return true;
 }
 

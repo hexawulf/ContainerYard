@@ -3,6 +3,41 @@
 All notable changes to ContainerYard are documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [5.0.3] - 2026-11-12
+
+### Security
+- Container environment variables: only admins see the values. Other roles get
+  the variable names with every value replaced by `[hidden]`.
+- Raw `docker inspect` output (`/api/hosts/:hostId/containers/:id/inspect`) is
+  admin-only on Docker hosts; it contains the environment, command line and mounts.
+- cAdvisor container ids must be container cgroup paths; anything else is
+  refused before a request is made, so an id can no longer reach other paths
+  on the cAdvisor host.
+- A session created only to hold a CSRF token (no sign-in) now expires after
+  30 minutes instead of 7 days.
+- Login takes the same time whether or not the e-mail exists.
+
+### Fixed
+- Requests for an unknown host id on the summary and inspect routes answer 404
+  at once; they used to hang until the proxy timed out.
+- A container that exits between the list and the stats call no longer turns
+  the whole host summary into a 502.
+- CPU % for cAdvisor hosts on cgroup v2 was close to zero (it was divided by
+  CPU shares). All cAdvisor CPU figures now use one formula, as a percentage of
+  one core like `docker stats`. On hosts that reported per-CPU usage the
+  container detail figure was previously divided by the core count, so it reads
+  higher than before and now matches the host summary.
+- Live log streaming: a client that disconnects while the stream is being
+  opened no longer leaks the heartbeat timer and the Docker follow stream.
+- The cAdvisor inspect request has a 10 s timeout and uses the container path
+  as cAdvisor expects it.
+
+### Changed
+- The user is looked up once per request instead of up to six times.
+- SQLite mode: the "Historical Metrics" button is hidden (the feature needs
+  PostgreSQL), and the "disabled in SQLite mode" notice is logged once per
+  feature instead of on every request.
+
 ## [5.0.2] - 2026-11-10
 
 ### Changed
