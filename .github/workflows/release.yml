@@ -6,6 +6,11 @@
 # Weekly refresh: every Monday the latest GitHub Release is rebuilt without the
 # build cache, so the runtime stage's apt-get upgrade picks up Debian security
 # fixes. Same version tags are re-pushed; running hosts update on next deploy.
+# Trivy gate: before Docker Hub is touched, an amd64 copy of the image is built
+# and scanned. A fixable CRITICAL fails the release; fixable HIGH and all
+# findings go to the job summary and the Security tab (SARIF). The weekly
+# refresh only reports, so a new CVE never blocks the rebuild that fixes it.
+# Accepted findings go in .trivyignore with a reason and an expiry.
 name: Release
 
 on:
@@ -95,6 +100,9 @@ jobs:
     needs: [tag, test]
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    permissions:
+      contents: read
+      security-events: write   # Trivy SARIF -> Security tab
     steps:
       - name: Check out the tag
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -130,6 +138,80 @@ jobs:
             type=semver,pattern={{major}}.{{minor}},value=${{ needs.tag.outputs.tag }}
           flavor: |
             latest=${{ (github.event_name == 'workflow_dispatch' && !inputs.latest) && 'false' || 'auto' }}
+
+      # Same Dockerfile, args and cache as the real build, amd64 only, loaded
+      # into the runner's Docker so Trivy can read it. No registry credentials yet.
+      - name: Build amd64 for the scan
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          push: false
+          tags: containeryard:scan
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
+            REVISION=${{ steps.rev.outputs.sha }}
+            SOURCE_DATE_EPOCH=${{ steps.rev.outputs.epoch }}
+            CREATED=${{ steps.rev.outputs.created }}
+          no-cache: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.no_cache) }}
+          pull: true
+          cache-from: type=gha
+
+      # Trivy runs from its official image pinned by digest (not trivy-action).
+      # .trivyignore in the repo root is honoured because /src is the workdir.
+      - name: Trivy report
+        id: trivy
+        env:
+          TRIVY_IMAGE: aquasec/trivy:0.76.1@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c
+        run: |
+          out="$RUNNER_TEMP/trivy"   # outside the build context
+          mkdir -p "$out/cache"
+          trivy() {
+            docker run --rm \
+              -v /var/run/docker.sock:/var/run/docker.sock:ro \
+              -v "$PWD:/src" -w /src \
+              -v "$out:/out" -v "$out/cache:/root/.cache/trivy" \
+              "$TRIVY_IMAGE" image --quiet --scanners vuln "$@" containeryard:scan
+          }
+          trivy --format sarif --output /out/trivy.sarif
+          trivy --severity CRITICAL,HIGH --ignore-unfixed --format json --output /out/fixable.json
+          crit=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="CRITICAL")] | length' "$out/fixable.json")
+          high=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="HIGH")] | length' "$out/fixable.json")
+          echo "critical=$crit" >>"$GITHUB_OUTPUT"
+          {
+            echo "### Trivy: ${{ needs.tag.outputs.tag }} (linux/amd64)"
+            echo
+            echo "Fixable: **$crit CRITICAL**, **$high HIGH**. All severities, fixed or not, are in the Security tab."
+            if [ "$((crit + high))" -gt 0 ]; then
+              echo
+              echo "| Severity | Package | Installed | Fixed in | ID |"
+              echo "|---|---|---|---|---|"
+              jq -r '.Results[]? | .Vulnerabilities[]? | "| \(.Severity) | \(.PkgName) | \(.InstalledVersion) | \(.FixedVersion) | \(.VulnerabilityID) |"' "$out/fixable.json" | sort -u
+            fi
+          } >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Trivy results to the Security tab
+        if: always() && steps.trivy.outcome == 'success'
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          sarif_file: ${{ runner.temp }}/trivy/trivy.sarif
+          category: trivy-image
+
+      - name: Trivy gate (fixable CRITICAL)
+        env:
+          CRIT: ${{ steps.trivy.outputs.critical }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [ "$CRIT" -eq 0 ]; then
+            echo "no fixable CRITICAL findings"
+          elif [ "$EVENT" = schedule ]; then
+            echo "::warning::$CRIT fixable CRITICAL findings; weekly refresh publishes anyway, see the job summary"
+          else
+            echo "::error::$CRIT fixable CRITICAL findings; release blocked before Docker Hub. Fix them, or add a reasoned, expiring entry to .trivyignore"
+            exit 1
+          fi
 
       - name: Log in to Docker Hub
         uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
