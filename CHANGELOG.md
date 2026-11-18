@@ -21,6 +21,12 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 - Parallelize `GET /api/containers` across configured hosts with `Promise.allSettled`.
 - Parallelize client boot (`bootstrapRuntimeConfig()` + `checkApiHealthSafe()`), disable background polling (`refetchIntervalInBackground: false`), lazy-load `StatsChips` and `TimelineStrip`, replace `date-fns` `formatDistanceToNow` with a lightweight `formatRelativeTime` helper, memoize snapshot log lines in `LogsDrawer`, and fix `useToast` listener re-subscription.
 
+### Changed
+- Move client-only UI packages (`react`, `react-dom`, `recharts`, `lucide-react`, `@radix-ui/*`, `@tanstack/*`, `wouter`, `clsx`, `tailwind-merge`, `class-variance-authority`, `tailwindcss-animate`, `react-helmet-async`, `date-fns`) to `devDependencies` and remove unused packages (`@xterm/*`, `@radix-ui/react-toggle`, `cors`, `event-stream`, `@tailwindcss/vite`, `wait-on`, `lefthook`, `serve`, `start-server-and-test`); simplify `Dockerfile` `deps` cleanup.
+- Remove 13 unreferenced client/server modules (`EnvVarsPanel`, `LogRateHeatmap`, `LogTail`, `QuerySyntaxHelper`, `QuerySyntaxReference`, `RestartComparison`, `SyntaxHighlightedInput`, `Terminal`, `toggle`, `use-mobile`, `logParser`, `queryParser`, `skipCsrf`), 3 legacy scripts, and dead exported helpers (`ensureDb`, `getHostStats`, `serveStatic`, `loadUserSafe`, `throwIfResNotOk`).
+- Fix all 29 unused imports, variables, and parameters flagged by `tsc --noEmit --noUnusedLocals --noUnusedParameters`.
+- Delete 45 unreferenced screenshot PNGs from `docs/screenshots/`, archive completed plan docs and duplicate subdirectory `AGENTS.md` files under `docs/_archive/`, and point `CLAUDE.md` / `GEMINI.md` at `AGENTS.md`.
+
 ## [5.0.3] - 2026-11-12
 
 ### Security

@@ -10,7 +10,6 @@ import {
   resetSseStreamCountsForTests,
   MAX_SSE_STREAMS_PER_USER,
 } from "../../src/lib/sseGuard";
-import { isSafeRegexPattern, parseQuery, matchesQuery } from "../../../client/src/lib/queryParser";
 
 describe("Security Audit Hardening (PR 1)", () => {
   describe("CY-A01: Docker Engine socket containerId path-injection guard", () => {
@@ -146,28 +145,6 @@ describe("Security Audit Hardening (PR 1)", () => {
       nextRelease!();
       for (const r of releases) r();
       assert.equal(getActiveSseStreamCount("user-1"), 0);
-    });
-  });
-
-  describe("CY-A08: Client queryParser ReDoS guard", () => {
-    test("rejects nested-quantifier and overlong regex patterns and falls back safely", () => {
-      assert.equal(isSafeRegexPattern("error|warn"), true);
-      assert.equal(isSafeRegexPattern("(a+)+$"), false);
-      assert.equal(isSafeRegexPattern("([a-zA-Z0-9]+)*"), false);
-      assert.equal(isSafeRegexPattern("a".repeat(257)), false);
-
-      const parsed = parseQuery("/(a+)+$/");
-      assert.equal(parsed.tokens.length, 1);
-      assert.equal(parsed.tokens[0].type, "regex");
-      if (parsed.tokens[0].type === "regex") {
-        assert.equal(parsed.tokens[0].compiled, null);
-      }
-
-      const t0 = performance.now();
-      const matched = matchesQuery("a".repeat(5000) + "!", undefined, [], parsed);
-      const elapsedMs = performance.now() - t0;
-      assert.equal(matched, false);
-      assert.ok(elapsedMs < 50, `Expected non-backtracking fallback in <50ms, took ${elapsedMs}ms`);
     });
   });
 });

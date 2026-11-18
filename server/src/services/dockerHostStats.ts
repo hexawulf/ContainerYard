@@ -52,8 +52,6 @@ async function loadDockerHostStats(host: HostConfig): Promise<HostStats> {
     }
   }));
 
-  const memoryPercent = memoryLimit > 0 ? (memoryUsage / memoryLimit) * 100 : 0;
-
   // Return normalized numeric stats (never null/undefined)
   return {
     hostId: host.id,

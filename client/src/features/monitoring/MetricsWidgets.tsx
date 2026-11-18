@@ -25,16 +25,6 @@ interface TopConsumer {
   avgMemoryPercent: string;
 }
 
-interface MetricsSummary {
-  containerId: string;
-  containerName: string;
-  avgCpuPercent: string;
-  maxCpuPercent: string;
-  avgMemoryPercent: string;
-  maxMemoryPercent: string;
-  dataPoints: number;
-}
-
 function WidgetCard({ title, icon: Icon, children }: { title: string; icon: any; children: React.ReactNode }) {
   return (
     <Card className="min-w-0 overflow-hidden">

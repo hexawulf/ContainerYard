@@ -1,6 +1,0 @@
-pre-commit:
-  commands:
-    lint:
-      run: npm run lint
-    cycles:
-      run: npx madge client/src --circular && echo "✓ No cycles"

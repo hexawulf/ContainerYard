@@ -1,4 +1,4 @@
-import { Router, Request, Response, NextFunction } from "express";
+import { Router } from "express";
 import { log } from "../../vite";
 import { getHost } from "../config/hosts";
 import { getContainerLogs } from "../services/docker";
@@ -6,7 +6,6 @@ import { LOCAL_HOST_ID, resolveHostLogsAsync } from "../config/hostlogs";
 import { requireRole } from "../middleware/auth";
 import { spawn } from "child_process";
 import * as fs from "fs";
-import * as path from "path";
 
 const router = Router();
 

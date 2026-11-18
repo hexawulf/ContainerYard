@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { getQueryFn, queryClient, apiRequest } from "@/lib/queryClient";
+import { getQueryFn, apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/components/AuthGate";
 import { ActionConfirmDialog } from "@/components/ActionConfirmDialog";
 import { errorMessage } from "./ContainerActions";
@@ -151,7 +151,7 @@ function StackCard({
       const response = await apiRequest("POST", `/api/hosts/${hostId}/stacks/${encodeURIComponent(stack.name)}/action`, { action });
       return response.json();
     },
-    onSuccess: (data, { action }) => {
+    onSuccess: (_data, { action }) => {
       toast({
         title: "Success",
         description: `${stack.name} stack ${action === "stop" ? "stopped" : `${action}ed`} successfully`,

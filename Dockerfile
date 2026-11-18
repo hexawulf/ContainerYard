@@ -51,14 +51,6 @@ RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund \
     && rm -rf \
        node_modules/prisma/build/public \
        node_modules/@prisma/studio-core \
-       node_modules/lucide-react \
-       node_modules/recharts \
-       node_modules/date-fns \
-       node_modules/@xterm \
-       node_modules/@tanstack \
-       node_modules/@radix-ui \
-       node_modules/react-dom \
-       node_modules/react \
        node_modules/typescript 2>/dev/null || true
 
 # --- Stage 3: minimal production runtime --------------------------------------

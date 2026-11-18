@@ -1,5 +1,5 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
-import { apiFetch, ApiError, API_BASE } from "./api";
+import { apiFetch, ApiError } from "./api";
 
 const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 const AUTH_DISABLED = import.meta.env.VITE_AUTH_DISABLED === 'true';
@@ -32,24 +32,6 @@ export async function prefetchCsrfToken() {
     return "disabled";
   }
   return ensureCsrfToken();
-}
-
-async function throwIfResNotOk(res: Response) {
-  if (!res.ok) {
-    const contentType = res.headers.get('content-type') || '';
-    const text = await res.text();
-    
-    // If we got HTML instead of JSON, provide a cleaner error message
-    if (text.includes('<!DOCTYPE') || text.includes('<html')) {
-      throw new ApiError(
-        res.status,
-        text.slice(0, 500),
-        `API unavailable (${res.status}). The server may be offline.`
-      );
-    }
-    
-    throw new Error(`${res.status}: ${text}`);
-  }
 }
 
 export async function apiRequest(
