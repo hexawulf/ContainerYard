@@ -247,4 +247,4 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
           repository: 0xwulf/containeryard
           short-description: Self-hosted Docker observability dashboard with real-time logs, stack actions, and metrics
-          readme-filepath: ./README.md
+          readme-filepath: ./docker/README.md

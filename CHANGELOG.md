@@ -3,7 +3,7 @@
 All notable changes to ContainerYard are documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [5.1.0] - 2026-11-18
 
 ### Security
 - Validate `:containerId` against `CONTAINER_REF` (`^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$`) across all Docker Engine socket routes (`getContainerDetail`, `getContainerStats`, `getContainerLogs`, `streamContainerLogs`, and `/inspect`) so URL-encoded path segments cannot traverse `/containers/<id>/...` on `/var/run/docker.sock`.

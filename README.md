@@ -12,7 +12,7 @@
 
 ContainerYard is a comprehensive Docker observability platform that goes beyond simple log viewing. It provides Docker Compose stack management, proactive alerting, historical metrics analysis, and real-time log streaming—all in one sleek, developer-friendly interface. Built with React 18 and Express, it bridges the gap between lightweight viewers and enterprise monitoring solutions.
 
-![ContainerYard Dashboard — Top Navigation & Light Theme](https://github.com/hexawulf/ContainerYard/blob/main/docs/screenshots/header-actions/header-admin-light-desktop.png?raw=true)
+![ContainerYard Dashboard — Top Navigation & Light Theme](https://raw.githubusercontent.com/hexawulf/ContainerYard/main/docs/screenshots/header-actions/header-admin-light-desktop.png)
 
 
 ## ✨ Features
@@ -106,7 +106,7 @@ ContainerYard is a comprehensive Docker observability platform that goes beyond 
 
 | About Modal | User Administration Modal (ADMIN) |
 |---|---|
-| ![About Modal](https://github.com/hexawulf/ContainerYard/blob/main/docs/screenshots/header-actions/modal-about-light-desktop.png?raw=true) | ![User Administration Modal](https://github.com/hexawulf/ContainerYard/blob/main/docs/screenshots/header-actions/modal-users-light-desktop.png?raw=true) |
+| ![About Modal](https://raw.githubusercontent.com/hexawulf/ContainerYard/main/docs/screenshots/header-actions/modal-about-light-desktop.png) | ![User Administration Modal](https://raw.githubusercontent.com/hexawulf/ContainerYard/main/docs/screenshots/header-actions/modal-users-light-desktop.png) |
 
 ### 3.2.0: light-by-default theme toggle & UI refresh
 - **Light-by-default theme system (`containeryard-theme`):** Light mode is now the default across the app, paired with a persistent `ThemeToggle` (`Sun`/`Moon`) in the navbar on every route (Landing, Login, Dashboard, Host Logs, Style Guide, 404). An inline `<head>` script sets `<html class="light|dark">`, `colorScheme`, and `<meta name="theme-color">` before first paint so there is zero flash of the wrong theme on load. Stored `"dark"` resolves to dark; `"light"`, missing, invalid, or legacy `"system"` values resolve to light
