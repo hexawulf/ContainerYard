@@ -242,7 +242,7 @@ class CadvisorService {
       return (await response.json()) as T;
     } catch (error: any) {
       if (error.name === 'AbortError' || error.name === 'TimeoutError') {
-        const timeoutError = new Error(`cAdvisor request timed out: ${url}`);
+        const timeoutError = new Error("cAdvisor request timed out");
         (timeoutError as any).status = 504;
         throw timeoutError;
       }
@@ -305,10 +305,10 @@ class CadvisorService {
         console.error(`[cAdvisor] Failed to list containers for host ${host.id}:`, error.message);
       }
       
-      // Create appropriate error based on the failure
+      // Create appropriate error based on the failure (never echo internal baseUrl to clients)
       if (error.status === 404) {
         const notFoundError = new Error(
-          `cAdvisor endpoint not found (404). The cAdvisor API path may have changed or cAdvisor may not be running at ${this.baseUrl}`
+          `cAdvisor endpoint not found (404) for host ${host.id}`
         );
         (notFoundError as any).status = 502;
         (notFoundError as any).code = 'CADVISOR_ENDPOINT_NOT_FOUND';
@@ -318,7 +318,7 @@ class CadvisorService {
       
       if (error.status === 504 || error.message?.includes('timed out')) {
         const timeoutError = new Error(
-          `cAdvisor request timed out. The cAdvisor service at ${this.baseUrl} is not responding.`
+          `cAdvisor request timed out for host ${host.id}`
         );
         (timeoutError as any).status = 504;
         (timeoutError as any).code = 'CADVISOR_TIMEOUT';

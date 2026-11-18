@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type RequestHandler } from "express";
 import { log } from "../../vite";
 import { getHost } from "../config/hosts";
 import { listContainers as listDockerContainers, performBulkAction, getContainerLogs } from "../services/docker";
@@ -6,11 +6,34 @@ import { getCadvisorService } from "../services/cadvisor";
 import { groupContainersByStack, getStackByName } from "../models/stacks";
 import type { ContainerSummary } from "../models/containers";
 import type { ContainerAction } from "@shared/schema";
-import { requireRole } from "../middleware/auth";
+import { verifySessionUser } from "../middleware/auth";
 import { recordAudit } from "../services/audit";
 import { actionRateLimiter } from "./actions";
 
 const router = Router();
+const STACK_NAME_REGEX = /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/;
+
+/** ADMIN gate for stack actions that also records denied attempts in the audit log. */
+const requireAdminStackAudited: RequestHandler = async (req, res, next) => {
+  try {
+    const ok = await verifySessionUser(req, res);
+    if (!ok) return;
+    if (req.session.user!.role !== "ADMIN") {
+      await recordAudit(req, {
+        action: `stack.${String(req.body?.action ?? "unknown").slice(0, 32)}`,
+        outcome: "denied",
+        hostId: req.params.hostId,
+        target: req.params.name,
+        detail: "insufficient permissions",
+      });
+      res.status(403).json({ message: "Insufficient permissions" });
+      return;
+    }
+    next();
+  } catch (error) {
+    next(error);
+  }
+};
 
 // Helper to get all containers from a host
 async function getAllContainersForHost(hostId: string): Promise<ContainerSummary[]> {
@@ -41,6 +64,9 @@ router.get("/:hostId/stacks", async (req, res, next) => {
 // Get specific stack by name for a host
 router.get("/:hostId/stacks/:name", async (req, res, next) => {
   try {
+    if (!STACK_NAME_REGEX.test(req.params.name)) {
+      return res.status(400).json({ error: "Invalid stack name" });
+    }
     const containers = await getAllContainersForHost(req.params.hostId);
     const stack = getStackByName(containers, req.params.name);
     
@@ -55,9 +81,12 @@ router.get("/:hostId/stacks/:name", async (req, res, next) => {
 });
 
 // Bulk action on all containers in a stack
-router.post("/:hostId/stacks/:name/action", actionRateLimiter, requireRole("ADMIN"), async (req, res, next) => {
+router.post("/:hostId/stacks/:name/action", actionRateLimiter, requireAdminStackAudited, async (req, res, next) => {
   const { action } = req.body ?? {};
   try {
+    if (!STACK_NAME_REGEX.test(req.params.name)) {
+      return res.status(400).json({ error: "Invalid stack name" });
+    }
     if (!action || !["start", "stop", "restart", "remove"].includes(action)) {
       return res.status(400).json({ error: "Invalid action" });
     }
@@ -111,6 +140,9 @@ router.post("/:hostId/stacks/:name/action", actionRateLimiter, requireRole("ADMI
 // Get stack logs (combined logs from all containers in the stack)
 router.get("/:hostId/stacks/:name/logs", async (req, res, next) => {
   try {
+    if (!STACK_NAME_REGEX.test(req.params.name)) {
+      return res.status(400).json({ error: "Invalid stack name" });
+    }
     const rawTail = Number(req.query.tail);
     const tail = Number.isNaN(rawTail) || rawTail <= 0 ? 500 : Math.min(rawTail, 5000);
     const since = req.query.since;

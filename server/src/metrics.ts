@@ -1,6 +1,7 @@
 import type { Application, Request, Response } from "express";
 import { collectDefaultMetrics, register } from "prom-client";
 import { env } from "./config/env";
+import { tokensMatch } from "./middleware/csrf";
 
 let initialized = false;
 
@@ -19,7 +20,7 @@ export function registerMetrics(app: Application) {
   app.get("/metrics", async (req: Request, res: Response) => {
     if (env.METRICS_TOKEN) {
       const token = req.get("x-metrics-token");
-      if (token !== env.METRICS_TOKEN) {
+      if (!tokensMatch(env.METRICS_TOKEN, token)) {
         return res.status(403).json({ message: "Forbidden" });
       }
     }

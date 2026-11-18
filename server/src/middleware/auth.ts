@@ -56,7 +56,7 @@ async function destroyRevokedSession(req: Request, res: Response): Promise<void>
   });
 }
 
-async function verifySessionUser(req: Request, res: Response): Promise<boolean> {
+export async function verifySessionUser(req: Request, res: Response): Promise<boolean> {
   // requireAuth is mounted on several routers and again on single routes, so
   // one request passes through here up to six times. The database check is
   // done once per request; later passes reuse its result.

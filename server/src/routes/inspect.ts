@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { getHost } from "../config/hosts";
-import { dockerClient } from "../services/docker";
+import { assertDockerContainerRef, dockerClient } from "../services/docker";
 import { isDockerContainerPath } from "../services/cadvisor";
 import { requireAuth } from "../middleware/auth";
 
@@ -23,6 +23,7 @@ r.get("/api/hosts/:hostId/containers/:id/inspect", requireAuth, async (req, res)
       if (req.session.user?.role !== "ADMIN") {
         return res.status(403).json({ message: "Insufficient permissions" });
       }
+      assertDockerContainerRef(id);
       if (!host.docker?.socketPath) {
         return res.status(500).json({ error: "Docker socket path not configured for this host" });
       }
@@ -59,6 +60,9 @@ r.get("/api/hosts/:hostId/containers/:id/inspect", requireAuth, async (req, res)
       return res.json({ provider: "CADVISOR_ONLY", spec });
     }
   } catch (e: any) {
+    if (e?.status === 400) {
+      return res.status(400).json({ error: "invalid_container_id", message: e?.message || "Invalid container id" });
+    }
     if (e?.status === 404 || e?.statusCode === 404) {
       return res.status(404).json({ error: "not_found", message: e?.message || "not found" });
     }

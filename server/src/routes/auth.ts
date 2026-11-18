@@ -62,6 +62,7 @@ router.post("/login", loginRateLimiter, async (req, res, next) => {
       role: user.role,
       sessionVersion: user.sessionVersion,
     };
+    (req.session as any).csrfToken = randomBytes(24).toString("hex");
 
     const publicUser = {
       id: user.id,

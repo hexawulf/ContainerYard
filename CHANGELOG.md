@@ -3,6 +3,17 @@
 All notable changes to ContainerYard are documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Security
+- Validate `:containerId` against `CONTAINER_REF` (`^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$`) across all Docker Engine socket routes (`getContainerDetail`, `getContainerStats`, `getContainerLogs`, `streamContainerLogs`, and `/inspect`) so URL-encoded path segments cannot traverse `/containers/<id>/...` on `/var/run/docker.sock`.
+- Cap password inputs in `loginSchema` and `changePasswordSchema` at 1,024 characters to prevent oversized `bcrypt` hashing inputs, and generate a fresh CSRF token immediately upon login `session.regenerate`.
+- Verify the `Origin` header (when present) against `allowedOrigins` in `verifyCsrf` and compare `x-metrics-token` on `/metrics` using constant-time `timingSafeEqual`.
+- Enforce a per-user concurrency limit (`MAX_SSE_STREAMS_PER_USER = 6`) on live SSE log streams and re-validate `sessionVersion` and role privileges on each 15s SSE heartbeat.
+- Record `outcome: "denied"` audit log entries when a non-admin attempts stack bulk actions, validate `:name` on stack routes, and validate `PATCH /api/alerts/channels/:id` and `PATCH /api/alerts/rules/:id` bodies with Zod partial schemas.
+- Align Express `helmet` headers with reverse-proxy TLS termination (disable duplicate app-layer HSTS unless `CY_ENABLE_APP_HSTS=1`, set `Referrer-Policy: strict-origin-when-cross-origin`, and enable a production Content-Security-Policy) and redact internal upstream URLs and raw 500 error messages in production responses.
+- Guard client-side `queryParser` regex tokens against ReDoS (rejecting patterns over 256 characters or with nested quantifiers) and pre-compile valid regexes once per query token.
+
 ## [5.0.3] - 2026-11-12
 
 ### Security

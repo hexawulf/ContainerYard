@@ -14,6 +14,7 @@ import { execFile, spawn } from "child_process";
 import readline from "readline";
 import { LOCAL_HOST_ID, isReadable, resolveHostLogs } from "../config/hostlogs";
 import { requireRole } from "../middleware/auth";
+import { acquireSseStreamSlot, isSseSessionValid } from "../lib/sseGuard";
 
 const router = Router();
 
@@ -92,6 +93,12 @@ router.get("/:hostId/logs/:name", adminOnly, (req, res, next) => {
 
   // Live tail via Server-Sent Events. -F keeps following across log rotation.
   try {
+    const userKey = req.session?.user?.id || req.ip || "anon";
+    const releaseSlot = acquireSseStreamSlot(userKey);
+    if (!releaseSlot) {
+      return res.status(429).json({ message: "Too many concurrent log streams" });
+    }
+
     res.writeHead(200, {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
@@ -99,6 +106,17 @@ router.get("/:hostId/logs/:name", adminOnly, (req, res, next) => {
       "X-Accel-Buffering": "no",
     });
     const child = spawn("tail", ["-n", String(Math.min(options.tail, 500)), "-F", "--", filePath]);
+    let closed = false;
+    const closeStream = () => {
+      if (closed) return;
+      closed = true;
+      clearInterval(heartbeat);
+      releaseSlot();
+      child.kill("SIGTERM");
+      if (!res.writableEnded) {
+        res.end();
+      }
+    };
     const lines = readline.createInterface({ input: child.stdout });
     lines.on("line", (line) => {
       if (line && keep(line) && !res.writableEnded) {
@@ -109,19 +127,22 @@ router.get("/:hostId/logs/:name", adminOnly, (req, res, next) => {
     child.on("error", (err) => {
       if (!res.writableEnded) {
         res.write(`event: error\ndata: ${JSON.stringify({ message: err.message })}\n\n`);
-        res.end();
       }
+      closeStream();
     });
     child.on("exit", () => {
-      if (!res.writableEnded) res.end();
+      closeStream();
     });
     const heartbeat = setInterval(() => {
-      if (!res.writableEnded) res.write(":heartbeat\n\n");
+      void isSseSessionValid(req, { requireRole: "ADMIN" }).then((valid) => {
+        if (!valid) {
+          closeStream();
+          return;
+        }
+        if (!res.writableEnded) res.write(":heartbeat\n\n");
+      });
     }, 15_000);
-    req.on("close", () => {
-      clearInterval(heartbeat);
-      child.kill("SIGTERM");
-    });
+    req.on("close", closeStream);
   } catch (error) {
     next(error);
   }

@@ -15,6 +15,8 @@ import { sendNotification } from "../services/notifications";
 import { validateWebhookUrl } from "../lib/safeWebhook";
 
 const router = Router();
+const patchChannelSchema = insertNotificationChannelSchema.partial();
+const patchAlertRuleSchema = insertAlertRuleSchema.partial();
 
 // Reading alerts is open to any signed-in user; changing them needs ADMIN.
 router.use((req, res, next) => {
@@ -126,12 +128,20 @@ router.patch("/channels/:id", async (req, res, next) => {
   }
   
   try {
-    const id = parseInt(req.params.id);
-    if (Number.isNaN(id)) {
+    const id = parseIntParam(req.params.id);
+    if (id === null) {
       return res.status(400).json({ error: "Invalid channel ID" });
     }
 
-    const { name, type, config, enabled } = req.body;
+    const parsed = patchChannelSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: "Invalid channel data",
+        details: { name: "ZodError", issues: parsed.error.issues },
+      });
+    }
+
+    const { name, type, config, enabled } = parsed.data;
     if (type !== undefined || config !== undefined) {
       const [existing] = await db
         .select()
@@ -146,10 +156,10 @@ router.patch("/channels/:id", async (req, res, next) => {
       }
     }
     const updates: Record<string, any> = { updatedAt: new Date() };
-    if (name !== undefined) updates.name = String(name);
-    if (type !== undefined) updates.type = String(type);
-    if (config !== undefined) updates.config = String(config);
-    if (enabled !== undefined) updates.enabled = String(enabled);
+    if (name !== undefined) updates.name = name;
+    if (type !== undefined) updates.type = type;
+    if (config !== undefined) updates.config = config;
+    if (enabled !== undefined) updates.enabled = enabled;
 
     const [channel] = await db
       .update(notificationChannels)
@@ -297,22 +307,30 @@ router.patch("/rules/:id", async (req, res, next) => {
   }
   
   try {
-    const id = parseInt(req.params.id);
-    if (Number.isNaN(id)) {
+    const id = parseIntParam(req.params.id);
+    if (id === null) {
       return res.status(400).json({ error: "Invalid rule ID" });
     }
 
-    const { name, description, conditionType, operator, threshold, durationMinutes, containerFilter, channelId, enabled } = req.body;
+    const parsed = patchAlertRuleSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({
+        error: "Invalid rule data",
+        details: { name: "ZodError", issues: parsed.error.issues },
+      });
+    }
+
+    const { name, description, conditionType, operator, threshold, durationMinutes, containerFilter, channelId, enabled } = parsed.data;
     const updates: Record<string, any> = { updatedAt: new Date() };
-    if (name !== undefined) updates.name = String(name);
-    if (description !== undefined) updates.description = String(description);
-    if (conditionType !== undefined) updates.conditionType = String(conditionType);
-    if (operator !== undefined) updates.operator = String(operator);
-    if (threshold !== undefined) updates.threshold = String(threshold);
-    if (durationMinutes !== undefined) updates.durationMinutes = Number(durationMinutes);
-    if (containerFilter !== undefined) updates.containerFilter = String(containerFilter);
-    if (channelId !== undefined) updates.channelId = Number(channelId);
-    if (enabled !== undefined) updates.enabled = String(enabled);
+    if (name !== undefined) updates.name = name;
+    if (description !== undefined) updates.description = description;
+    if (conditionType !== undefined) updates.conditionType = conditionType;
+    if (operator !== undefined) updates.operator = operator;
+    if (threshold !== undefined) updates.threshold = threshold;
+    if (durationMinutes !== undefined) updates.durationMinutes = durationMinutes;
+    if (containerFilter !== undefined) updates.containerFilter = containerFilter;
+    if (channelId !== undefined) updates.channelId = channelId;
+    if (enabled !== undefined) updates.enabled = enabled;
 
     const [rule] = await db
       .update(alertRules)

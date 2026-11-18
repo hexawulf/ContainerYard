@@ -44,7 +44,25 @@ export async function createApp() {
   app.use(
     helmet({
       crossOriginEmbedderPolicy: false,
-      contentSecurityPolicy: false,
+      strictTransportSecurity: process.env.CY_ENABLE_APP_HSTS === "1",
+      referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+      contentSecurityPolicy:
+        process.env.NODE_ENV === "production"
+          ? {
+              useDefaults: false,
+              directives: {
+                defaultSrc: ["'self'"],
+                scriptSrc: ["'self'"],
+                styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+                fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
+                imgSrc: ["'self'", "data:", "blob:"],
+                connectSrc: ["'self'"],
+                frameAncestors: ["'self'"],
+                objectSrc: ["'none'"],
+                baseUri: ["'self'"],
+              },
+            }
+          : false,
     }),
   );
 
@@ -172,7 +190,9 @@ export async function createApp() {
       if (error.status === 404) {
         return res.status(400).json({ error: `Unknown host: ${req.query.host}` });
       }
-      res.status(500).json({ error: error.message });
+      const clientMessage =
+        process.env.NODE_ENV === "production" ? "Internal Server Error" : error.message;
+      res.status(500).json({ error: clientMessage });
     }
   });
 
@@ -220,10 +240,14 @@ export async function createApp() {
     }
 
     const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
+    const rawMessage = err.message || "Internal Server Error";
     if (status >= 500) {
-      log(`${status} ${message}`, "error");
+      log(`${status} ${rawMessage}`, "error");
     }
+    const message =
+      status >= 500 && process.env.NODE_ENV === "production" && !err.expose
+        ? "Internal Server Error"
+        : rawMessage;
 
     // Always return JSON for API routes (defensive)
     if (req.path?.startsWith("/api/")) {

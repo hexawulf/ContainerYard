@@ -18,6 +18,20 @@ type DockerClient = InstanceType<typeof Docker>;
 // One Dockerode instance per unique socket path, created on first use.
 const clientCache = new Map<string, DockerClient>();
 
+// Docker container IDs are hex; container names match [a-zA-Z0-9][a-zA-Z0-9_.-]+.
+// Validated before every dockerode getContainer(id) call so a path segment or
+// query string in `containerId` can never traverse `/containers/<id>/...` on
+// the Docker socket.
+export const CONTAINER_REF = /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/;
+
+export function assertDockerContainerRef(containerId: string): void {
+  if (typeof containerId !== "string" || !CONTAINER_REF.test(containerId)) {
+    const err = new Error("Invalid container id");
+    (err as any).status = 400;
+    throw err;
+  }
+}
+
 /**
  * Returns a Dockerode client for the given host config.
  * Throws 400 if the host has no Docker socket (e.g. CADVISOR_ONLY hosts).
@@ -151,6 +165,7 @@ export async function listContainers(host: HostConfig): Promise<ContainerSummary
 }
 
 export async function getContainerDetail(host: HostConfig, containerId: string): Promise<ContainerDetail> {
+  assertDockerContainerRef(containerId);
   try {
     const client = getDockerClientForHost(host);
     const container = client.getContainer(containerId);
@@ -215,6 +230,7 @@ export async function getContainerDetail(host: HostConfig, containerId: string):
 }
 
 export async function getContainerStats(host: HostConfig, containerId: string): Promise<ContainerStats> {
+  assertDockerContainerRef(containerId);
   try {
     const client = getDockerClientForHost(host);
     const container = client.getContainer(containerId);
@@ -302,6 +318,7 @@ export async function getHostStats(host: HostConfig): Promise<ContainerStats> {
 }
 
 export async function getContainerLogs(host: HostConfig, containerId: string, options: LogOptions = {}): Promise<string> {
+  assertDockerContainerRef(containerId);
   try {
     const { tail = 500, since, stdout = true, stderr = true } = options;
     const client = getDockerClientForHost(host);
@@ -346,6 +363,7 @@ export async function streamContainerLogs(
   onData: (line: string) => void,
   onError: (err: Error) => void
 ): Promise<() => void> {
+  assertDockerContainerRef(containerId);
   try {
     const { stdout = true, stderr = true, grep } = options;
     const client = getDockerClientForHost(host);
@@ -429,6 +447,7 @@ function httpError(message: string, status: number): Error {
 }
 
 export async function performAction(host: HostConfig, containerId: string, action: ContainerAction): Promise<ActionResult> {
+  assertDockerContainerRef(containerId);
   const client = getDockerClientForHost(host);
   const container = client.getContainer(containerId);
 

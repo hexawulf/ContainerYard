@@ -2,6 +2,7 @@ import { Router } from "express";
 import { getHost, getDozzleLink, listHosts } from "../config/hosts";
 import { dozzleContainerLink } from "../config/dozzle";
 import { 
+  assertDockerContainerRef,
   listContainers as listDockerContainers, 
   getContainerDetail as getDockerContainerDetail, 
   getContainerLogs, 
@@ -13,6 +14,7 @@ import { getDockerHostStats } from "../services/dockerHostStats";
 import { getCadvisorService } from "../services/cadvisor";
 import { requireAuth } from "../middleware/auth";
 import { envForRole } from "../lib/redact";
+import { acquireSseStreamSlot, isSseSessionValid } from "../lib/sseGuard";
 import type { NormalizedStats, HostStats } from "@shared/monitoring";
 
 const router = Router();
@@ -184,6 +186,13 @@ router.get("/:hostId/containers/:containerId/logs/stream", requireAuth, async (r
     if (host.provider !== "DOCKER") {
       return res.status(501).json({ message: "SSE streaming only supported for Docker hosts" });
     }
+    assertDockerContainerRef(containerId);
+
+    const userKey = req.session?.user?.id || req.ip || "anon";
+    const releaseSlot = acquireSseStreamSlot(userKey);
+    if (!releaseSlot) {
+      return res.status(429).json({ message: "Too many concurrent log streams" });
+    }
 
     const stdout = req.query.stdout !== 'false';
     const stderr = req.query.stderr !== 'false';
@@ -196,23 +205,35 @@ router.get("/:hostId/containers/:containerId/logs/stream", requireAuth, async (r
       'X-Accel-Buffering': 'no',
     });
 
+    let cleanup: (() => void) | null = null;
+    let closed = false;
+    const closeStream = () => {
+      if (closed) return;
+      closed = true;
+      clearInterval(heartbeat);
+      releaseSlot();
+      cleanup?.();
+      if (!res.writableEnded) {
+        res.end();
+      }
+    };
+
     const heartbeat = setInterval(() => {
-      res.write(':heartbeat\n\n');
+      void isSseSessionValid(req).then((valid) => {
+        if (!valid) {
+          closeStream();
+          return;
+        }
+        if (!res.writableEnded) {
+          res.write(':heartbeat\n\n');
+        }
+      });
     }, 15000);
 
     // Registered before the await below: a client that goes away while the
     // Docker stream is still being opened would otherwise never be noticed,
     // leaving the heartbeat timer and the follow stream running for good.
-    let cleanup: (() => void) | null = null;
-    let closed = false;
-    req.on('close', () => {
-      closed = true;
-      clearInterval(heartbeat);
-      cleanup?.();
-      if (!res.writableEnded) {
-        res.end();
-      }
-    });
+    req.on('close', closeStream);
 
     try {
       cleanup = await streamContainerLogs(
@@ -227,16 +248,15 @@ router.get("/:hostId/containers/:containerId/logs/stream", requireAuth, async (r
         (err) => {
           if (!res.writableEnded) {
             res.write(`event: error\ndata: ${err.message}\n\n`);
-            res.end();
           }
+          closeStream();
         }
       );
     } catch (err: any) {
-      clearInterval(heartbeat);
       if (!res.writableEnded) {
         res.write(`event: error\ndata: ${err.message}\n\n`);
-        res.end();
       }
+      closeStream();
       return;
     }
 

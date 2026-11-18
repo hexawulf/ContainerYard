@@ -2,8 +2,18 @@ export type QueryToken =
   | { type: 'field', key: string, value: string, negated: boolean }
   | { type: 'range', key: string, start: string, end: string, negated: boolean }
   | { type: 'text', value: string, negated: boolean }
-  | { type: 'regex', pattern: string, flags: string, negated: boolean }
+  | { type: 'regex', pattern: string, flags: string, negated: boolean, compiled?: RegExp | null }
   | { type: 'level', levels: string[], negated: boolean };
+
+const MAX_REGEX_PATTERN_LENGTH = 256;
+// Detect nested quantifiers on groups, e.g. (a+)+, (.*)+, ([a-z]*)*, (foo|bar+)+
+const NESTED_QUANTIFIER_RE = /\([^()]*[+*?][^()]*\)\s*(?:[+*?]|\{\d+)/;
+
+export function isSafeRegexPattern(pattern: string): boolean {
+  if (!pattern || pattern.length > MAX_REGEX_PATTERN_LENGTH) return false;
+  if (NESTED_QUANTIFIER_RE.test(pattern)) return false;
+  return true;
+}
 
 export interface ParsedQuery {
   tokens: QueryToken[];
@@ -101,7 +111,15 @@ function parseToken(token: string): QueryToken | null {
     if (lastSlash > 0) {
       const pattern = cleanToken.substring(1, lastSlash);
       const flags = cleanToken.substring(lastSlash + 1);
-      return { type: 'regex', pattern, flags, negated };
+      let compiled: RegExp | null = null;
+      if (isSafeRegexPattern(pattern)) {
+        try {
+          compiled = new RegExp(pattern, (flags || 'i').replace(/[gy]/g, ''));
+        } catch {
+          compiled = null;
+        }
+      }
+      return { type: 'regex', pattern, flags, negated, compiled };
     }
   }
 
@@ -229,11 +247,10 @@ export function matchesQuery(
       }
 
       case 'regex':
-        try {
-          const regex = new RegExp(token.pattern, token.flags || 'i');
-          matches = regex.test(logRaw);
-        } catch {
-          // Invalid regex, treat as text search
+        if (token.compiled) {
+          matches = token.compiled.test(logRaw);
+        } else {
+          // Invalid or unsafe regex: treat as literal substring search
           matches = logRaw.toLowerCase().includes(token.pattern.toLowerCase());
         }
         break;
