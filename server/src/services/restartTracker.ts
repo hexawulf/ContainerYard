@@ -126,7 +126,7 @@ class RestartTrackerService {
     );
   }
 
-  private getMemoryRestartCount(hostId: string, containerId: string): number {
+  private getMemoryRestartCount(hostId: string, _containerId: string): number {
     let count = 0;
     
     this.trackedContainers.forEach((state, key) => {
@@ -232,7 +232,7 @@ class RestartTrackerService {
     );
   }
 
-  private getMemoryContainersWithRestarts(hostId: string): Array<{
+  private getMemoryContainersWithRestarts(_hostId: string): Array<{
     containerId: string;
     containerName: string;
     restartCount: number;

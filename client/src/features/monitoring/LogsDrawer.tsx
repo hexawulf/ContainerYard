@@ -204,7 +204,7 @@ export function LogsDrawer({
     }
   };
 
-  const handleJumpToBookmark = (containerId: string, timestamp: string, filters?: string) => {
+  const handleJumpToBookmark = (_containerId: string, timestamp: string, filters?: string) => {
     // For now, just set the timestamp and refresh
     setSince(timestamp);
     setJumpTimestamp(timestamp);

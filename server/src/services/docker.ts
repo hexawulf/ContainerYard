@@ -281,26 +281,6 @@ export interface LogOptions {
   grep?: string;
 }
 
-export async function getHostStats(host: HostConfig): Promise<ContainerStats> {
-  const client = getDockerClientForHost(host);
-  const info = await client.info();
-  const memoryTotal = info.MemTotal ?? 0;
-  return {
-    id: host.id,
-    hostId: host.id,
-    provider: host.provider,
-    cpuPercent: 0,
-    memoryUsage: 0,
-    memoryLimit: memoryTotal,
-    memoryPercent: 0,
-    networkRx: 0,
-    networkTx: 0,
-    blockRead: 0,
-    blockWrite: 0,
-    timestamp: new Date().toISOString(),
-  };
-}
-
 export async function getContainerLogs(host: HostConfig, containerId: string, options: LogOptions = {}): Promise<string> {
   try {
     const { tail = 500, since, stdout = true, stderr = true } = options;

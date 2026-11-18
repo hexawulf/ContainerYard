@@ -40,24 +40,6 @@ export async function bootstrapRuntimeConfig() {
 }
 
 /**
- * Safely loads the current user session without throwing errors.
- * Used during app bootstrap to avoid crashing the UI if auth endpoint fails.
- *
- * @returns User object if authenticated, null otherwise
- */
-export async function loadUserSafe(): Promise<any | null> {
-  try {
-    const res = await apiFetch('/auth/me', { cache: 'no-store' });
-    const data = await res.json();
-    return data?.user ?? null;
-  } catch (err) {
-    // Log but don't throw - auth failures should never crash the UI
-    console.warn('[Auth Bootstrap] Failed to load user session:', err instanceof ApiError ? err.message : err);
-    return null;
-  }
-}
-
-/**
  * Checks if the API is healthy without throwing errors.
  * Used during app bootstrap to detect server availability.
  * 

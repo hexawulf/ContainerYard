@@ -6,7 +6,6 @@ import {
   notificationChannels,
   alertHistory,
   type AlertRule,
-  type NotificationChannel,
 } from "@shared/schema";
 import { listContainers as listDockerContainers, getContainerStats as getDockerContainerStats } from "./docker";
 import { getCadvisorService } from "./cadvisor";
@@ -26,9 +25,6 @@ interface AlertEvaluation {
 
 // Store recent metrics to calculate durations
 const metricsHistory = new Map<string, { stats: ContainerStats[]; timestamps: number[] }>();
-
-// Store recent log patterns for analysis
-const logPatternCache = new Map<string, string[]>();
 
 class AlertWorkerService {
   private interval: NodeJS.Timeout | null = null;
@@ -275,7 +271,7 @@ class AlertWorkerService {
     }
   }
 
-  private async checkLogPattern(container: ContainerSummary, pattern: string): Promise<number> {
+  private async checkLogPattern(container: ContainerSummary, _pattern: string): Promise<number> {
     try {
       const host = getHost(container.hostId);
       

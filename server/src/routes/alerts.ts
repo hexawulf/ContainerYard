@@ -1,5 +1,4 @@
 import { Router } from "express";
-import { log } from "../../vite";
 import { db } from "../../db";
 import { eq, desc } from "drizzle-orm";
 import {
@@ -9,7 +8,7 @@ import {
   insertAlertRuleSchema,
   insertNotificationChannelSchema,
 } from "@shared/schema";
-import { isSQLite, logSQLiteDisabled, requirePostgreSQLAsync } from "../config/databaseCapabilities";
+import { isSQLite, logSQLiteDisabled } from "../config/databaseCapabilities";
 import { requireRole } from "../middleware/auth";
 import { sendNotification } from "../services/notifications";
 import { validateWebhookUrl } from "../lib/safeWebhook";
@@ -50,7 +49,7 @@ function sqliteErrorResponse(action: string) {
 
 // ==================== Notification Channels ====================
 
-router.get("/channels", async (req, res, next) => {
+router.get("/channels", async (_req, res, next) => {
   if (isSQLite) {
     logSQLiteDisabled("Notification channels list");
     return res.json([]);
@@ -225,7 +224,7 @@ router.post("/channels/:id/test", async (req, res, next) => {
 
 // ==================== Alert Rules ====================
 
-router.get("/rules", async (req, res, next) => {
+router.get("/rules", async (_req, res, next) => {
   if (isSQLite) {
     logSQLiteDisabled("Alert rules list");
     return res.json([]);

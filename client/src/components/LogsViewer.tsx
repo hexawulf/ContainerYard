@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Card } from '@/components/ui/card';
 import {
-  Search, X, Play, Pause, Download, Copy,
+  Play, Pause, Download, Copy,
   Settings, ChevronDown, ExternalLink
 } from 'lucide-react';
 import {
