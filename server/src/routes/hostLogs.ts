@@ -12,7 +12,7 @@
 import { Router, type Response } from "express";
 import { execFile, spawn } from "child_process";
 import readline from "readline";
-import { LOCAL_HOST_ID, isReadable, resolveHostLogs } from "../config/hostlogs";
+import { LOCAL_HOST_ID, isReadableAsync, resolveHostLogsAsync } from "../config/hostlogs";
 import { requireRole } from "../middleware/auth";
 
 const router = Router();
@@ -44,28 +44,40 @@ function unavailable(res: Response, logName: string, reason: string, message: st
 // Per-route (not router.use): this router shares the /api/hosts mount with others.
 const adminOnly = requireRole("ADMIN");
 
-router.get("/:hostId/logs", adminOnly, (req, res) => {
-  const { hostId } = req.params;
-  const logs = Object.entries(resolveHostLogs(hostId)).map(([name, filePath]) => ({
-    name,
-    path: filePath,
-    exists: isReadable(filePath),
-  }));
-  res.json({
-    logs,
-    ...(logs.length === 0
-      ? { message: `Host logs are only available for ${LOCAL_HOST_ID}, the host ContainerYard runs on.` }
-      : {}),
-  });
+router.get("/:hostId/logs", adminOnly, async (req, res, next) => {
+  try {
+    const { hostId } = req.params;
+    const entries = Object.entries(await resolveHostLogsAsync(hostId));
+    const logs = await Promise.all(
+      entries.map(async ([name, filePath]) => ({
+        name,
+        path: filePath,
+        exists: await isReadableAsync(filePath),
+      })),
+    );
+    res.json({
+      logs,
+      ...(logs.length === 0
+        ? { message: `Host logs are only available for ${LOCAL_HOST_ID}, the host ContainerYard runs on.` }
+        : {}),
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
-router.get("/:hostId/logs/:name", adminOnly, (req, res, next) => {
+router.get("/:hostId/logs/:name", adminOnly, async (req, res, next) => {
   const { hostId, name } = req.params;
-  const filePath = resolveHostLogs(hostId)[name];
+  let filePath: string | undefined;
+  try {
+    filePath = (await resolveHostLogsAsync(hostId))[name];
+  } catch (error) {
+    return next(error);
+  }
   if (!filePath) {
     return res.status(404).json({ error: "Log not found", message: `Unknown log name: ${name} for host ${hostId}.` });
   }
-  if (!isReadable(filePath)) {
+  if (!(await isReadableAsync(filePath))) {
     return unavailable(res, name, "not_readable", `Log file is missing or not readable: ${filePath}`);
   }
 

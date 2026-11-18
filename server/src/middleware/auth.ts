@@ -4,6 +4,18 @@ import type { Role } from "@prisma/client";
 import type { SessionUser } from "../models/containers";
 import { prisma } from "../db/client";
 import { env } from "../config/env";
+import { TtlCache } from "../lib/ttlCache";
+
+const USER_SESSION_CACHE_TTL_MS = 2_000;
+const userSessionCache = new TtlCache({
+  ttlMs: USER_SESSION_CACHE_TTL_MS,
+  staleMs: USER_SESSION_CACHE_TTL_MS,
+  maxEntries: 1000,
+});
+
+export function invalidateUserSessionCache(userId?: string): void {
+  userSessionCache.invalidate(userId ? `user:${userId}` : "user:");
+}
 
 const AUTH_DISABLED =
   process.env.AUTH_DISABLED === "true" || process.env.VITE_AUTH_DISABLED === "true";
@@ -89,10 +101,12 @@ async function verifySessionUser(req: Request, res: Response): Promise<boolean> 
     return false;
   }
 
-  const dbUser = await prisma.user.findUnique({
-    where: { id: sessionUser.id },
-    select: { id: true, email: true, role: true, sessionVersion: true },
-  });
+  const dbUser = await userSessionCache.get(`user:${sessionUser.id}`, () =>
+    prisma!.user.findUnique({
+      where: { id: sessionUser.id },
+      select: { id: true, email: true, role: true, sessionVersion: true },
+    }),
+  );
 
   if (!dbUser || (sessionUser.sessionVersion ?? 0) !== dbUser.sessionVersion) {
     await destroyRevokedSession(req, res);

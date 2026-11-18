@@ -3,6 +3,15 @@
 All notable changes to ContainerYard are documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Performance
+- Replace synchronous `fs.readdirSync`/`fs.statSync`/`fs.accessSync`/`fs.existsSync` in host-log routes and `hostlogs.ts` with async `fs.promises` equivalents (`newestPm2LogAsync`, `resolveHostLogsAsync`, `isReadableAsync`) and remove the duplicate `X-Content-Type-Options` header on `/api/logs/download`.
+- Add a 2,000 ms in-process TTL cache with singleflight request coalescing (`statsCache`) for Docker Engine `dockerHostSummary`, `getDockerHostStats`, `getContainerStats`, and cAdvisor `hostSummary` / `getStats`, invalidated immediately on container actions.
+- Cache verified session user lookups in `verifySessionUser` (`userSessionCache`, 2,000 ms TTL) with immediate invalidation on password change, role change, password reset, and user deletion.
+- Parallelize `GET /api/containers` across configured hosts with `Promise.allSettled`.
+- Parallelize client boot (`bootstrapRuntimeConfig()` + `checkApiHealthSafe()`), disable background polling (`refetchIntervalInBackground: false`), lazy-load `StatsChips` and `TimelineStrip`, replace `date-fns` `formatDistanceToNow` with a lightweight `formatRelativeTime` helper, memoize snapshot log lines in `LogsDrawer`, and fix `useToast` listener re-subscription.
+
 ## [5.0.3] - 2026-11-12
 
 ### Security

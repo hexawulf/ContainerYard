@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Sheet,
@@ -110,6 +110,11 @@ export function LogsDrawer({
     enabled: open && !isLive,
     refetchOnWindowFocus: false,
   });
+
+  const snapshotLines = useMemo(
+    () => (data?.mode === "docker" && data.content ? data.content.split("\n") : []),
+    [data],
+  );
 
   useEffect(() => {
     if (!open) {
@@ -260,7 +265,7 @@ export function LogsDrawer({
     }
 
     if (data.mode === "docker") {
-      const displayContent = isLive ? liveLines : (data.content ? data.content.split("\n") : []);
+      const displayContent = isLive ? liveLines : snapshotLines;
 
       return (
         <ScrollArea className="h-[600px] w-full" ref={scrollRef}>

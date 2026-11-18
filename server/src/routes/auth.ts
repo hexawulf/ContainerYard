@@ -4,7 +4,12 @@ import bcrypt from "bcrypt";
 import { z, ZodError } from "zod";
 import { prisma } from "../db/client";
 import { env } from "../config/env";
-import { loginRateLimiter, passwordChangeRateLimiter, requireAuth } from "../middleware/auth";
+import {
+  invalidateUserSessionCache,
+  loginRateLimiter,
+  passwordChangeRateLimiter,
+  requireAuth,
+} from "../middleware/auth";
 import { changePasswordSchema, loginSchema } from "../types/zod";
 import { validateNewPassword } from "../lib/userPolicy";
 import { recordAudit } from "../services/audit";
@@ -159,6 +164,7 @@ router.post(
           sessionVersion: true,
         },
       });
+      invalidateUserSessionCache(updated.id);
 
       const previousCsrfToken = (req.session as any)?.csrfToken;
       await new Promise<void>((resolve, reject) => {

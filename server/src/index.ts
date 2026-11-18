@@ -143,27 +143,25 @@ export async function createApp() {
         return res.json(containers);
       }
 
-      // No host parameter - return containers from all hosts (legacy behavior)
-      const allContainers = [];
+      // No host parameter - return containers from all hosts in parallel (legacy behavior)
       const hosts = listHosts();
-
-      for (const hostSummary of hosts) {
-        try {
+      const results = await Promise.allSettled(
+        hosts.map(async (hostSummary) => {
           const host = getHost(hostSummary.id);
-
           if (host.provider === "DOCKER") {
-            const containers = await listDockerContainers(host);
-            allContainers.push(...containers);
-          } else {
-            const service = getCadvisorService(host);
-            if (service) {
-              const containers = await service.listContainers(host);
-              allContainers.push(...containers);
-            }
+            return await listDockerContainers(host);
           }
-        } catch (hostError) {
-          console.warn(`Failed to fetch containers from host ${hostSummary.id}:`, hostError);
-          // Continue with other hosts even if one fails
+          const service = getCadvisorService(host);
+          return service ? await service.listContainers(host) : [];
+        }),
+      );
+      const allContainers = [];
+      for (let i = 0; i < results.length; i++) {
+        const r = results[i];
+        if (r.status === "fulfilled") {
+          allContainers.push(...r.value);
+        } else {
+          console.warn(`Failed to fetch containers from host ${hosts[i].id}:`, r.reason);
         }
       }
 
