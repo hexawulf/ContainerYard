@@ -1,5 +1,6 @@
 import { parseContainerInstant } from "../lib/parseDockerStats";
 import { getDockerClientForHost } from "./docker";
+import { statsCache } from "../lib/ttlCache";
 import type { HostConfig } from "../config/hosts";
 
 export type HostStats = {
@@ -17,6 +18,10 @@ export type HostStats = {
 };
 
 export async function getDockerHostStats(host: HostConfig): Promise<HostStats> {
+  return statsCache.get(`hoststats:${host.id}`, () => loadDockerHostStats(host));
+}
+
+async function loadDockerHostStats(host: HostConfig): Promise<HostStats> {
   const client = getDockerClientForHost(host);
   const list = await client.listContainers({ all: false });
 

@@ -16,7 +16,7 @@ import { Bookmark, Clock, Filter, Trash2, ExternalLink } from 'lucide-react';
 import { queryClient, apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import type { LogBookmark } from '@shared/schema';
-import { formatDistanceToNow } from 'date-fns';
+import { formatRelativeTime } from '@/lib/utils';
 
 interface LogBookmarksProps {
   containerId?: string;
@@ -252,7 +252,7 @@ export function LogBookmarks({
                     )}
                     
                     <div className="text-xs text-muted-foreground mt-1">
-                      Saved {formatDistanceToNow(new Date(bookmark.createdAt))} ago
+                      Saved {formatRelativeTime(bookmark.createdAt)}
                     </div>
                   </div>
 

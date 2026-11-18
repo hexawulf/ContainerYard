@@ -2,7 +2,7 @@ import { Router, Request, Response, NextFunction } from "express";
 import { log } from "../../vite";
 import { getHost } from "../config/hosts";
 import { getContainerLogs } from "../services/docker";
-import { LOCAL_HOST_ID, resolveHostLogs } from "../config/hostlogs";
+import { LOCAL_HOST_ID, resolveHostLogsAsync } from "../config/hostlogs";
 import { requireRole } from "../middleware/auth";
 import { spawn } from "child_process";
 import * as fs from "fs";
@@ -72,7 +72,6 @@ router.get("/", requireRole('ADMIN'), async (req, res, next) => {
 
       res.setHeader('Content-Type', 'text/plain');
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-      res.setHeader('X-Content-Type-Options', 'nosniff');
 
       res.send(logs);
 
@@ -86,7 +85,7 @@ router.get("/", requireRole('ADMIN'), async (req, res, next) => {
       }
 
       const hostId = options.hostId || LOCAL_HOST_ID;
-      const hostLogs = resolveHostLogs(hostId);
+      const hostLogs = await resolveHostLogsAsync(hostId);
       const filePath = hostLogs?.[options.name!];
 
       if (!filePath) {
@@ -96,7 +95,9 @@ router.get("/", requireRole('ADMIN'), async (req, res, next) => {
         });
       }
 
-      if (!fs.existsSync(filePath)) {
+      try {
+        await fs.promises.stat(filePath);
+      } catch {
         return res.status(404).json({
           error: "File not found",
           message: `Log file does not exist: ${filePath}`
@@ -104,7 +105,7 @@ router.get("/", requireRole('ADMIN'), async (req, res, next) => {
       }
 
       try {
-        fs.accessSync(filePath, fs.constants.R_OK);
+        await fs.promises.access(filePath, fs.constants.R_OK);
       } catch {
         return res.status(403).json({
           error: "Access denied",
@@ -114,9 +115,9 @@ router.get("/", requireRole('ADMIN'), async (req, res, next) => {
 
       const filename = `${options.name}-${Date.now()}.log`;
 
+      // X-Content-Type-Options is already set globally by helmet.
       res.setHeader('Content-Type', 'text/plain');
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-      res.setHeader('X-Content-Type-Options', 'nosniff');
 
       // Stream the file with tail
       const tail = spawn('tail', ['-n', String(options.tail), filePath]);

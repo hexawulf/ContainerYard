@@ -2,6 +2,7 @@ import Docker from "dockerode";
 import type { HostConfig } from "../config/hosts";
 import { parseContainerInstant } from "../lib/parseDockerStats";
 import { DockerLogDemuxer, demuxDockerLogs } from "../lib/dockerDemux";
+import { statsCache } from "../lib/ttlCache";
 import type { ContainerAction } from "@shared/schema";
 import type {
   ContainerDetail,
@@ -231,6 +232,10 @@ export async function getContainerDetail(host: HostConfig, containerId: string):
 
 export async function getContainerStats(host: HostConfig, containerId: string): Promise<ContainerStats> {
   assertDockerContainerRef(containerId);
+  return statsCache.get(`ctr:${host.id}:${containerId}`, () => loadContainerStats(host, containerId));
+}
+
+async function loadContainerStats(host: HostConfig, containerId: string): Promise<ContainerStats> {
   try {
     const client = getDockerClientForHost(host);
     const container = client.getContainer(containerId);
@@ -448,6 +453,22 @@ function httpError(message: string, status: number): Error {
 
 export async function performAction(host: HostConfig, containerId: string, action: ContainerAction): Promise<ActionResult> {
   assertDockerContainerRef(containerId);
+  try {
+    return await runAction(host, containerId, action);
+  } finally {
+    // State changed: the next stats/summary read must be fresh, not cached.
+    invalidateHostStatsCache(host);
+  }
+}
+
+/** Drop cached stats/summary for a host (and its socket). */
+export function invalidateHostStatsCache(host: HostConfig): void {
+  statsCache.invalidate(`ctr:${host.id}:`);
+  statsCache.invalidate(`hoststats:${host.id}`);
+  if (host.docker?.socketPath) statsCache.invalidate(`summary:${host.docker.socketPath}`);
+}
+
+async function runAction(host: HostConfig, containerId: string, action: ContainerAction): Promise<ActionResult> {
   const client = getDockerClientForHost(host);
   const container = client.getContainer(containerId);
 
@@ -530,7 +551,9 @@ export interface SummaryDockerClient {
 }
 
 export async function dockerHostSummary(socketPath: string) {
-  return summarizeDockerClient(dockerClient(socketPath) as unknown as SummaryDockerClient);
+  return statsCache.get(`summary:${socketPath}`, () =>
+    summarizeDockerClient(dockerClient(socketPath) as unknown as SummaryDockerClient),
+  );
 }
 
 export async function summarizeDockerClient(d: SummaryDockerClient) {

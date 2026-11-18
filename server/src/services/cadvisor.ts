@@ -1,4 +1,5 @@
 import type { HostConfig } from "../config/hosts";
+import { statsCache } from "../lib/ttlCache";
 import type {
   ContainerDetail,
   ContainerStats,
@@ -366,18 +367,20 @@ class CadvisorService {
 
   async getStats(host: HostConfig, containerId: string): Promise<ContainerStats> {
     assertContainerPath(containerId);
-    try {
-      // containerId is the full cAdvisor path
-      const container = await this.fetchJson<CadvisorContainer>(
-        `/api/v1.3/containers${containerId}`,
-      );
-      return computeStats(host, containerId, container);
-    } catch (error: any) {
-      if (shouldLogError(host.id)) {
-        console.error(`[cAdvisor] Failed to get container stats for host ${host.id}, container ${containerId}:`, error.message);
+    return statsCache.get(`cadvisor:ctr:${host.id}:${containerId}`, async () => {
+      try {
+        // containerId is the full cAdvisor path
+        const container = await this.fetchJson<CadvisorContainer>(
+          `/api/v1.3/containers${containerId}`,
+        );
+        return computeStats(host, containerId, container);
+      } catch (error: any) {
+        if (shouldLogError(host.id)) {
+          console.error(`[cAdvisor] Failed to get container stats for host ${host.id}, container ${containerId}:`, error.message);
+        }
+        throw error;
       }
-      throw error;
-    }
+    });
   }
 }
 
@@ -449,10 +452,12 @@ export async function listContainersOld(baseUrl: string): Promise<CadStat[]> {
 }
 
 export async function hostSummary(baseUrl: string) {
-  const arr = await listContainersOld(baseUrl);
-  const memUsed = arr.reduce((a,b)=>a+(b.memBytes||0),0);
-  const avgCpu = arr.length ? arr.reduce((a,b)=>a+(b.cpuPct||0),0)/arr.length : 0;
-  const topCpu = arr.slice().sort((a,b)=>(b.cpuPct||0)-(a.cpuPct||0)).slice(0,5);
-  const topMem = arr.slice().sort((a,b)=>(b.memBytes||0)-(a.memBytes||0)).slice(0,5);
-  return { totalCpu: avgCpu, memUsed, topCpu, topMem, containers: arr.length };
+  return statsCache.get(`cadvisor:summary:${baseUrl}`, async () => {
+    const arr = await listContainersOld(baseUrl);
+    const memUsed = arr.reduce((a,b)=>a+(b.memBytes||0),0);
+    const avgCpu = arr.length ? arr.reduce((a,b)=>a+(b.cpuPct||0),0)/arr.length : 0;
+    const topCpu = arr.slice().sort((a,b)=>(b.cpuPct||0)-(a.cpuPct||0)).slice(0,5);
+    const topMem = arr.slice().sort((a,b)=>(b.memBytes||0)-(a.memBytes||0)).slice(0,5);
+    return { totalCpu: avgCpu, memUsed, topCpu, topMem, containers: arr.length };
+  });
 }

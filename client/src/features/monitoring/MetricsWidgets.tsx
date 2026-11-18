@@ -118,7 +118,7 @@ export function MetricsWidgets({ hostId }: MetricsWidgetsProps) {
     queryFn: getQueryFn<HostSummaryData>({ on401: "throw" }),
     enabled: Boolean(hostId),
     refetchInterval: 4000,
-    refetchIntervalInBackground: true,
+    refetchIntervalInBackground: false,
   });
 
   const topCpuData = useMemo(() => {

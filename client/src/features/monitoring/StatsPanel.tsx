@@ -1,11 +1,14 @@
-import { useMemo } from "react";
+import { lazy, Suspense, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import type { ContainerDetail, ContainerStats, HostSummary } from "@shared/monitoring";
-import { formatDistanceToNow } from "date-fns";
-import { TimelineStrip } from "@/components/TimelineStrip";
+import { formatRelativeTime } from "@/lib/utils";
 import type { StatsDataPoint } from "@shared/schema";
+
+const TimelineStrip = lazy(() =>
+  import("@/components/TimelineStrip").then((m) => ({ default: m.TimelineStrip })),
+);
 
 interface StatsPanelProps {
   host: HostSummary | null;
@@ -58,7 +61,7 @@ export function StatsPanel({ host, detail, statsHistory, onTimelineClick }: Stat
                 {detail.state?.toUpperCase() || 'UNKNOWN'}
               </Badge>
               <span className="text-xs text-muted-foreground">
-                Started {detail.createdAt ? formatDistanceToNow(new Date(detail.createdAt), { addSuffix: true }) : "unknown"}
+                Started {detail.createdAt ? formatRelativeTime(detail.createdAt) : "unknown"}
               </span>
             </div>
 
@@ -68,10 +71,12 @@ export function StatsPanel({ host, detail, statsHistory, onTimelineClick }: Stat
                 <div className="bg-muted/50 px-3 py-1 text-[10px] uppercase font-bold text-muted-foreground border-b">
                   Performance Timeline (Click to jump logs)
                 </div>
-                <TimelineStrip 
-                  stats={timelineData} 
-                  onTimestampClick={onTimelineClick}
-                />
+                <Suspense fallback={<div className="h-16 bg-muted/20 animate-pulse" />}>
+                  <TimelineStrip 
+                    stats={timelineData} 
+                    onTimestampClick={onTimelineClick}
+                  />
+                </Suspense>
               </div>
             )}
 

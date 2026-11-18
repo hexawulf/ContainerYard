@@ -21,6 +21,7 @@ import {
   validateNewPassword,
 } from "../lib/userPolicy";
 import { recordAudit } from "../services/audit";
+import { invalidateUserSessionCache } from "../middleware/auth";
 
 const router = Router();
 const BCRYPT_COST = 12;
@@ -187,6 +188,7 @@ router.patch("/:id", async (req, res, next) => {
           select: USER_PUBLIC_SELECT,
         })
       : target;
+    if (roleChanged) invalidateUserSessionCache(target.id);
 
     await recordAudit(req, {
       action: "user.role_change",
@@ -246,6 +248,7 @@ router.post("/:id/reset-password", async (req, res, next) => {
       },
       select: { id: true, sessionVersion: true },
     });
+    invalidateUserSessionCache(updated.id);
 
     if (req.session.user?.id === updated.id) {
       req.session.user.sessionVersion = updated.sessionVersion;
@@ -298,6 +301,7 @@ router.delete("/:id", async (req, res, next) => {
       prisma!.savedSearch.deleteMany({ where: { userId: target.id } }),
       prisma!.user.delete({ where: { id: target.id } }),
     ]);
+    invalidateUserSessionCache(target.id);
 
     await recordAudit(req, {
       action: "user.delete",

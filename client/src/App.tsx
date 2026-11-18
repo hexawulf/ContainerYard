@@ -18,22 +18,27 @@ const HostLogs = lazy(() => import("@/pages/HostLogs"));
 const LandingPage = lazy(() => import("@/pages/Landing"));
 const StyleGuidePage = lazy(() => import("@/pages/StyleGuide"));
 
-function Router() {
-  const ProtectedDashboard = () => (
+function ProtectedDashboard() {
+  return (
     <AuthGate>
       <Layout>
         <Dashboard />
       </Layout>
     </AuthGate>
   );
+}
 
-  const ProtectedHostLogs = ({ params }: { params: { hostId: string } }) => (
+function ProtectedHostLogs({ params }: { params: { hostId: string } }) {
+  return (
     <AuthGate>
       <Layout>
         <HostLogs hostId={params.hostId} />
       </Layout>
     </AuthGate>
   );
+}
+
+function Router() {
 
   return (
     <Suspense fallback={
@@ -74,23 +79,13 @@ function App() {
   const [bootChecking, setBootChecking] = useState(true);
 
   useEffect(() => {
-    // Bootstrap runtime config and perform health check
+    // Bootstrap runtime config and perform health check in parallel
     (async () => {
       try {
-        // Load runtime config first (sets window.__CY_* vars)
-        await bootstrapRuntimeConfig();
-
-        // Log resolved config
-        console.log('[ContainerYard] Runtime config:', {
-          API_BASE: import.meta.env.VITE_API_BASE,
-          APP_NAME: import.meta.env.VITE_APP_NAME,
-          AUTH_DISABLED: import.meta.env.VITE_AUTH_DISABLED,
-          __CY_API_BASE__: (window as any).__CY_API_BASE__,
-          __CY_APP_NAME__: (window as any).__CY_APP_NAME__,
-        });
-
-        // Then check API health
-        const healthy = await checkApiHealthSafe();
+        const [, healthy] = await Promise.all([
+          bootstrapRuntimeConfig(),
+          checkApiHealthSafe(),
+        ]);
 
         if (!healthy) {
           setBootError("API health check failed - server may be offline");

@@ -14,8 +14,11 @@ import type {
 } from "@shared/monitoring";
 import { HostSwitcher } from "@/features/monitoring/HostSwitcher";
 import { StatsPanel } from "@/features/monitoring/StatsPanel";
-import { StatsChips } from "@/features/monitoring/StatsChips";
 import { MetricsWidgets } from "@/features/monitoring/MetricsWidgets";
+
+const StatsChips = lazy(() =>
+  import("@/features/monitoring/StatsChips").then((m) => ({ default: m.StatsChips })),
+);
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -245,7 +248,7 @@ export default function Dashboard() {
     queryFn: getQueryFn<NormalizedStats>({ on401: "throw" }),
     enabled: Boolean(statsQueryKey),
     refetchInterval: 2000,
-    refetchIntervalInBackground: true,
+    refetchIntervalInBackground: false,
   });
 
   // ✅ Define host BEFORE using it in hook dependencies
@@ -559,7 +562,9 @@ export default function Dashboard() {
                 <CardTitle>Real-time Metrics</CardTitle>
               </CardHeader>
               <CardContent>
-                <StatsChips statsHistory={normalizedHistory} />
+                <Suspense fallback={<div className="h-24 bg-muted/20 animate-pulse rounded" />}>
+                  <StatsChips statsHistory={normalizedHistory} />
+                </Suspense>
               </CardContent>
             </Card>
           )}
