@@ -3,18 +3,20 @@ node_modules/
 .pnp
 .pnp.js
 
-# Testing
-coverage/
-
-# Production
+# Build output
 dist/
 build/
 server/public
+/server/index.js
+*.tar.gz
+vite.config.ts.*
 
-# Environment files
+# Environment files (.env.production holds only public VITE_* build defaults)
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
+!.env.production
+!deploy/**/.env.*.example
 
 # Logs
 *.log
@@ -22,6 +24,25 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Tests and reports
+coverage/
+playwright-report/
+test-results/
+e2e/screenshots/
+lighthouse-report.json
+
+# Caches and temporary files
+.config/
+.cache/
+.tmp/
+.temp/
+.cy-dev/
 
 # OS files
 .DS_Store
@@ -32,51 +53,12 @@ lerna-debug.log*
 ehthumbs.db
 Thumbs.db
 
-# Database
-*.db
-*.sqlite
-*.sqlite3
-
-# IDE
+# Editors and local agent files
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
-
-# Replit specific
-.replit
-replit.nix
-.config/
-.cache/
-.upm/
-.breakpoints
-
-# Build artifacts
-*.tar.gz
-vite.config.ts.*
-
-# Temporary files
-.tmp/
-.temp/
-.cy-dev/
-# Build artifacts
-/dist
-/server/index.js
-*.log
-
-# Env and local
-.env
-.env.*
-!.env.example
-!deploy/**/.env.*.example
-
-# Local OpenCode instructions
 plan.md
 .aider*
 .claude/
-
-# Generated reports
-playwright-report/
-test-results/
-lighthouse-report.json

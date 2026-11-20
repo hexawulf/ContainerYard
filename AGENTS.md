@@ -40,6 +40,7 @@ scripts/docker-deploy.sh 4.0.0 # Pull tagged release, backup cy-data DB, recreat
 - ESLint with React Hooks rules (`react-hooks/rules-of-hooks`, `react-hooks/exhaustive-deps`) and `@typescript-eslint/no-explicit-any` as an error
 - No `any`: catch as `unknown` and read fields with `errorInfo()` / throw `HttpError` (`server/src/lib/httpError.ts`); client code uses `errorMessage()` (`client/src/lib/errors.ts`)
 - No Prettier config (manual formatting)
+- UI look and tokens: follow [design_guidelines.md](./design_guidelines.md)
 - No pre-commit hooks (lefthook was removed in 5.1.0); CI runs typecheck, lint, unit tests and build on every push
 
 **Commit Format**
