@@ -1,3 +1,4 @@
+import { errorMessage } from "../lib/httpError";
 import { Router, type RequestHandler } from "express";
 import { log } from "../../vite";
 import { getHost } from "../config/hosts";
@@ -125,13 +126,13 @@ router.post("/:hostId/stacks/:name/action", actionRateLimiter, requireAdminStack
       message: `Successfully performed ${action} on ${containerIds.length} containers`,
       affectedContainers: containerIds.length
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     await recordAudit(req, {
       action: `stack.${action}`,
       outcome: "failure",
       hostId: req.params.hostId,
       target: req.params.name,
-      detail: error?.message,
+      detail: errorMessage(error),
     });
     next(error);
   }

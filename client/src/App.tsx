@@ -1,3 +1,4 @@
+import { errorMessage } from "@/lib/errors";
 import { Switch, Route } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -90,9 +91,9 @@ function App() {
         if (!healthy) {
           setBootError("API health check failed - server may be offline");
         }
-      } catch (e: any) {
+      } catch (e: unknown) {
         // Catch any unexpected errors during bootstrap
-        const message = e?.message ?? "Unknown boot error";
+        const message = errorMessage(e) ?? "Unknown boot error";
         setBootError(message);
         console.error("[ContainerYard] Boot health check failed", e);
       } finally {

@@ -4,6 +4,7 @@ import { envForRole, HIDDEN_VALUE } from "../../src/lib/redact";
 import { cpuPercentFromSamples, getCadvisorService } from "../../src/services/cadvisor";
 import { summarizeDockerClient, type SummaryDockerClient } from "../../src/services/docker";
 import type { HostConfig } from "../../src/config/hosts";
+import { errorInfo } from "../../src/lib/httpError";
 
 const ID = "8036d207e562a1b2c3d4e5f60718293a4b5c6d7e8f9012345678901234567890";
 
@@ -83,8 +84,8 @@ test("cadvisor: ids that are not container cgroup paths are refused before any r
   try {
     const service = getCadvisorService(cadHost)!;
     for (const bad of ["/../../metrics", "/docker/../../api/v2.0/machine", "/", "", "abc", `/docker/${ID}/../x`]) {
-      await assert.rejects(service.getStats(cadHost, bad), (e: any) => e.status === 404, bad);
-      await assert.rejects(service.getContainer(cadHost, bad), (e: any) => e.status === 404, bad);
+      await assert.rejects(service.getStats(cadHost, bad), (e: unknown) => errorInfo(e).status === 404, bad);
+      await assert.rejects(service.getContainer(cadHost, bad), (e: unknown) => errorInfo(e).status === 404, bad);
     }
     assert.equal(calls, 0);
   } finally {
@@ -95,7 +96,7 @@ test("cadvisor: ids that are not container cgroup paths are refused before any r
 test("cadvisor: a real container path is requested and its CPU is computed", async () => {
   const realFetch = globalThis.fetch;
   const urls: string[] = [];
-  globalThis.fetch = (async (url: any) => {
+  globalThis.fetch = (async (url: string | URL | Request) => {
     urls.push(String(url));
     return new Response(
       JSON.stringify({
@@ -137,9 +138,7 @@ test("summary: a container that disappears between list and stats is skipped", a
     getContainer: (id) => ({
       stats: async () => {
         if (id === "gone") {
-          const err: any = new Error("No such container: gone");
-          err.statusCode = 404;
-          throw err;
+          throw Object.assign(new Error("No such container: gone"), { statusCode: 404 });
         }
         return id === "a" ? dockerStats(1000, 100) : dockerStats(500, 300);
       },

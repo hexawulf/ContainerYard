@@ -54,7 +54,7 @@ export function verifyCsrf(req: Request, res: Response, next: NextFunction) {
     return res.status(403).json({ error: "Forbidden origin", code: "EBADORIGIN" });
   }
 
-  const expected = (req.session as any)?.csrfToken;
+  const expected = req.session?.csrfToken;
   const header = req.headers["x-csrf-token"];
   const provided = Array.isArray(header) ? header[0] : header;
 

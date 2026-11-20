@@ -1,3 +1,4 @@
+import { HttpError } from "../lib/httpError";
 import { env, remoteHostsConfig } from "./env";
 import type { HostSummary, HostProvider } from "../models/containers";
 
@@ -54,14 +55,10 @@ export function getHost(id: string): HostConfig {
     ? hostDefinitions[id]
     : undefined;
   if (!host) {
-    const error = new Error(`Unknown host: ${id}`);
-    (error as any).status = 404;
-    throw error;
+    throw new HttpError(`Unknown host: ${id}`, 404);
   }
   if (host.provider === "CADVISOR_ONLY" && !host.cadvisorUrl) {
-    const error = new Error(`Host ${id} is misconfigured: missing cAdvisor URL`);
-    (error as any).status = 500;
-    throw error;
+    throw new HttpError(`Host ${id} is misconfigured: missing cAdvisor URL`, 500);
   }
 
   return host;

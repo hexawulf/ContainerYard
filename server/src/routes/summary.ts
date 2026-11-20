@@ -1,3 +1,4 @@
+import { errorInfo } from "../lib/httpError";
 import { Router } from "express";
 import { getHost } from "../config/hosts";
 import { dockerHostSummary } from "../services/docker";
@@ -23,11 +24,12 @@ r.get("/:hostId/summary", requireAuth, async (req, res) => {
       return res.json(await cadSummary(host.cadvisor.baseUrl));
     }
     res.status(400).json({ error: "Unknown provider" });
-  } catch (e: any) {
-    if (e?.status === 404) {
-      return res.status(404).json({ error: e.message || "Unknown host" });
+  } catch (e: unknown) {
+    const { message, status } = errorInfo(e);
+    if (status === 404) {
+      return res.status(404).json({ error: message || "Unknown host" });
     }
-    res.status(502).json({ error: e.message || "summary failed" });
+    res.status(502).json({ error: message || "summary failed" });
   }
 });
 export default r;

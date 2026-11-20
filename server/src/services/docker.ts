@@ -1,6 +1,7 @@
 import Docker from "dockerode";
 import type { HostConfig } from "../config/hosts";
-import { parseContainerInstant } from "../lib/parseDockerStats";
+import { parseContainerInstant, type RawDockerStats } from "../lib/parseDockerStats";
+import { HttpError, errorInfo } from "../lib/httpError";
 import { DockerLogDemuxer, demuxDockerLogs } from "../lib/dockerDemux";
 import { statsCache } from "../lib/ttlCache";
 import type { ContainerAction } from "@shared/schema";
@@ -27,9 +28,7 @@ export const CONTAINER_REF = /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/;
 
 export function assertDockerContainerRef(containerId: string): void {
   if (typeof containerId !== "string" || !CONTAINER_REF.test(containerId)) {
-    const err = new Error("Invalid container id");
-    (err as any).status = 400;
-    throw err;
+    throw new HttpError("Invalid container id", 400);
   }
 }
 
@@ -39,11 +38,10 @@ export function assertDockerContainerRef(containerId: string): void {
  */
 export function getDockerClientForHost(host: HostConfig): DockerClient {
   if (!host.docker?.socketPath) {
-    const err = new Error(
-      `Host "${host.id}" (provider: ${host.provider}) does not have a Docker socket configured`
+    throw new HttpError(
+      `Host "${host.id}" (provider: ${host.provider}) does not have a Docker socket configured`,
+      400,
     );
-    (err as any).status = 400;
-    throw err;
   }
   return dockerClient(host.docker.socketPath);
 }
@@ -58,7 +56,10 @@ export function dockerClient(socketPath: string): DockerClient {
   return client;
 }
 
-function normalizePorts(ports: any[] | undefined): NormalizedPort[] {
+/** Docker omits IP and PublicPort for unpublished ports, whatever the typings say. */
+type DockerPortLike = Pick<Docker.Port, "PrivatePort" | "Type"> & { IP?: string; PublicPort?: number };
+
+function normalizePorts(ports: DockerPortLike[] | undefined): NormalizedPort[] {
   if (!ports) return [];
   return ports.map((port) => ({
     ip: port.IP ?? null,
@@ -89,6 +90,12 @@ function normalizeNetworks(networkSettings: NetworkSettingsLike | undefined | nu
   }));
 }
 
+/** Docker returns Cmd as an array; very old engines returned a plain string. */
+export function commandString(cmd: unknown): string | null {
+  if (Array.isArray(cmd)) return cmd.join(" ");
+  return typeof cmd === "string" ? cmd : null;
+}
+
 function normalizeEnv(env?: string[] | null): ContainerEnvVar[] {
   if (!env) return [];
   return env
@@ -102,7 +109,14 @@ function normalizeEnv(env?: string[] | null): ContainerEnvVar[] {
     .filter((entry) => entry.key);
 }
 
-function normalizeMounts(mounts: any[] | undefined): ContainerMount[] {
+interface DockerMountLike {
+  Source?: string;
+  Destination: string;
+  Mode?: string;
+  RW?: boolean;
+}
+
+function normalizeMounts(mounts: DockerMountLike[] | undefined): ContainerMount[] {
   if (!mounts) return [];
   return mounts.map((mount) => ({
     source: mount.Source,
@@ -112,7 +126,7 @@ function normalizeMounts(mounts: any[] | undefined): ContainerMount[] {
   }));
 }
 
-function toContainerSummary(info: any, host: HostConfig): ContainerSummary {
+function toContainerSummary(info: Docker.ContainerInfo, host: HostConfig): ContainerSummary {
   const labels = info.Labels ?? {};
   return {
     id: info.Id,
@@ -125,7 +139,7 @@ function toContainerSummary(info: any, host: HostConfig): ContainerSummary {
     node: host.nodeLabel,
     createdAt: new Date(info.Created * 1000).toISOString(),
     labels,
-    networks: normalizeNetworks(info.NetworkSettings as unknown as NetworkSettingsLike),
+    networks: normalizeNetworks(info.NetworkSettings),
     ports: normalizePorts(info.Ports),
     composeProject: labels["com.docker.compose.project"] ?? null,
   };
@@ -135,29 +149,28 @@ export async function listContainers(host: HostConfig): Promise<ContainerSummary
   try {
     const client = getDockerClientForHost(host);
     const containers = await client.listContainers({ all: true });
-    return containers.map((container: any) => toContainerSummary(container, host));
-  } catch (error: any) {
+    return containers.map((container) => toContainerSummary(container, host));
+  } catch (error: unknown) {
+    const { code } = errorInfo(error);
     // Check for permission errors when accessing docker socket
-    if (error.code === 'EACCES' || error.code === 'EPERM') {
-      const permissionError = new Error(
+    if (code === 'EACCES' || code === 'EPERM') {
+      throw new HttpError(
         `Docker access denied: Cannot read from ${host.docker?.socketPath || '/var/run/docker.sock'}. ` +
         `Please ensure the user has permission to access the Docker socket. ` +
-        `Try: sudo usermod -aG docker $USER && newgrp docker, or adjust socket permissions.`
+        `Try: sudo usermod -aG docker $USER && newgrp docker, or adjust socket permissions.`,
+        503,
+        { code: 'DOCKER_PERMISSION_DENIED' },
       );
-      (permissionError as any).status = 503;
-      (permissionError as any).code = 'DOCKER_PERMISSION_DENIED';
-      throw permissionError;
     }
     
     // Check if docker daemon is not running or socket doesn't exist
-    if (error.code === 'ECONNREFUSED' || error.code === 'ENOENT') {
-      const connectionError = new Error(
+    if (code === 'ECONNREFUSED' || code === 'ENOENT') {
+      throw new HttpError(
         `Docker daemon unreachable: Cannot connect to ${host.docker?.socketPath || '/var/run/docker.sock'}. ` +
-        `Please ensure Docker is running and the socket path is correct.`
+        `Please ensure Docker is running and the socket path is correct.`,
+        503,
+        { code: 'DOCKER_UNAVAILABLE' },
       );
-      (connectionError as any).status = 503;
-      (connectionError as any).code = 'DOCKER_UNAVAILABLE';
-      throw connectionError;
     }
     
     // Re-throw other errors
@@ -172,10 +185,12 @@ export async function getContainerDetail(host: HostConfig, containerId: string):
     const container = client.getContainer(containerId);
     const inspect = await container.inspect();
 
-    const ports: NormalizedPort[] = inspect.NetworkSettings?.Ports
-      ? Object.entries(inspect.NetworkSettings.Ports as any).flatMap(([containerPort, bindings]) => {
+    // Unpublished ports have null bindings in the real API.
+    const portMap = inspect.NetworkSettings?.Ports as Record<string, Docker.PortBinding[] | null> | undefined;
+    const ports: NormalizedPort[] = portMap
+      ? Object.entries(portMap).flatMap(([containerPort, bindings]) => {
           const [privatePort, protocol] = containerPort.split("/");
-          if (!bindings || (bindings as any[]).length === 0) {
+          if (!bindings || bindings.length === 0) {
             return [
               {
                 ip: null,
@@ -185,7 +200,7 @@ export async function getContainerDetail(host: HostConfig, containerId: string):
               },
             ];
           }
-          return (bindings as any[]).map((binding) => ({
+          return bindings.map((binding) => ({
             ip: binding.HostIp ?? null,
             privatePort: Number(privatePort),
             publicPort: binding.HostPort ? Number(binding.HostPort) : null,
@@ -208,23 +223,21 @@ export async function getContainerDetail(host: HostConfig, containerId: string):
         ? new Date(inspect.Created).toISOString()
         : new Date().toISOString(),
       labels,
-      networks: normalizeNetworks(inspect.NetworkSettings as unknown as NetworkSettingsLike),
+      networks: normalizeNetworks(inspect.NetworkSettings),
       ports,
       composeProject: labels["com.docker.compose.project"] ?? null,
     };
 
     return {
       ...summary,
-      command: inspect.Config?.Cmd?.join(" ") ?? inspect.Config?.Cmd ?? null,
+      command: commandString(inspect.Config?.Cmd),
       env: normalizeEnv(inspect.Config?.Env ?? []),
       mounts: normalizeMounts(inspect.Mounts),
       startedAt: inspect.State?.StartedAt ?? null,
     };
-  } catch (error: any) {
-    if (error.statusCode === 404) {
-      const notFound = new Error(`Container ${containerId} not found on host ${host.id}`);
-      (notFound as any).status = 404;
-      throw notFound;
+  } catch (error: unknown) {
+    if (errorInfo(error).statusCode === 404) {
+      throw new HttpError(`Container ${containerId} not found on host ${host.id}`, 404);
     }
     throw error;
   }
@@ -239,7 +252,7 @@ async function loadContainerStats(host: HostConfig, containerId: string): Promis
   try {
     const client = getDockerClientForHost(host);
     const container = client.getContainer(containerId);
-    const raw = (await container.stats({ stream: false })) as any;
+    const raw: RawDockerStats = await container.stats({ stream: false });
 
     const parsed = parseContainerInstant(raw);
 
@@ -257,11 +270,9 @@ async function loadContainerStats(host: HostConfig, containerId: string): Promis
       blockWrite: parsed.blkWrite,
       timestamp: parsed.ts,
     };
-  } catch (error: any) {
-    if (error.statusCode === 404) {
-      const notFound = new Error(`Container ${containerId} not found on host ${host.id}`);
-      (notFound as any).status = 404;
-      throw notFound;
+  } catch (error: unknown) {
+    if (errorInfo(error).statusCode === 404) {
+      throw new HttpError(`Container ${containerId} not found on host ${host.id}`, 404);
     }
     throw error;
   }
@@ -308,7 +319,7 @@ export async function getContainerLogs(host: HostConfig, containerId: string, op
     const { tail = 500, since, stdout = true, stderr = true } = options;
     const client = getDockerClientForHost(host);
     const container = client.getContainer(containerId);
-    const logOpts: any = {
+    const logOpts: Docker.ContainerLogsOptions & { follow: false } = {
       stdout,
       stderr,
       tail: Math.min(tail, 5000),
@@ -321,7 +332,7 @@ export async function getContainerLogs(host: HostConfig, containerId: string, op
       logOpts.since = sinceEpoch;
     }
 
-    const raw = (await container.logs(logOpts)) as unknown as Buffer;
+    const raw = await container.logs(logOpts);
     let logs = demuxDockerLogs(raw);
 
     if (options.grep) {
@@ -331,11 +342,9 @@ export async function getContainerLogs(host: HostConfig, containerId: string, op
     }
 
     return logs;
-  } catch (error: any) {
-    if (error.statusCode === 404) {
-      const notFound = new Error(`Container ${containerId} not found`);
-      (notFound as any).status = 404;
-      throw notFound;
+  } catch (error: unknown) {
+    if (errorInfo(error).statusCode === 404) {
+      throw new HttpError(`Container ${containerId} not found`, 404);
     }
     throw error;
   }
@@ -386,11 +395,9 @@ export async function streamContainerLogs(
     return () => {
       stream.destroy();
     };
-  } catch (error: any) {
-    if (error.statusCode === 404) {
-      const notFound = new Error(`Container ${containerId} not found`);
-      (notFound as any).status = 404;
-      throw notFound;
+  } catch (error: unknown) {
+    if (errorInfo(error).statusCode === 404) {
+      throw new HttpError(`Container ${containerId} not found`, 404);
     }
     throw error;
   }
@@ -425,12 +432,6 @@ export interface ActionResult {
   noop?: boolean;
 }
 
-function httpError(message: string, status: number): Error {
-  const err = new Error(message);
-  (err as any).status = status;
-  return err;
-}
-
 export async function performAction(host: HostConfig, containerId: string, action: ContainerAction): Promise<ActionResult> {
   assertDockerContainerRef(containerId);
   try {
@@ -458,9 +459,9 @@ async function runAction(host: HostConfig, containerId: string, action: Containe
     const info = await container.inspect();
     name = info.Name?.replace(/^\//, "");
     id = info.Id ?? containerId;
-  } catch (error: any) {
-    if (error.statusCode === 404) {
-      throw httpError(`Container ${containerId} not found on host ${host.id}`, 404);
+  } catch (error: unknown) {
+    if (errorInfo(error).statusCode === 404) {
+      throw new HttpError(`Container ${containerId} not found on host ${host.id}`, 404);
     }
     throw error;
   }
@@ -487,19 +488,20 @@ async function runAction(host: HostConfig, containerId: string, action: Containe
         await container.remove({ force: true });
         return { id, name, noop: false };
       default:
-        throw httpError(`Unsupported action: ${action}`, 400);
+        throw new HttpError(`Unsupported action: ${action}`, 400);
     }
-  } catch (error: any) {
-    if (error.statusCode === 404) {
-      throw httpError(`Container ${containerId} not found on host ${host.id}`, 404);
+  } catch (error: unknown) {
+    const info = errorInfo(error);
+    if (info.statusCode === 404) {
+      throw new HttpError(`Container ${containerId} not found on host ${host.id}`, 404);
     }
     // 304 = already started / already stopped: treat as success.
-    if (error.statusCode === 304 && (action === "start" || action === "stop")) {
+    if (info.statusCode === 304 && (action === "start" || action === "stop")) {
       noop = true;
-    } else if (error.statusCode === 409) {
+    } else if (info.statusCode === 409) {
       // e.g. pause on a stopped container, unpause on one that is not paused
-      const reason = error.json?.message ?? error.reason ?? "conflict";
-      throw httpError(`Cannot ${action} ${name ?? containerId}: ${reason}`, 409);
+      const reason = info.jsonMessage ?? info.reason ?? "conflict";
+      throw new HttpError(`Cannot ${action} ${name ?? containerId}: ${reason}`, 409);
     } else {
       throw error;
     }
@@ -527,7 +529,7 @@ interface ContainerStatSample {
 /** The two dockerode calls the summary needs; lets tests pass a fake client. */
 export interface SummaryDockerClient {
   listContainers(opts: { all: boolean }): Promise<Array<{ Id: string; Names?: string[]; State: string }>>;
-  getContainer(id: string): { stats(opts: { stream: false }): Promise<unknown> };
+  getContainer(id: string): { stats(opts: { stream: false }): Promise<RawDockerStats> };
 }
 
 export async function dockerHostSummary(socketPath: string) {
@@ -540,7 +542,7 @@ export async function summarizeDockerClient(d: SummaryDockerClient) {
   const infos = await d.listContainers({ all: false });
   const samples = await Promise.all(infos.map(async (i): Promise<ContainerStatSample | null> => {
     try {
-      const s: any = await d.getContainer(i.Id).stats({ stream: false });
+      const s = await d.getContainer(i.Id).stats({ stream: false });
       const cpuDelta = (s?.cpu_stats?.cpu_usage?.total_usage ?? 0) - (s?.precpu_stats?.cpu_usage?.total_usage ?? 0);
       const sysDelta = (s?.cpu_stats?.system_cpu_usage ?? 0) - (s?.precpu_stats?.system_cpu_usage ?? 0);
       const online = s?.cpu_stats?.online_cpus || (s?.cpu_stats?.cpu_usage?.percpu_usage?.length || 1);

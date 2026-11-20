@@ -1,6 +1,7 @@
 import js from '@eslint/js';
 import reactHooks from 'eslint-plugin-react-hooks';
 import tsParser from '@typescript-eslint/parser';
+import tsPlugin from '@typescript-eslint/eslint-plugin';
 
 export default [
   js.configs.recommended,
@@ -8,6 +9,7 @@ export default [
     files: ['**/*.{ts,tsx,js,jsx}'],
     plugins: {
       'react-hooks': reactHooks,
+      '@typescript-eslint': tsPlugin,
     },
     languageOptions: {
       parser: tsParser,
@@ -22,6 +24,10 @@ export default [
     rules: {
       'react-hooks/rules-of-hooks': 'error',
       'react-hooks/exhaustive-deps': 'warn',
+      // No explicit `any` (5.2.0 removed the last ones): use real types, `unknown`
+      // plus a narrowing helper (server/src/lib/httpError.ts errorInfo), or a
+      // documented `as unknown as T` cast at an untyped boundary.
+      '@typescript-eslint/no-explicit-any': 'error',
       'no-unused-vars': 'off',
       'no-undef': 'off',
     },

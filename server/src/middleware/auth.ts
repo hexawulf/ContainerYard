@@ -167,6 +167,8 @@ declare module "express-session" {
       role: Role;
       sessionVersion?: number;
     };
+    /** Per-session CSRF token (rotated at login). */
+    csrfToken?: string;
   }
 }
 

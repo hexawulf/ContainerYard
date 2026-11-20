@@ -10,6 +10,11 @@ interface TimelineStripProps {
   onTimestampClick?: (timestamp: string, metric?: 'cpu' | 'mem' | 'net') => void;
 }
 
+/** What recharts passes to a chart onClick: the hovered point's data, if any. */
+interface ChartClickState {
+  activePayload?: Array<{ payload?: { tsISO?: string } }>;
+}
+
 export function TimelineStrip({ stats, events = [], onSpikeClick, onTimestampClick }: TimelineStripProps) {
   const chartData = useMemo(() => {
     return stats.map((stat, idx) => ({
@@ -28,7 +33,7 @@ export function TimelineStrip({ stats, events = [], onSpikeClick, onTimestampCli
     }));
   }, [stats]);
 
-  const handleChartClick = (state: any, metric: 'cpu' | 'mem' | 'net') => {
+  const handleChartClick = (state: ChartClickState | null | undefined, metric: 'cpu' | 'mem' | 'net') => {
     if (!state || !state.activePayload || state.activePayload.length === 0) return;
     const data = state.activePayload[0].payload;
     if (data && data.tsISO) {

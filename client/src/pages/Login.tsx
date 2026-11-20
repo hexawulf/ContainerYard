@@ -1,3 +1,4 @@
+import { errorMessage } from "@/lib/errors";
 import { FormEvent, useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
@@ -61,7 +62,7 @@ export default function Login() {
       queryClient.setQueryData(["/api/auth/me"], data);
       queryClient.removeQueries({ queryKey: ["/api/hosts"] });
       setLocation("/dashboard");
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (err instanceof ApiError) {
         if (err.status === "disabled") {
           setError("Authentication is disabled in this environment");
@@ -71,7 +72,7 @@ export default function Login() {
           setError(err.message || "Login failed. Please check your credentials.");
         }
       } else {
-        setError(err.message ?? "Login failed");
+        setError(errorMessage(err) ?? "Login failed");
       }
     } finally {
       setIsSubmitting(false);

@@ -1,3 +1,4 @@
+import { relate, type AlertValue } from "../lib/alertCompare";
 import { log } from "../../vite";
 import { db } from "../../db";
 import { eq, and } from "drizzle-orm";
@@ -286,16 +287,16 @@ class AlertWorkerService {
     }
   }
 
-  private compareValues(actual: any, operator: string, expected: any): boolean {
+  private compareValues(actual: AlertValue, operator: string, expected: AlertValue): boolean {
     switch (operator) {
       case ">":
-        return actual > expected;
+        return relate(actual, expected, ">");
       case "<":
-        return actual < expected;
+        return relate(actual, expected, "<");
       case ">=":
-        return actual >= expected;
+        return relate(actual, expected, ">=");
       case "<=":
-        return actual <= expected;
+        return relate(actual, expected, "<=");
       case "==":
         return String(actual) === String(expected);
       case "!=":
@@ -307,7 +308,7 @@ class AlertWorkerService {
     }
   }
 
-  private buildAlertMessage(rule: AlertRule, container: ContainerSummary, value: any): string {
+  private buildAlertMessage(rule: AlertRule, container: ContainerSummary, value: AlertValue): string {
     let unit = "";
     switch (rule.conditionType) {
       case "cpu_percent":
@@ -324,16 +325,18 @@ class AlertWorkerService {
     return `Alert: ${rule.name} - Container ${container.name} ${rule.conditionType} is ${value}${unit} (threshold: ${rule.operator} ${rule.threshold})`;
   }
 
-  private determineSeverity(rule: AlertRule, value: any): "info" | "warning" | "critical" {
+  private determineSeverity(rule: AlertRule, value: AlertValue): "info" | "warning" | "critical" {
+    // Number() matches what `value >= 90` did before: null → 0, text → NaN.
+    const n = Number(value);
     if (rule.conditionType === "cpu_percent" || rule.conditionType === "memory_percent") {
-      if (value >= 90) return "critical";
-      if (value >= 75) return "warning";
+      if (n >= 90) return "critical";
+      if (n >= 75) return "warning";
       return "info";
     }
     
     if (rule.conditionType === "restart_count") {
-      if (value >= 10) return "critical";
-      if (value >= 5) return "warning";
+      if (n >= 10) return "critical";
+      if (n >= 5) return "warning";
       return "info";
     }
     

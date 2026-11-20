@@ -1,3 +1,4 @@
+import { HttpError, errorInfo, errorMessage } from "../lib/httpError";
 import type { HostConfig } from "../config/hosts";
 import { statsCache } from "../lib/ttlCache";
 import type {
@@ -141,9 +142,7 @@ function assertContainerPath(containerId: string): void {
   // The id is appended to the cAdvisor URL. Only real container cgroup paths
   // are allowed, so it cannot be used to reach other paths on that host.
   if (!isDockerContainerPath(containerId)) {
-    const error = new Error("Container not found");
-    (error as any).status = 404;
-    throw error;
+    throw new HttpError("Container not found", 404);
   }
 }
 
@@ -236,16 +235,13 @@ class CadvisorService {
         signal: AbortSignal.timeout(10000) // 10 second timeout
       });
       if (!response.ok) {
-        const error = new Error(`cAdvisor request failed: ${response.status} ${response.statusText}`);
-        (error as any).status = response.status;
-        throw error;
+        throw new HttpError(`cAdvisor request failed: ${response.status} ${response.statusText}`, response.status);
       }
       return (await response.json()) as T;
-    } catch (error: any) {
-      if (error.name === 'AbortError' || error.name === 'TimeoutError') {
-        const timeoutError = new Error("cAdvisor request timed out");
-        (timeoutError as any).status = 504;
-        throw timeoutError;
+    } catch (error: unknown) {
+      const { name } = errorInfo(error);
+      if (name === 'AbortError' || name === 'TimeoutError') {
+        throw new HttpError("cAdvisor request timed out", 504);
       }
       throw error;
     }
@@ -279,8 +275,8 @@ class CadvisorService {
             console.log(`[cAdvisor] Found working endpoint: ${endpoint} for ${this.baseUrl}`);
             return endpoint;
           }
-        } catch (err: any) {
-          errors.push(`${endpoint}: ${err.message}`);
+        } catch (err: unknown) {
+          errors.push(`${endpoint}: ${errorMessage(err)}`);
         }
       }
 
@@ -301,41 +297,33 @@ class CadvisorService {
       const dockerContainers = containers.filter((container) => isDockerContainerPath(container.name));
       
       return dockerContainers.map((container) => toSummary(host, container));
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const { message, status } = errorInfo(error);
       if (shouldLogError(host.id)) {
-        console.error(`[cAdvisor] Failed to list containers for host ${host.id}:`, error.message);
+        console.error(`[cAdvisor] Failed to list containers for host ${host.id}:`, message);
       }
       
       // Create appropriate error based on the failure (never echo internal baseUrl to clients)
-      if (error.status === 404) {
-        const notFoundError = new Error(
-          `cAdvisor endpoint not found (404) for host ${host.id}`
-        );
-        (notFoundError as any).status = 502;
-        (notFoundError as any).code = 'CADVISOR_ENDPOINT_NOT_FOUND';
-        (notFoundError as any).hostId = host.id;
-        throw notFoundError;
+      if (status === 404) {
+        throw new HttpError(`cAdvisor endpoint not found (404) for host ${host.id}`, 502, {
+          code: 'CADVISOR_ENDPOINT_NOT_FOUND',
+          hostId: host.id,
+        });
       }
       
-      if (error.status === 504 || error.message?.includes('timed out')) {
-        const timeoutError = new Error(
-          `cAdvisor request timed out for host ${host.id}`
-        );
-        (timeoutError as any).status = 504;
-        (timeoutError as any).code = 'CADVISOR_TIMEOUT';
-        (timeoutError as any).hostId = host.id;
-        throw timeoutError;
+      if (status === 504 || message.includes('timed out')) {
+        throw new HttpError(`cAdvisor request timed out for host ${host.id}`, 504, {
+          code: 'CADVISOR_TIMEOUT',
+          hostId: host.id,
+        });
       }
       
       // Generic cAdvisor error
-      const cadvisorError = new Error(
-        `cAdvisor service error for host ${host.id}: ${error.message}`
-      );
-      (cadvisorError as any).status = 502;
-      (cadvisorError as any).code = 'CADVISOR_ERROR';
-      (cadvisorError as any).hostId = host.id;
-      (cadvisorError as any).originalError = error.message;
-      throw cadvisorError;
+      throw new HttpError(`cAdvisor service error for host ${host.id}: ${message}`, 502, {
+        code: 'CADVISOR_ERROR',
+        hostId: host.id,
+        originalError: message,
+      });
     }
   }
 
@@ -357,9 +345,9 @@ class CadvisorService {
         command: null,
         startedAt: container.spec?.creation_time ?? null,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       if (shouldLogError(host.id)) {
-        console.error(`[cAdvisor] Failed to get container details for host ${host.id}, container ${containerId}:`, error.message);
+        console.error(`[cAdvisor] Failed to get container details for host ${host.id}, container ${containerId}:`, errorMessage(error));
       }
       throw error;
     }
@@ -374,9 +362,9 @@ class CadvisorService {
           `/api/v1.3/containers${containerId}`,
         );
         return computeStats(host, containerId, container);
-      } catch (error: any) {
+      } catch (error: unknown) {
         if (shouldLogError(host.id)) {
-          console.error(`[cAdvisor] Failed to get container stats for host ${host.id}, container ${containerId}:`, error.message);
+          console.error(`[cAdvisor] Failed to get container stats for host ${host.id}, container ${containerId}:`, errorMessage(error));
         }
         throw error;
       }

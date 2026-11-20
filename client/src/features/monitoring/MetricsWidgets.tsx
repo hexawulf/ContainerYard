@@ -1,3 +1,4 @@
+import type { LucideIcon } from 'lucide-react';
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,7 +26,7 @@ interface TopConsumer {
   avgMemoryPercent: string;
 }
 
-function WidgetCard({ title, icon: Icon, children }: { title: string; icon: any; children: React.ReactNode }) {
+function WidgetCard({ title, icon: Icon, children }: { title: string; icon: LucideIcon; children: React.ReactNode }) {
   return (
     <Card className="min-w-0 overflow-hidden">
       <CardHeader className="pb-3">

@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type Response } from "express";
 import { db } from "../../db";
 import { eq, and, gte, desc } from "drizzle-orm";
 import { containerMetricsHourly } from "@shared/schema";
@@ -20,7 +20,7 @@ function escapeCsvField(value: string): string {
 }
 
 // Helper to return empty data for SQLite mode
-function emptyMetricsResponse(res: any, format: string = 'json') {
+function emptyMetricsResponse(res: Response, format: string = 'json') {
   if (format === 'csv') {
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', `attachment; filename="metrics-empty-${Date.now()}.csv"`);
@@ -87,7 +87,16 @@ router.get("/:hostId/metrics/summary", async (req, res, next) => {
       )
       .orderBy(desc(containerMetricsHourly.aggregatedAt));
 
-    const containerStats = new Map<string, any>();
+    interface ContainerAccumulator {
+      containerId: string;
+      containerName: string;
+      avgCpu: number[];
+      maxCpu: number[];
+      avgMemory: number[];
+      maxMemory: number[];
+      dataPoints: number;
+    }
+    const containerStats = new Map<string, ContainerAccumulator>();
     
     for (const metric of metrics) {
       if (!containerStats.has(metric.containerId)) {
@@ -110,12 +119,12 @@ router.get("/:hostId/metrics/summary", async (req, res, next) => {
       stats.dataPoints++;
     }
 
-    const summary = Array.from(containerStats.values()).map((stats: any) => ({
+    const summary = Array.from(containerStats.values()).map((stats) => ({
       containerId: stats.containerId,
       containerName: stats.containerName,
-      avgCpuPercent: (stats.avgCpu.reduce((a: number, b: number) => a + b, 0) / stats.avgCpu.length).toFixed(2),
+      avgCpuPercent: (stats.avgCpu.reduce((a, b) => a + b, 0) / stats.avgCpu.length).toFixed(2),
       maxCpuPercent: Math.max(...stats.maxCpu).toFixed(2),
-      avgMemoryPercent: (stats.avgMemory.reduce((a: number, b: number) => a + b, 0) / stats.avgMemory.length).toFixed(2),
+      avgMemoryPercent: (stats.avgMemory.reduce((a, b) => a + b, 0) / stats.avgMemory.length).toFixed(2),
       maxMemoryPercent: Math.max(...stats.maxMemory).toFixed(2),
       dataPoints: stats.dataPoints,
     }));
@@ -280,7 +289,7 @@ router.get("/:hostId/metrics/export/csv", async (req, res, next) => {
       'Sample Count'
     ].join(',');
 
-    const csvRows = metrics.map((metric: any) => [
+    const csvRows = metrics.map((metric) => [
       escapeCsvField(metric.containerId),
       escapeCsvField(metric.containerName),
       escapeCsvField(metric.aggregatedAt.toISOString()),
@@ -356,7 +365,7 @@ router.get("/:hostId/containers/:containerId/metrics/export/csv", async (req, re
       'Sample Count'
     ].join(',');
 
-    const csvRows = metrics.map((metric: any) => [
+    const csvRows = metrics.map((metric) => [
       escapeCsvField(metric.aggregatedAt.toISOString()),
       metric.avgCpuPercent,
       metric.maxCpuPercent,

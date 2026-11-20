@@ -67,7 +67,7 @@ router.post("/login", loginRateLimiter, async (req, res, next) => {
       role: user.role,
       sessionVersion: user.sessionVersion,
     };
-    (req.session as any).csrfToken = randomBytes(24).toString("hex");
+    req.session.csrfToken = randomBytes(24).toString("hex");
 
     const publicUser = {
       id: user.id,
@@ -167,7 +167,7 @@ router.post(
       });
       invalidateUserSessionCache(updated.id);
 
-      const previousCsrfToken = (req.session as any)?.csrfToken;
+      const previousCsrfToken = req.session?.csrfToken;
       await new Promise<void>((resolve, reject) => {
         req.session.regenerate((err) => {
           if (err) {
@@ -184,7 +184,7 @@ router.post(
         role: updated.role,
         sessionVersion: updated.sessionVersion,
       };
-      (req.session as any).csrfToken = previousCsrfToken ?? randomBytes(24).toString("hex");
+      req.session.csrfToken = previousCsrfToken ?? randomBytes(24).toString("hex");
 
       await new Promise<void>((resolve, reject) => {
         req.session.save((err) => {
@@ -245,8 +245,8 @@ router.get("/me", requireAuth, (req, res) => {
 router.get("/csrf", (req, res, next) => {
   try {
     // Ensure session exists and has CSRF token
-    if (!(req.session as any).csrfToken) {
-      (req.session as any).csrfToken = randomBytes(24).toString("hex");
+    if (!req.session.csrfToken) {
+      req.session.csrfToken = randomBytes(24).toString("hex");
     }
     if (!req.session.user) {
       // Not signed in: keep the stored session short-lived. Login regenerates
@@ -254,7 +254,7 @@ router.get("/csrf", (req, res, next) => {
       req.session.cookie.maxAge = ANONYMOUS_SESSION_MAX_AGE_MS;
     }
 
-    return res.json({ csrfToken: (req.session as any).csrfToken });
+    return res.json({ csrfToken: req.session.csrfToken });
   } catch (error) {
     return next(error);
   }

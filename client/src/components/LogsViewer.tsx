@@ -1,3 +1,4 @@
+import { errorMessage } from '@/lib/errors';
 import { useRef, useEffect, useState, useMemo, useCallback } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Button } from '@/components/ui/button';
@@ -131,8 +132,8 @@ export function LogsViewer({
         const content = await response.text();
         setLines(content.split('\n').filter((line: string) => line.length > 0));
       }
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(errorMessage(err) ?? 'Failed to load logs');
       setLines([]);
     } finally {
       setIsLoading(false);
@@ -159,8 +160,11 @@ export function LogsViewer({
       setIsLoading(false);
     });
 
-    es.addEventListener('error', (e: any) => {
-      const errorData = e.data ? JSON.parse(e.data) : {};
+    es.addEventListener('error', (e: Event) => {
+      // Server-sent `event: error` frames are MessageEvents with a JSON body;
+      // a dropped connection is a plain Event (handled by onerror below).
+      const data = e instanceof MessageEvent ? e.data : undefined;
+      const errorData: { message?: string } = data ? JSON.parse(data) : {};
       setError(errorData.message || 'Stream error');
     });
 

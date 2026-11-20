@@ -7,6 +7,7 @@
  * attempt (allowed, denied or failed) is written to the audit log.
  * Only DOCKER-provider hosts support actions; cAdvisor-only hosts are read-only.
  */
+import { errorInfo } from "../lib/httpError";
 import { Router, type NextFunction, type Request, type Response } from "express";
 import rateLimit from "express-rate-limit";
 import { containerActionSchema } from "@shared/schema";
@@ -83,16 +84,16 @@ router.post(
         detail: result.noop ? `no-op: container already ${result.state}` : `state: ${result.state ?? "removed"}`,
       });
       return res.json({ success: true, action, ...result });
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const { message, status } = errorInfo(error);
       await recordAudit(req, {
         action: `container.${action}`,
         outcome: "failure",
         hostId,
         target: containerId,
-        detail: error?.message,
+        detail: message,
       });
-      const status = error?.status ?? 500;
-      return res.status(status).json({ error: error?.message ?? `Failed to ${action} container` });
+      return res.status(status ?? 500).json({ error: message || `Failed to ${action} container` });
     }
   },
 );
