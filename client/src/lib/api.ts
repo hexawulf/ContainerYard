@@ -22,7 +22,8 @@ function buildApiUrl(path: string): string {
   return API_BASE + (p.startsWith('/api/') ? p.slice(4) : p);
 }
 
-const AUTH_DISABLED = import.meta.env.VITE_AUTH_DISABLED === 'true';
+// `env?.`: import.meta.env only exists under Vite (not in node unit tests).
+const AUTH_DISABLED = import.meta.env?.VITE_AUTH_DISABLED === 'true';
 
 export class ApiError extends Error {
   constructor(

@@ -24,7 +24,7 @@ export default [
     rules: {
       'react-hooks/rules-of-hooks': 'error',
       'react-hooks/exhaustive-deps': 'warn',
-      // No explicit `any` (5.2.0 removed the last ones): use real types, `unknown`
+      // No explicit `any`: use real types, `unknown`
       // plus a narrowing helper (server/src/lib/httpError.ts errorInfo), or a
       // documented `as unknown as T` cast at an untyped boundary.
       '@typescript-eslint/no-explicit-any': 'error',

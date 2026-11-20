@@ -2,7 +2,8 @@ import { QueryClient, QueryFunction } from "@tanstack/react-query";
 import { apiFetch, ApiError } from "./api";
 
 const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
-const AUTH_DISABLED = import.meta.env.VITE_AUTH_DISABLED === 'true';
+// `env?.`: import.meta.env only exists under Vite (not in node unit tests).
+const AUTH_DISABLED = import.meta.env?.VITE_AUTH_DISABLED === 'true';
 
 let csrfTokenCache: string | null = null;
 
