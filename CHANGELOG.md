@@ -3,6 +3,16 @@
 All notable changes to ContainerYard are documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [5.1.3] - 2026-11-20
+
+### Added
+- Favicon: the ContainerYard mark in white on the brand-blue tile, as
+  `favicon.svg`, `favicon.ico` (16/32/48 px) and `apple-touch-icon.png`
+  (180 px). `/favicon.ico` used to return 404.
+- `scripts/generate-favicons.mjs` rebuilds the raster icons from the SVG;
+  the build and the integration suite check that the icons ship and are
+  served as images.
+
 ## [5.1.2] - 2026-11-20
 
 ### Removed
