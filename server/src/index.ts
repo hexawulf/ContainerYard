@@ -1,3 +1,4 @@
+import { errorInfo } from "./lib/httpError";
 import express from "express";
 import fs from "fs";
 import helmet from "helmet";
@@ -184,12 +185,13 @@ export async function createApp() {
       }
 
       res.json(allContainers);
-    } catch (error: any) {
-      if (error.status === 404) {
+    } catch (error: unknown) {
+      const { message, status } = errorInfo(error);
+      if (status === 404) {
         return res.status(400).json({ error: `Unknown host: ${req.query.host}` });
       }
       const clientMessage =
-        process.env.NODE_ENV === "production" ? "Internal Server Error" : error.message;
+        process.env.NODE_ENV === "production" ? "Internal Server Error" : message;
       res.status(500).json({ error: clientMessage });
     }
   });
@@ -229,21 +231,22 @@ export async function createApp() {
     });
   }
 
-  app.use((err: any, req: express.Request, res: express.Response, _next: express.NextFunction) => {
-    if (err && err.code === "EBADCSRFTOKEN") {
+  app.use((err: unknown, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    const info = errorInfo(err);
+    if (info.code === "EBADCSRFTOKEN") {
       return res.status(403).json({ error: "Invalid CSRF token" });
     }
     if (err && /misconfigured csrf/i.test(String(err))) {
       return res.status(500).json({ error: "server csrf misconfig" });
     }
 
-    const status = err.status || err.statusCode || 500;
-    const rawMessage = err.message || "Internal Server Error";
+    const status = info.status || info.statusCode || 500;
+    const rawMessage = info.message || "Internal Server Error";
     if (status >= 500) {
       log(`${status} ${rawMessage}`, "error");
     }
     const message =
-      status >= 500 && process.env.NODE_ENV === "production" && !err.expose
+      status >= 500 && process.env.NODE_ENV === "production" && !info.expose
         ? "Internal Server Error"
         : rawMessage;
 

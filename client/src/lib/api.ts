@@ -3,11 +3,12 @@
 
 // Runtime base: allow server to set window.__CY_API_BASE__
 const runtimeBase =
-  typeof window !== 'undefined' && (window as any).__CY_API_BASE__
-    ? (window as any).__CY_API_BASE__
+  typeof window !== 'undefined' && window.__CY_API_BASE__
+    ? window.__CY_API_BASE__
     : '';
 
-const envBase = (import.meta as any)?.env?.VITE_API_BASE as string | undefined;
+// `env?.`: import.meta.env only exists under Vite (not in node unit tests).
+const envBase = import.meta.env?.VITE_API_BASE;
 const API_BASE_RAW = (envBase?.trim() || runtimeBase || '/api').replace(/\/+$/, '');
 
 export const API_BASE = API_BASE_RAW;
@@ -21,7 +22,8 @@ function buildApiUrl(path: string): string {
   return API_BASE + (p.startsWith('/api/') ? p.slice(4) : p);
 }
 
-const AUTH_DISABLED = import.meta.env.VITE_AUTH_DISABLED === 'true';
+// `env?.`: import.meta.env only exists under Vite (not in node unit tests).
+const AUTH_DISABLED = import.meta.env?.VITE_AUTH_DISABLED === 'true';
 
 export class ApiError extends Error {
   constructor(

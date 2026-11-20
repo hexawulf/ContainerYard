@@ -392,7 +392,7 @@ export default function Dashboard() {
         <h1 className="text-2xl sm:text-display font-semibold tracking-tight">Dashboard</h1>
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           {/* Needs PostgreSQL; the server reports it as unavailable in SQLite mode. */}
-          {(window as any).__CY_FEATURES__?.historicalMetrics !== false && (
+          {window.__CY_FEATURES__?.historicalMetrics !== false && (
             <Button
               variant="outline"
               size="sm"

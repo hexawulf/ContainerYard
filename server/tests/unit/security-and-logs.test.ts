@@ -11,6 +11,7 @@ import {
   type WebhookPolicy,
 } from "../../src/lib/safeWebhook";
 import { tokensMatch, verifyCsrf } from "../../src/middleware/csrf";
+import { asReq, asRes, fakeRes } from "./_fakes";
 
 function frame(stream: number, text: string | Buffer): Buffer {
   const payload = Buffer.isBuffer(text) ? text : Buffer.from(text);
@@ -122,10 +123,10 @@ test("ssrf: redirects are not followed", async () => {
 // ---------- CSRF ----------
 
 function run(method: string, sessionToken?: string, header?: string) {
-  const req: any = { method, session: sessionToken ? { csrfToken: sessionToken } : {}, headers: header ? { "x-csrf-token": header } : {} };
-  const res: any = { statusCode: 200, body: undefined, status(c: number) { this.statusCode = c; return this; }, json(b: any) { this.body = b; return this; } };
+  const req = asReq({ method, session: sessionToken ? { csrfToken: sessionToken } : {}, headers: header ? { "x-csrf-token": header } : {} });
+  const res = fakeRes();
   let nextCalled = false;
-  verifyCsrf(req, res, () => { nextCalled = true; });
+  verifyCsrf(req, asRes(res), () => { nextCalled = true; });
   return { nextCalled, status: res.statusCode };
 }
 
@@ -170,17 +171,21 @@ test("hosts & runtime-config: unauthenticated GET /api/hosts -> 401, /api/runtim
   // Stub prisma.user.findUnique for authenticated session check without hitting disk DB
   const origFindUnique = dbMod.prisma?.user.findUnique;
   if (dbMod.prisma) {
-    (dbMod.prisma.user as any).findUnique = async ({ where }: { where: { id: string } }) =>
-      where.id === "u-admin"
-        ? { id: "u-admin", email: "admin@example.invalid", role: "ADMIN", sessionVersion: 0 }
-        : null;
+    Object.assign(dbMod.prisma.user, {
+      findUnique: async ({ where }: { where: { id: string } }) =>
+        where.id === "u-admin"
+          ? { id: "u-admin", email: "admin@example.invalid", role: "ADMIN", sessionVersion: 0 }
+          : null,
+    });
   }
 
   const app = express();
-  app.use((req: any, _res, next) => {
-    req.session = req.headers["x-test-auth"] === "admin"
-      ? { user: { id: "u-admin", email: "admin@example.invalid", role: "ADMIN", sessionVersion: 0 } }
-      : {};
+  app.use((req, _res, next) => {
+    Object.assign(req, {
+      session: req.headers["x-test-auth"] === "admin"
+        ? { user: { id: "u-admin", email: "admin@example.invalid", role: "ADMIN", sessionVersion: 0 } }
+        : {},
+    });
     next();
   });
   registerRuntimeConfigRoute(app);
@@ -215,7 +220,7 @@ test("hosts & runtime-config: unauthenticated GET /api/hosts -> 401, /api/runtim
     assert.deepEqual(hosts.map((h) => h.id), listHosts().map((h) => h.id));
   } finally {
     if (dbMod.prisma && origFindUnique) {
-      (dbMod.prisma.user as any).findUnique = origFindUnique;
+      Object.assign(dbMod.prisma.user, { findUnique: origFindUnique });
     }
     server.close();
   }

@@ -11,7 +11,7 @@
  * Auth/user data uses Prisma + SQLite instead (server/src/db/client.ts).
  */
 import { Pool, neonConfig } from '@neondatabase/serverless';
-import { drizzle } from 'drizzle-orm/neon-serverless';
+import { drizzle, type NeonDatabase } from 'drizzle-orm/neon-serverless';
 import ws from "ws";
 import * as schema from "@shared/schema";
 
@@ -29,8 +29,8 @@ if (!process.env.DATABASE_URL) {
 
 // For SQLite, create a mock pool that throws clear errors
 // SQLite should use Prisma (server/src/db/client.ts) instead
-const createSQLitePool = () => {
-  return {
+const createSQLitePool = (): Pool => {
+  const stub = {
     query: () => {
       throw new Error(
         'SQLite database detected. Use Prisma (import from "@/db/client") instead of Drizzle/Neon for SQLite databases.'
@@ -40,17 +40,21 @@ const createSQLitePool = () => {
     end: () => Promise.resolve(),
     on: () => {},
     removeListener: () => {},
-  } as any;
+  };
+  // Only the members above are ever called in SQLite mode (all Drizzle use is gated).
+  return stub as unknown as Pool;
 };
 
-export const pool = isSQLite 
+export const pool: Pool = isSQLite 
   ? createSQLitePool()
   : new Pool({ connectionString: process.env.DATABASE_URL });
 
 // Create Drizzle database client - only for PostgreSQL
 // For SQLite, this returns a mock that throws helpful errors
-export const db = isSQLite
-  ? (new Proxy({} as any, {
+export type Db = NeonDatabase<typeof schema>;
+
+export const db: Db = isSQLite
+  ? (new Proxy({} as Db, {
       get: (target, prop) => {
         if (prop === 'query' || prop === 'select' || prop === 'insert' || prop === 'update' || prop === 'delete') {
           return () => {
@@ -60,7 +64,7 @@ export const db = isSQLite
             );
           };
         }
-        return target[prop];
+        return Reflect.get(target, prop);
       }
     }))
   : drizzle({ client: pool, schema });

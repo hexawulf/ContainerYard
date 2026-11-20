@@ -1,3 +1,4 @@
+import { errorMessage } from "../lib/httpError";
 import { Router } from "express";
 import { db } from "../../db";
 import { eq, desc } from "drizzle-orm";
@@ -28,10 +29,12 @@ function webhookConfigError(type: unknown, config: unknown): string | null {
   if (type !== "webhook") return null;
   try {
     const parsed = typeof config === "string" ? JSON.parse(config) : config;
-    validateWebhookUrl((parsed as any)?.url);
+    const url =
+      typeof parsed === "object" && parsed !== null ? (parsed as { url?: unknown }).url : undefined;
+    validateWebhookUrl(url);
     return null;
-  } catch (error: any) {
-    return error?.message ?? "Invalid webhook configuration";
+  } catch (error: unknown) {
+    return errorMessage(error) || "Invalid webhook configuration";
   }
 }
 
@@ -154,7 +157,7 @@ router.patch("/channels/:id", async (req, res, next) => {
         return res.status(400).json({ error: webhookError });
       }
     }
-    const updates: Record<string, any> = { updatedAt: new Date() };
+    const updates: Partial<typeof notificationChannels.$inferInsert> = { updatedAt: new Date() };
     if (name !== undefined) updates.name = name;
     if (type !== undefined) updates.type = type;
     if (config !== undefined) updates.config = config;
@@ -221,10 +224,10 @@ router.post("/channels/:id/test", async (req, res, next) => {
     try {
       await sendNotification(channel, testMessage);
       res.json({ success: true, message: "Test notification sent successfully" });
-    } catch (error: any) {
+    } catch (error: unknown) {
       res.status(500).json({ 
         error: "Failed to send test notification", 
-        details: error.message 
+        details: errorMessage(error) 
       });
     }
   } catch (error) {
@@ -320,7 +323,7 @@ router.patch("/rules/:id", async (req, res, next) => {
     }
 
     const { name, description, conditionType, operator, threshold, durationMinutes, containerFilter, channelId, enabled } = parsed.data;
-    const updates: Record<string, any> = { updatedAt: new Date() };
+    const updates: Partial<typeof alertRules.$inferInsert> = { updatedAt: new Date() };
     if (name !== undefined) updates.name = name;
     if (description !== undefined) updates.description = description;
     if (conditionType !== undefined) updates.conditionType = conditionType;

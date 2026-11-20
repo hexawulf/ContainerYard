@@ -32,8 +32,9 @@ export function InspectModal({ open, onOpenChange, container }: InspectModalProp
 
   if (!container) return null;
 
-  // Handle different response formats from inspect API
-  const inspectData = container as any;
+  // Handle different response formats from inspect API: cAdvisor-only hosts
+  // answer { provider: "CADVISOR_ONLY", spec } instead of full inspect JSON.
+  const inspectData: ContainerDetail & { spec?: unknown } = container;
   const isCadvisorOnly = inspectData.provider === "CADVISOR_ONLY";
   const displayData = isCadvisorOnly && inspectData.spec ? inspectData.spec : inspectData;
 

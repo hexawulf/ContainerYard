@@ -39,7 +39,7 @@ export function SavedSearches({ isOpen, onClose, onApplySearch, currentQuery }: 
         description: 'Your search has been saved successfully',
       });
     },
-    onError: (error: any) => {
+    onError: (error: Error) => {
       toast({
         variant: 'destructive',
         title: 'Failed to save search',

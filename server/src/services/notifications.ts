@@ -12,24 +12,44 @@ export interface ChannelLike {
   config: string;
 }
 
-function parseConfig(channel: ChannelLike): any {
+/** Channel config as stored (JSON). Every field is optional and checked before use. */
+interface ChannelConfig {
+  url?: unknown;
+  payload?: unknown;
+  headers?: unknown;
+  to?: unknown;
+  subject?: unknown;
+}
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+function parseConfig(channel: ChannelLike): ChannelConfig {
+  let parsed: unknown;
   try {
-    return JSON.parse(channel.config);
+    parsed = JSON.parse(channel.config);
   } catch {
     throw new Error(`Invalid JSON in notification channel config for channel ${channel.id}`);
   }
+  return isRecord(parsed) ? parsed : {};
 }
 
-async function sendWebhookNotification(config: any, message: string): Promise<void> {
+function stringHeaders(v: unknown): Record<string, string> {
+  if (!isRecord(v)) return {};
+  return Object.fromEntries(Object.entries(v).map(([k, val]) => [k, String(val)]));
+}
+
+async function sendWebhookNotification(config: ChannelConfig, message: string): Promise<void> {
   const { status } = await postWebhook(
-    config.url,
+    typeof config.url === "string" ? config.url : "",
     {
       text: message,
       message,
       timestamp: new Date().toISOString(),
-      ...(config.payload && typeof config.payload === "object" ? config.payload : {}),
+      ...(isRecord(config.payload) ? config.payload : {}),
     },
-    config.headers && typeof config.headers === "object" ? config.headers : {},
+    stringHeaders(config.headers),
   );
   if (status < 200 || status >= 300) {
     throw new Error(
@@ -40,14 +60,14 @@ async function sendWebhookNotification(config: any, message: string): Promise<vo
   }
 }
 
-async function sendEmailNotification(config: any, message: string): Promise<void> {
+async function sendEmailNotification(config: ChannelConfig, message: string): Promise<void> {
   // Email delivery is not implemented yet; messages are logged.
-  log(`[EMAIL] To: ${config.to}`, "info");
-  log(`[EMAIL] Subject: ${config.subject || "ContainerYard Alert"}`, "info");
+  log(`[EMAIL] To: ${String(config.to)}`, "info");
+  log(`[EMAIL] Subject: ${typeof config.subject === "string" && config.subject ? config.subject : "ContainerYard Alert"}`, "info");
   log(`[EMAIL] Body: ${message}`, "info");
 }
 
-async function sendBrowserNotification(_config: any, message: string): Promise<void> {
+async function sendBrowserNotification(_config: ChannelConfig, message: string): Promise<void> {
   log(`[BROWSER] ${message}`, "info");
 }
 

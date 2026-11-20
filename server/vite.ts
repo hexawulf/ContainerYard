@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import { type Server } from "http";
 import { nanoid } from "nanoid";
+import type { LogErrorOptions } from "vite";
 
 // __filename and __dirname are provided by esbuild banner
 
@@ -32,7 +33,7 @@ export async function setupVite(app: Express, server: Server) {
     configFile: path.resolve(process.cwd(), "vite.config.ts"),
     customLogger: {
       ...viteLogger,
-      error: (msg: string, options?: any) => {
+      error: (msg: string, options?: LogErrorOptions) => {
         viteLogger.error(msg, options);
         process.exit(1);
       },

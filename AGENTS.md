@@ -37,9 +37,10 @@ scripts/docker-deploy.sh 4.0.0 # Pull tagged release, backup cy-data DB, recreat
 
 **Code Style**
 - TypeScript strict mode enabled (`tsconfig.json`)
-- ESLint with React Hooks rules (`react-hooks/rules-of-hooks`, `react-hooks/exhaustive-deps`)
+- ESLint with React Hooks rules (`react-hooks/rules-of-hooks`, `react-hooks/exhaustive-deps`) and `@typescript-eslint/no-explicit-any` as an error
+- No `any`: catch as `unknown` and read fields with `errorInfo()` / throw `HttpError` (`server/src/lib/httpError.ts`); client code uses `errorMessage()` (`client/src/lib/errors.ts`)
 - No Prettier config (manual formatting)
-- Pre-commit hooks: lint + circular dependency check (lefthook.yml)
+- No pre-commit hooks (lefthook was removed in 5.1.0); CI runs typecheck, lint, unit tests and build on every push
 
 **Commit Format**
 - Conventional Commits: `feat:`, `fix:`, `docs:`, `refactor:`, etc.
@@ -140,7 +141,7 @@ npx madge client/src --circular
 - [ ] No circular dependencies: `npx madge client/src --circular`
 - [ ] Manual testing completed (dev server)
 - [ ] No secrets/credentials in committed files
-- [ ] Git pre-commit hooks passed
+- [ ] `npm run check:tests` and `npm test` pass (unit tests, server + client)
 
 **Optional but Recommended**
 - [ ] `npm run e2e` passes (if modifying user flows)
@@ -192,4 +193,4 @@ npx madge client/src --circular
 - State: TanStack Query (server state), React Context (auth, theme)
 - Backend: Express, Prisma, Passport, Dockerode
 - Build: Vite (client), esbuild (server)
-- Testing: Playwright (E2E only, no unit tests yet)
+- Testing: `node:test` unit tests (`server/tests/unit`, `client/tests/unit`; Docker and cAdvisor are exercised against fake engines on a Unix socket / local HTTP port), live integration suite, Playwright E2E

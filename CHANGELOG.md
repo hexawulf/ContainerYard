@@ -3,6 +3,37 @@
 All notable changes to ContainerYard are documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+- cAdvisor-only hosts: a cgroup v2 container without aliases (cAdvisor cannot
+  see the Docker daemon) was named `system.slice/docker-<id>.scope` in the
+  container list, the host summary's top lists and the inspect view. It is now
+  named by its container id, like cgroup v1 containers.
+
+### Changed
+- No explicit `any` left in the app or tests, and ESLint now fails on new ones
+  (`@typescript-eslint/no-explicit-any`). Errors carry an HTTP status through a
+  typed `HttpError`; caught values are read with `errorInfo()` / `errorMessage()`.
+- Removed the `declare module "dockerode"` shim, so the Docker client uses the
+  real `@types/dockerode` types, and typed the Drizzle `db` export (it was
+  `any`), so alert and metrics queries are type-checked again.
+- Alert threshold comparisons moved to `relate()` (same results as before,
+  tested against every operand mix).
+
+### Tests
+- Unit tests: 57 → 158, now also for the client (`client/tests/unit`).
+- `docker.ts` is tested against a fake Docker Engine on a Unix socket through
+  the real dockerode client (list/inspect/stats/logs/follow, every container
+  action, 304/404/409 handling, EACCES/ENOENT sockets), and the container
+  actions route end to end (401/403/400/404/501, audit rows, rate limit).
+- cAdvisor service against a fake cAdvisor (container discovery, cgroup v1/v2
+  stats, endpoint probing, 404/500/unreachable mapping without leaking the
+  internal URL), notifications against a local webhook receiver, stats
+  parsing, stack grouping, and the client API/CSRF retry layer.
+- `npm run test:coverage` prints per-file coverage (loaded files 80 % → 90 %
+  lines; `docker.ts` 55 → 98 %, `cadvisor.ts` 65 → 97 %).
+
 ## [5.1.0] - 2026-11-18
 
 ### Security

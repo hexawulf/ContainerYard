@@ -126,22 +126,31 @@ export function validateWebhookUrl(raw: unknown, policy: WebhookPolicy = policyF
   return url;
 }
 
+type LookupCallback = (
+  err: NodeJS.ErrnoException | Error | null,
+  address?: string | dns.LookupAddress[],
+  family?: number,
+) => void;
+
 /** dns.lookup replacement that refuses blocked addresses. */
 function guardedLookup(policy: WebhookPolicy): net.LookupFunction {
   return (hostname, options, callback) => {
+    // net.LookupFunction's callback is overloaded (single address vs `all`);
+    // this one signature covers both calls Node makes.
+    const cb = callback as unknown as LookupCallback;
     dns.lookup(hostname, { ...(options as dns.LookupOptions), all: true }, (err, addresses) => {
-      if (err) return (callback as any)(err);
+      if (err) return cb(err);
       const list = addresses as dns.LookupAddress[];
       for (const a of list) {
         const reason = blockedReason(a.address, policy);
         if (reason) {
-          return (callback as any)(new WebhookBlockedError(`Webhook blocked: ${hostname} resolves to ${reason}`));
+          return cb(new WebhookBlockedError(`Webhook blocked: ${hostname} resolves to ${reason}`));
         }
       }
-      if ((options as dns.LookupOptions).all) return (callback as any)(null, list);
+      if ((options as dns.LookupOptions).all) return cb(null, list);
       const first = list[0];
-      if (!first) return (callback as any)(new Error(`No addresses for ${hostname}`));
-      return (callback as any)(null, first.address, first.family);
+      if (!first) return cb(new Error(`No addresses for ${hostname}`));
+      return cb(null, first.address, first.family);
     });
   };
 }

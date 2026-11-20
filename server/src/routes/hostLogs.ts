@@ -9,7 +9,7 @@
  * the client never supplies a path. ADMIN only: nginx access logs contain
  * visitor IPs, and the download route was already ADMIN-only.
  */
-import { Router, type Response } from "express";
+import { Router, type Request, type Response } from "express";
 import { execFile, spawn } from "child_process";
 import readline from "readline";
 import { LOCAL_HOST_ID, isReadableAsync, resolveHostLogsAsync } from "../config/hostlogs";
@@ -23,7 +23,7 @@ interface LogQuery {
   grep?: string;
 }
 
-function parseLogQuery(query: any): LogQuery {
+function parseLogQuery(query: Request["query"]): LogQuery {
   const tail = query.tail ? parseInt(String(query.tail), 10) : 500;
   const grep = query.grep ? String(query.grep).slice(0, 200) : undefined;
   return {

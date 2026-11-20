@@ -1,12 +1,42 @@
 import { Router } from "express";
 import { getHost } from "../config/hosts";
 import { assertDockerContainerRef, dockerClient } from "../services/docker";
-import { isDockerContainerPath } from "../services/cadvisor";
+import { cadvisorDisplayName, isDockerContainerPath } from "../services/cadvisor";
 import { requireAuth } from "../middleware/auth";
+import { errorInfo } from "../lib/httpError";
 
 const r = Router();
 
 const CADVISOR_TIMEOUT_MS = 10_000;
+
+/** The parts of a cAdvisor v1.3 container response the inspect view reads. */
+export interface CadvisorInspectRaw {
+  id?: string;
+  name?: string;
+  aliases?: string[];
+  spec?: {
+    image?: string;
+    labels?: Record<string, string>;
+    memory?: { limit?: number };
+    cpu?: { limit?: number };
+  };
+  stats?: Array<{ memory?: { limit?: number } }>;
+}
+
+/** Reduced, non-sensitive spec for a cAdvisor-only container. */
+export function cadvisorInspectSpec(data: CadvisorInspectRaw | null | undefined, id: string) {
+  const last = data?.stats?.[data.stats.length - 1];
+  return {
+    id: data?.id || id,
+    name: cadvisorDisplayName(data?.aliases, data?.name),
+    image: data?.spec?.image || null,
+    labels: data?.spec?.labels || {},
+    resources: {
+      memLimitBytes: last?.memory?.limit ?? data?.spec?.memory?.limit ?? null,
+      cpuShares: data?.spec?.cpu?.limit ?? null,
+    },
+  };
+}
 
 /**
  * GET /api/hosts/:hostId/containers/:id/inspect
@@ -45,31 +75,21 @@ r.get("/api/hosts/:hostId/containers/:id/inspect", requireAuth, async (req, res)
         signal: AbortSignal.timeout(CADVISOR_TIMEOUT_MS),
       });
       if (!resp.ok) return res.status(404).json({ error: "not_found" });
-      const data: any = await resp.json();
-      const last = data?.stats?.[data.stats.length - 1];
-      const spec = {
-        id: data?.id || id,
-        name: (data?.aliases?.[0] || data?.name || "").replace(/^\/?docker\//, "").replace(/^\//, ""),
-        image: data?.spec?.image || null,
-        labels: data?.spec?.labels || {},
-        resources: {
-          memLimitBytes: last?.memory?.limit ?? data?.spec?.memory?.limit ?? null,
-          cpuShares: data?.spec?.cpu?.limit ?? null,
-        }
-      };
-      return res.json({ provider: "CADVISOR_ONLY", spec });
+      const data = (await resp.json()) as CadvisorInspectRaw | null;
+      return res.json({ provider: "CADVISOR_ONLY", spec: cadvisorInspectSpec(data, id) });
     }
-  } catch (e: any) {
-    if (e?.status === 400) {
-      return res.status(400).json({ error: "invalid_container_id", message: e?.message || "Invalid container id" });
+  } catch (e: unknown) {
+    const { message, name, status, statusCode } = errorInfo(e);
+    if (status === 400) {
+      return res.status(400).json({ error: "invalid_container_id", message: message || "Invalid container id" });
     }
-    if (e?.status === 404 || e?.statusCode === 404) {
-      return res.status(404).json({ error: "not_found", message: e?.message || "not found" });
+    if (status === 404 || statusCode === 404) {
+      return res.status(404).json({ error: "not_found", message: message || "not found" });
     }
-    if (e?.name === "TimeoutError" || e?.name === "AbortError") {
+    if (name === "TimeoutError" || name === "AbortError") {
       return res.status(504).json({ error: "inspect_timeout", message: "cAdvisor did not answer in time" });
     }
-    res.status(502).json({ error: "inspect_failed", message: e?.message || "inspect failed" });
+    res.status(502).json({ error: "inspect_failed", message: message || "inspect failed" });
   }
 });
 

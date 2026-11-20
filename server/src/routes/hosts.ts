@@ -1,3 +1,4 @@
+import { errorMessage } from "../lib/httpError";
 import { Router } from "express";
 import { getHost, getDozzleLink, listHosts } from "../config/hosts";
 import { dozzleContainerLink } from "../config/dozzle";
@@ -252,9 +253,9 @@ router.get("/:hostId/containers/:containerId/logs/stream", requireAuth, async (r
           closeStream();
         }
       );
-    } catch (err: any) {
+    } catch (err: unknown) {
       if (!res.writableEnded) {
-        res.write(`event: error\ndata: ${err.message}\n\n`);
+        res.write(`event: error\ndata: ${errorMessage(err)}\n\n`);
       }
       closeStream();
       return;

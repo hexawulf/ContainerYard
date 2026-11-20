@@ -1,5 +1,37 @@
 // server/src/lib/parseDockerStats.ts
-export function parseContainerInstant(raw: any) {
+
+/**
+ * The parts of a Docker `/containers/{id}/stats` payload this parser reads.
+ * Every field is optional on purpose: cgroup v2 hosts omit `cache`/`rss`,
+ * report `blkio_stats.io_service_bytes_recursive: null`, and the first
+ * sample has an empty `precpu_stats`. Older engines used `network` (singular)
+ * and capitalised `Op` in blkio entries.
+ */
+interface RawCpuStats {
+  cpu_usage?: { total_usage?: number; percpu_usage?: number[] | null };
+  system_cpu_usage?: number;
+  online_cpus?: number;
+}
+
+type RawNetworks = Record<string, { rx_bytes?: number; tx_bytes?: number } | undefined>;
+
+export interface RawDockerStats {
+  read?: string;
+  cpu_stats?: RawCpuStats;
+  precpu_stats?: RawCpuStats;
+  memory_stats?: {
+    usage?: number;
+    limit?: number;
+    stats?: { cache?: number; inactive_file?: number; rss?: number; total_rss?: number };
+  };
+  networks?: RawNetworks;
+  network?: RawNetworks;
+  blkio_stats?: {
+    io_service_bytes_recursive?: Array<{ op?: string; Op?: string; value?: number }> | null;
+  };
+}
+
+export function parseContainerInstant(raw: RawDockerStats | null | undefined) {
   // CPU %
   const cpuDelta =
     (raw?.cpu_stats?.cpu_usage?.total_usage ?? 0) -

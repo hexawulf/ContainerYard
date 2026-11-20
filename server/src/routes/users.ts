@@ -7,6 +7,7 @@
  *   POST   /api/users/:id/reset-password reset password { newPassword } -> 200 (bumps sessionVersion)
  *   DELETE /api/users/:id                delete user + bookmarks + saved searches in $transaction -> 200
  */
+import { errorInfo } from "../lib/httpError";
 import { Router } from "express";
 import { z } from "zod";
 import bcrypt from "bcrypt";
@@ -115,8 +116,8 @@ router.post("/", async (req, res, next) => {
     });
 
     return res.status(201).json(created);
-  } catch (error: any) {
-    if (error?.code === "P2002") {
+  } catch (error: unknown) {
+    if (errorInfo(error).code === "P2002") {
       const target = typeof req.body?.email === "string" ? req.body.email.trim().slice(0, 254) : "unknown";
       await recordAudit(req, {
         action: "user.create",

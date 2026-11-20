@@ -37,15 +37,15 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     // Log additional context for debugging
     console.error('[ErrorBoundary] Undefined value:', undefinedValue);
     console.error('[ErrorBoundary] Window CY variables:', {
-      __CY_API_BASE__: (window as any).__CY_API_BASE__,
-      __CY_APP_NAME__: (window as any).__CY_APP_NAME__,
-      __CY_FEATURES__: (window as any).__CY_FEATURES__
+      __CY_API_BASE__: window.__CY_API_BASE__,
+      __CY_APP_NAME__: window.__CY_APP_NAME__,
+      __CY_FEATURES__: window.__CY_FEATURES__
     });
   }
 
   render() {
     if (this.state.err) {
-      const api = (window as any).__CY_API_BASE__ || (import.meta as any).env?.VITE_API_BASE;
+      const api = window.__CY_API_BASE__ || import.meta.env?.VITE_API_BASE;
       
       return (
         <pre style={{ padding: 24, color: '#ff8', background: '#222', margin: 0, minHeight: '100vh', whiteSpace: 'pre-wrap' }}>

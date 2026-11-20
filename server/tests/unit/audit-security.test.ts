@@ -4,6 +4,8 @@ import assert from "node:assert/strict";
 import { assertDockerContainerRef } from "../../src/services/docker";
 import { loginSchema, changePasswordSchema } from "../../src/types/zod";
 import { verifyCsrf, isAllowedOrigin, tokensMatch } from "../../src/middleware/csrf";
+import { asReq, asRes, fakeRes } from "./_fakes";
+import { errorInfo } from "../../src/lib/httpError";
 import {
   acquireSseStreamSlot,
   getActiveSseStreamCount,
@@ -34,7 +36,7 @@ describe("Security Audit Hardening (PR 1)", () => {
       for (const input of malicious) {
         assert.throws(
           () => assertDockerContainerRef(input),
-          (err: any) => err?.status === 400 && /Invalid container id/.test(err.message),
+          (err: unknown) => errorInfo(err).status === 400 && /Invalid container id/.test(errorInfo(err).message),
           `Expected ${JSON.stringify(input)} to be rejected with 400`
         );
       }
@@ -82,9 +84,7 @@ describe("Security Audit Hardening (PR 1)", () => {
       const token = "a".repeat(64);
       let nextCalled = false;
       let statusCode = 200;
-      let body: any = null;
-
-      const req: any = {
+      const req = asReq({
         method: "POST",
         headers: {
           origin: "https://attacker.example",
@@ -92,25 +92,17 @@ describe("Security Audit Hardening (PR 1)", () => {
           "x-csrf-token": token,
         },
         session: { csrfToken: token },
-      };
-      const res: any = {
-        status(code: number) {
-          statusCode = code;
-          return this;
-        },
-        json(payload: unknown) {
-          body = payload;
-          return this;
-        },
-      };
+      });
+      const res = fakeRes();
 
-      verifyCsrf(req, res, () => {
+      verifyCsrf(req, asRes(res), () => {
         nextCalled = true;
       });
+      statusCode = res.statusCode;
 
       assert.equal(nextCalled, false);
       assert.equal(statusCode, 403);
-      assert.equal(body?.code, "EBADORIGIN");
+      assert.equal((res.body as { code?: string } | undefined)?.code, "EBADORIGIN");
     });
 
     test("tokensMatch compares equal-length tokens in constant time and rejects mismatches", () => {

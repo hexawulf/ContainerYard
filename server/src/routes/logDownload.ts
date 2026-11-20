@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type Request } from "express";
 import { log } from "../../vite";
 import { getHost } from "../config/hosts";
 import { getContainerLogs } from "../services/docker";
@@ -22,7 +22,7 @@ interface DownloadQuery {
   since?: string | number;
 }
 
-function parseDownloadQuery(query: any): DownloadQuery {
+function parseDownloadQuery(query: Request["query"]): DownloadQuery {
   const scope = query.scope === 'hostlog' ? 'hostlog' : 'container';
   const tail = query.tail ? parseInt(String(query.tail), 10) : 5000;
 
