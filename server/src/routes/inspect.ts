@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { getHost } from "../config/hosts";
 import { assertDockerContainerRef, dockerClient } from "../services/docker";
-import { isDockerContainerPath } from "../services/cadvisor";
+import { cadvisorDisplayName, isDockerContainerPath } from "../services/cadvisor";
 import { requireAuth } from "../middleware/auth";
 import { errorInfo } from "../lib/httpError";
 
@@ -28,7 +28,7 @@ export function cadvisorInspectSpec(data: CadvisorInspectRaw | null | undefined,
   const last = data?.stats?.[data.stats.length - 1];
   return {
     id: data?.id || id,
-    name: (data?.aliases?.[0] || data?.name || "").replace(/^\/?docker\//, "").replace(/^\//, ""),
+    name: cadvisorDisplayName(data?.aliases, data?.name),
     image: data?.spec?.image || null,
     labels: data?.spec?.labels || {},
     resources: {

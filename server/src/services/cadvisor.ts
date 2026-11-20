@@ -101,18 +101,20 @@ function extractContainerId(name: string): string {
   return name.replace(/^\/?docker\/?/, "");
 }
 
+/**
+ * Display name for a cAdvisor container: its first alias (the Docker name,
+ * when cAdvisor can see the Docker daemon), else the container id taken from
+ * the cgroup path. (A cgroup v2 container without aliases used to be shown
+ * as "system.slice/docker-<id>.scope".)
+ */
+export function cadvisorDisplayName(aliases: string[] | undefined, cgroupName: string | undefined): string {
+  const alias = aliases?.[0];
+  if (alias) return alias.replace(/^\/?docker\//, "").replace(/^\//, "");
+  return extractContainerId(cgroupName ?? "");
+}
+
 function computeName(container: CadvisorContainer): string {
-  // Try aliases first, then name, then fall back to the raw name
-  const name = (container.aliases?.[0] || container.name || "")
-    .replace(/^\/?docker\//, "")
-    .replace(/^\//, "");
-  
-  // If still empty, extract from the raw container name
-  if (!name) {
-    return extractContainerId(container.name);
-  }
-  
-  return name;
+  return cadvisorDisplayName(container.aliases, container.name);
 }
 
 /**
@@ -416,11 +418,8 @@ export async function listContainersOld(baseUrl: string): Promise<CadStat[]> {
   for (const c of data) {
     if (!isDockerContainerPath(c.name)) continue;
     
-    // Improved name extraction
-    const name = (c.aliases?.[0] || c.name || "")
-      .replace(/^\/?docker\//, "")
-      .replace(/^\//, "");
-    
+    const name = computeName(c);
+
     const id = extractContainerId(c.name);
     const last = c.stats?.[c.stats.length - 1];
     const prev = c.stats?.[c.stats.length - 2];
