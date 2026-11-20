@@ -313,8 +313,9 @@ npm run dev                 # dev server with hot reload (port 5008)
 npm run build               # server bundle + client build + dist verification
 npm start                   # run the production build
 npm run check               # TypeScript (app); npm run check:tests for the tests
-npm run lint                # ESLint (also runs in the lefthook pre-commit hook)
-npm test                    # unit tests (no Docker, DB or network needed)
+npm run lint                # ESLint (no explicit `any` allowed)
+npm test                    # unit tests, server + client (no Docker, DB or network needed)
+npm run test:coverage       # the same, with a per-file coverage report
 npm run test:integration    # against a running instance (see server/tests/integration/api.test.ts)
 npm run db:push:prisma      # Prisma schema -> database (SQLite or PostgreSQL)
 npm run db:push             # Drizzle schema -> PostgreSQL (alerts/metrics tables)
@@ -341,7 +342,7 @@ ContainerYard/
 │   │   ├── middleware/        # Auth (sessionVersion verification), CSRF, rate limiting
 │   │   ├── routes/            # REST endpoints (auth, users, hosts, logs, stacks, alerts, audit, bookmarks)
 │   │   └── services/          # Dockerode, cAdvisor, host logs, audit, metrics
-│   ├── tests/                 # Unit (node:test) & live integration specs
+│   ├── tests/                 # Unit (node:test, fake Docker/cAdvisor) & live integration specs
 │   └── index.ts               # Server entry
 ├── shared/                    # Shared TypeScript types and schemas
 ├── e2e/                       # Playwright E2E specs (theme, header actions, screenshots)
