@@ -88,6 +88,21 @@ test("health is public", { skip: skipAll }, async () => {
   assert.equal(((await res.json()) as { ok: boolean }).ok, true);
 });
 
+test("favicons are served as images, not the SPA fallback", { skip: skipAll }, async () => {
+  for (const [path, type] of [
+    ["/favicon.ico", /^image\/(x-icon|vnd\.microsoft\.icon)/],
+    ["/favicon.svg", /^image\/svg\+xml/],
+    ["/apple-touch-icon.png", /^image\/png/],
+  ] as const) {
+    const res = await fetch(`${BASE}${path}`);
+    assert.equal(res.status, 200, path);
+    assert.match(res.headers.get("content-type") ?? "", type, path);
+    assert.ok((await res.arrayBuffer()).byteLength > 0, path);
+  }
+  const html = await (await fetch(`${BASE}/`)).text();
+  assert.match(html, /<link rel="icon" href="\/favicon\.svg"/);
+});
+
 test("CSRF: mutating request without a token is rejected", { skip: skipAll }, async () => {
   const anon = new Client();
   const res = await anon.mutate("/api/auth/login", "POST", { email: "x@y.z", password: "x".repeat(12) }, "");
