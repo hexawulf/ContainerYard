@@ -28,7 +28,9 @@ const envSchema = z.object({
   HOSTLOG_NGINX_ACCESS_FILE: z.string().default("access.log"),
   HOSTLOG_NGINX_ERROR_FILE: z.string().default("error.log"),
   PM2_LOG_DIR: z.string().optional(),
-  PM2_APP_NAME: z.string().default("containeryard-api"),
+  PM2_APP_NAME: z.string().optional(),
+  HOSTLOG_PM2_APPS: z.string().optional().default(""),
+  HOSTLOG_SELF_CONTAINER: z.enum(["on", "off"]).default("on"),
 });
 
 const parsedEnv = envSchema.parse(rawEnv);

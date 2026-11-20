@@ -1,4 +1,5 @@
 import { errorMessage } from '@/lib/errors';
+import { hostLogReasonMessage } from '@/lib/hostLogErrors';
 import { useRef, useEffect, useState, useMemo, useCallback } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Button } from '@/components/ui/button';
@@ -56,6 +57,8 @@ export function LogsViewer({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [truncated, setTruncated] = useState(false);
+  const [redactedCount, setRedactedCount] = useState(0);
 
   // Build query params
   const buildQueryString = useCallback((includeFollow = false) => {
@@ -88,6 +91,8 @@ export function LogsViewer({
   const fetchLogs = useCallback(async () => {
     setIsLoading(true);
     setError(null);
+    setTruncated(false);
+    setRedactedCount(0);
     try {
       const url = `${endpoint}?${buildQueryString(false)}`;
       const response = await fetch(url, {
@@ -113,22 +118,30 @@ export function LogsViewer({
         const data = await response.json();
         
         if (!data.available) {
-          let errorMessage = 'Log not available';
+          let errMsg: string;
           if (data.reason === 'not_found') {
-            errorMessage = `Log file not found: ${data.details?.path || 'unknown path'}`;
+            errMsg = `Log file not found: ${data.details?.path || 'unknown path'}`;
           } else if (data.reason === 'permission') {
-            errorMessage = `Permission denied to read log file: ${data.details?.path || 'unknown path'}`;
+            errMsg = `Permission denied to read log file: ${data.details?.path || 'unknown path'}`;
           } else if (data.reason === 'empty') {
-            errorMessage = `Log file is empty: ${data.details?.path || 'unknown path'}`;
+            errMsg = `Log file is empty: ${data.details?.path || 'unknown path'}`;
           } else if (data.reason === 'container_missing') {
-            errorMessage = `Container not found: ${data.details?.containerName || 'unknown'}`;
+            errMsg = `Container not found: ${data.details?.containerName || 'unknown'}`;
           } else if (data.reason === 'exec_error') {
-            errorMessage = `Execution error: ${data.details?.stderr || 'unknown error'}`;
+            errMsg = `Execution error: ${data.details?.stderr || 'unknown error'}`;
+          } else {
+            errMsg = hostLogReasonMessage(data.reason, data.message);
           }
-          throw new Error(errorMessage);
+          throw new Error(errMsg);
         }
       } else {
         // Plain text response - actual log content
+        const isTruncated = response.headers.get('x-cy-log-truncated') === 'true';
+        const redactedRaw = response.headers.get('x-cy-log-redacted');
+        const parsedRedacted = redactedRaw ? parseInt(redactedRaw, 10) : 0;
+        setTruncated(isTruncated);
+        setRedactedCount(Number.isFinite(parsedRedacted) && parsedRedacted > 0 ? parsedRedacted : 0);
+
         const content = await response.text();
         setLines(content.split('\n').filter((line: string) => line.length > 0));
       }
@@ -151,6 +164,8 @@ export function LogsViewer({
 
     setIsLoading(true);
     setError(null);
+    setTruncated(false);
+    setRedactedCount(0);
     setLines([]);
 
     const es = new EventSource(url, { withCredentials: true });
@@ -160,12 +175,21 @@ export function LogsViewer({
       setIsLoading(false);
     });
 
+    es.addEventListener('gap', () => {
+      setLines(prev => [...prev, '--- [some log lines skipped between polls] ---']);
+      setIsLoading(false);
+    });
+
     es.addEventListener('error', (e: Event) => {
       // Server-sent `event: error` frames are MessageEvents with a JSON body;
       // a dropped connection is a plain Event (handled by onerror below).
       const data = e instanceof MessageEvent ? e.data : undefined;
-      const errorData: { message?: string } = data ? JSON.parse(data) : {};
-      setError(errorData.message || 'Stream error');
+      const errorData: { message?: string; reason?: string } = data ? JSON.parse(data) : {};
+      setError(
+        errorData.reason
+          ? hostLogReasonMessage(errorData.reason, errorData.message)
+          : (errorData.message || 'Stream error'),
+      );
     });
 
     es.onerror = () => {
@@ -431,10 +455,20 @@ export function LogsViewer({
       )}
 
       {/* Line Count */}
-      <div className="px-3 py-2 border-t bg-card text-xs text-muted-foreground">
-         {Array.isArray(filteredLines) ? filteredLines.length : 0} {Array.isArray(filteredLines) && filteredLines.length === 1 ? 'line' : 'lines'}
-         {clientFilter && Array.isArray(filteredLines) && Array.isArray(lines) && filteredLines.length !== lines.length && (
-           <span> (filtered from {lines.length})</span>
+      <div className="px-3 py-2 border-t bg-card text-xs text-muted-foreground flex items-center gap-3 flex-wrap">
+         <span>
+           {Array.isArray(filteredLines) ? filteredLines.length : 0} {Array.isArray(filteredLines) && filteredLines.length === 1 ? 'line' : 'lines'}
+           {clientFilter && Array.isArray(filteredLines) && Array.isArray(lines) && filteredLines.length !== lines.length && (
+             <span> (filtered from {lines.length})</span>
+           )}
+         </span>
+         {truncated && (
+           <span data-testid="logs-truncated">Output truncated by agent cap</span>
+         )}
+         {redactedCount > 0 && (
+           <span data-testid="logs-redacted">
+             {redactedCount} {redactedCount === 1 ? 'secret' : 'secrets'} redacted
+           </span>
          )}
       </div>
     </div>
