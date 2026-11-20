@@ -3,7 +3,7 @@
 All notable changes to ContainerYard are documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [5.1.1] - 2026-11-20
 
 ### Fixed
 - cAdvisor-only hosts: a cgroup v2 container without aliases (cAdvisor cannot
