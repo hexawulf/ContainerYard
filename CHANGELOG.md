@@ -3,6 +3,18 @@
 All notable changes to ContainerYard are documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [5.1.2] - 2026-11-20
+
+### Removed
+- Repository remnants: `docs/_archive/` (finished plans, duplicate AGENTS
+  files), committed `e2e/screenshots/` test output (now ignored) and a
+  committed `.claude/settings.json` with agent permissions. No application
+  code changed; the image is rebuilt from the cleaned tree.
+
+### Changed
+- `.gitignore` tidied (Replit leftovers and duplicate rules removed;
+  `.env.production` is an explicit exception because Vite reads it).
+
 ## [5.1.1] - 2026-11-20
 
 ### Fixed
