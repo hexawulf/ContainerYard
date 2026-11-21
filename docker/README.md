@@ -33,7 +33,7 @@ ContainerYard sits between a bare log viewer and a full monitoring stack. Point 
 
 | Tag | Meaning |
 | --- | --- |
-| `5.3.0` | Exact release (recommended for production; pin it) |
+| `5.3.1` | Exact release (recommended for production; pin it) |
 | `5.3` | Latest patch of the 5.3 line |
 | `latest` | Most recent stable release |
 

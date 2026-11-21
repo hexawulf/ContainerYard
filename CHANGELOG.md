@@ -3,7 +3,7 @@
 All notable changes to ContainerYard are documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [5.3.1] - 2026-11-21
 
 ### Fixed
 - Web fonts never loaded in production: the Google Fonts stylesheet used a `media="print" onload="this.media='all'"` swap, and the CSP (`script-src 'self'`, since 5.1.0) blocks inline event handlers, so the sheet stayed print-only and the UI fell back to system fonts. It is now a plain stylesheet link (`display=swap` keeps text visible while loading).
