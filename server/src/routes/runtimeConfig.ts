@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { isSQLite, isPostgreSQL } from "../config/databaseCapabilities";
+import { isFirebaseEnabled } from "../services/firebaseAuth";
 
 export function registerRuntimeConfigRoute(app: import("express").Express) {
   app.get("/api/runtime-config", (req: Request, res: Response) => {
@@ -23,6 +24,7 @@ export function registerRuntimeConfigRoute(app: import("express").Express) {
         logBookmarks: true, // Prisma-backed since v3.1.0 (SQLite + PostgreSQL)
         historicalMetrics: !isSQLite,
         restartTracking: !isSQLite,
+        googleSignIn: isFirebaseEnabled(),
       },
     });
   });

@@ -31,6 +31,14 @@ const envSchema = z.object({
   PM2_APP_NAME: z.string().optional(),
   HOSTLOG_PM2_APPS: z.string().optional().default(""),
   HOSTLOG_SELF_CONTAINER: z.enum(["on", "off"]).default("on"),
+  FIREBASE_ENABLED: z.string().optional(),
+  FIREBASE_SERVICE_ACCOUNT_PATH: z.string().optional(),
+  FIREBASE_SERVICE_ACCOUNT_JSON: z.string().optional(),
+  FIREBASE_ALLOWED_EMAILS: z.string().optional(),
+  FIREBASE_CLIENT_API_KEY: z.string().optional(),
+  FIREBASE_CLIENT_AUTH_DOMAIN: z.string().optional(),
+  FIREBASE_PROJECT_ID: z.string().optional(),
+  FIREBASE_CLIENT_APP_ID: z.string().optional(),
 });
 
 const parsedEnv = envSchema.parse(rawEnv);

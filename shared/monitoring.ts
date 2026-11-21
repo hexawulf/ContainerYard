@@ -75,10 +75,13 @@ interface BaseStats {
 export interface HostStats extends BaseStats {}
 export interface ContainerStats extends BaseStats {}
 
+export type AuthMethod = "password" | "google";
+
 export interface SessionUser {
   id: string;
   email: string;
   role: "ADMIN" | "VIEWER";
+  authMethod?: AuthMethod;
 }
 
 export interface NormalizedStats {

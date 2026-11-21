@@ -17,7 +17,12 @@ export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 export const userRoleSchema = z.enum(["ADMIN", "VIEWER"]);
 
 export const createUserSchema = z.object({
-  email: z.string().trim().email("Valid email is required").max(254, "Email must be at most 254 characters"),
+  email: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .email("Valid email is required")
+    .max(254, "Email must be at most 254 characters"),
   role: userRoleSchema,
   password: z.string().min(1, "Password is required").max(1024, "Password must be at most 1024 characters"),
 });

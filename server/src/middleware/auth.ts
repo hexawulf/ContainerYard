@@ -5,6 +5,7 @@ import type { SessionUser } from "../models/containers";
 import { prisma } from "../db/client";
 import { env } from "../config/env";
 import { TtlCache } from "../lib/ttlCache";
+import { getFirebaseAllowedEmails, isFirebaseEnabled } from "../services/firebaseAuth";
 
 const USER_SESSION_CACHE_TTL_MS = 2_000;
 const userSessionCache = new TtlCache({
@@ -114,12 +115,23 @@ export async function verifySessionUser(req: Request, res: Response): Promise<bo
     return false;
   }
 
+  // Re-check Google allowlist and enabled status on every request (PD-18 equivalent).
+  if (sessionUser.authMethod === "google") {
+    const allowed = getFirebaseAllowedEmails();
+    if (!isFirebaseEnabled() || !allowed.includes(dbUser.email.toLowerCase())) {
+      await destroyRevokedSession(req, res);
+      res.status(401).json({ message: "Authentication required" });
+      return false;
+    }
+  }
+
   // Refresh role and email from the database so demotions/updates apply immediately.
   req.session.user = {
     id: dbUser.id,
     email: dbUser.email,
     role: dbUser.role,
     sessionVersion: dbUser.sessionVersion,
+    ...(sessionUser.authMethod ? { authMethod: sessionUser.authMethod } : {}),
   };
   res.locals.user = req.session.user;
   res.locals.sessionVerified = true;

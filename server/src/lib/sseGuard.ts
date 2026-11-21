@@ -1,5 +1,6 @@
 import type { Request } from "express";
 import { prisma } from "../db/client";
+import { getFirebaseAllowedEmails, isFirebaseEnabled } from "../services/firebaseAuth";
 
 export const MAX_SSE_STREAMS_PER_USER = 6;
 
@@ -54,12 +55,17 @@ export async function isSseSessionValid(
   try {
     const dbUser = await prisma.user.findUnique({
       where: { id: sessionUser.id },
-      select: { role: true, sessionVersion: true },
+      select: { email: true, role: true, sessionVersion: true },
     });
     if (!dbUser) return false;
     const expectedVersion = sessionUser.sessionVersion ?? 0;
     if (dbUser.sessionVersion !== expectedVersion) return false;
     if (options?.requireRole === "ADMIN" && dbUser.role !== "ADMIN") return false;
+    if (sessionUser.authMethod === "google") {
+      if (!isFirebaseEnabled() || !getFirebaseAllowedEmails().includes(dbUser.email.toLowerCase())) {
+        return false;
+      }
+    }
     return true;
   } catch {
     return false;

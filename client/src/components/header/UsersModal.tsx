@@ -302,7 +302,8 @@ export function UsersModal() {
             <DialogTitle>User Administration</DialogTitle>
             <DialogDescription>
               Create accounts, change roles, reset passwords, or remove users. Role changes
-              and password resets immediately revoke the user&apos;s active sessions.
+              and password resets immediately revoke the user&apos;s active sessions. Google
+              sign-in requires a ContainerYard user account with the matching email address.
             </DialogDescription>
           </DialogHeader>
 
