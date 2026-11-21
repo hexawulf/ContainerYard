@@ -76,9 +76,52 @@ export function getFirebaseAllowedEmails(env: NodeJS.ProcessEnv = process.env): 
  * Validates Firebase env configuration and (if configured) the service-account
  * key file/JSON. Never logs secrets or key contents.
  */
+// Validation reads the service-account file, and requireAuth asks on every
+// request from a Google session. Cache the result per relevant env values so
+// request paths never do sync file I/O. A changed key file needs a restart
+// (it does anyway: firebase-admin keeps its credential).
+const validationCache = new Map<string, FirebaseConfigValidation>();
+const VALIDATION_CACHE_MAX = 32;
+
+function validationCacheKey(env: NodeJS.ProcessEnv): string {
+  return JSON.stringify([
+    env.FIREBASE_ENABLED,
+    env.FIREBASE_PROJECT_ID,
+    env.FIREBASE_CLIENT_API_KEY,
+    env.FIREBASE_CLIENT_AUTH_DOMAIN,
+    env.FIREBASE_CLIENT_APP_ID,
+    env.FIREBASE_ALLOWED_EMAILS,
+    env.FIREBASE_SERVICE_ACCOUNT_PATH,
+    env.FIREBASE_SERVICE_ACCOUNT_JSON,
+  ]);
+}
+
+export function resetFirebaseValidationCacheForTests(): void {
+  validationCache.clear();
+}
+
+/**
+ * Cached validation (see validationCache). Pass a `warn` callback only via
+ * initFirebaseAtStartup, which always re-validates so its warnings are logged.
+ */
 export function validateFirebaseConfig(
   env: NodeJS.ProcessEnv = process.env,
-  warn: (message: string) => void = () => undefined,
+  warn?: (message: string) => void,
+): FirebaseConfigValidation {
+  const key = validationCacheKey(env);
+  if (!warn) {
+    const hit = validationCache.get(key);
+    if (hit) return hit;
+  }
+  const result = computeFirebaseConfig(env, warn ?? (() => undefined));
+  if (validationCache.size >= VALIDATION_CACHE_MAX) validationCache.clear();
+  validationCache.set(key, result);
+  return result;
+}
+
+function computeFirebaseConfig(
+  env: NodeJS.ProcessEnv,
+  warn: (message: string) => void,
 ): FirebaseConfigValidation {
   const allowedCount = getFirebaseAllowedEmails(env).length;
   if (!isFlagEnabled(env)) {

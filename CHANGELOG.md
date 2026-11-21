@@ -3,6 +3,23 @@
 All notable changes to ContainerYard are documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- Sign in with Google via Firebase Auth (off unless `FIREBASE_ENABLED=true` and the config is complete). The server verifies the ID token with `firebase-admin` (`checkRevoked`), requires a verified email, the `google.com` provider, an entry in `FIREBASE_ALLOWED_EMAILS` and an existing ContainerYard user with that email; the role comes from the database. Users are never created automatically.
+- `POST /api/auth/firebase-login` (CSRF + login rate limiter, new session and CSRF token, audit rows for success and each failure reason), `GET /api/auth/config` (public web config only), `authMethod` in `/api/auth/me`, `features.googleSignIn` in `/api/runtime-config`.
+- Google sessions are re-checked on every request and on log-stream heartbeats: removing an email from the allowlist or turning Google sign-in off ends them.
+- `deploy/firebase/docker-compose.firebase.yml` mounts the service-account key read-only; `scripts/docker-deploy.sh` adds it when `FIREBASE_SA_HOST_PATH` is set.
+- Login page: "Sign in with Google" button; the Firebase SDK (`@firebase/app` + `@firebase/auth`) is a lazy chunk and `verify-dist.sh` checks it stays out of the main bundle. About shows the sign-in method.
+
+### Changed
+- CSP and COOP: with Google sign-in on, only the configured auth domain and the required Google origins are added and COOP becomes `same-origin-allow-popups`; with it off, the headers are unchanged.
+- Password login looks up the email case-insensitively.
+
+### Fixed
+- Remote host-log follow (`?follow=1`) sent all 200 seed lines on the first poll; it now sends only the last `?tail=` lines, like local files.
+- Firebase config validation is cached, so authenticated requests no longer read the service-account file synchronously.
+
 ## [5.2.0] - 2026-11-21
 
 ### Added

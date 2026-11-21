@@ -8,6 +8,7 @@ import {
   getFirebaseAllowedEmails,
   getFirebasePublicConfig,
   isFirebaseEnabled,
+  resetFirebaseValidationCacheForTests,
   validateFirebaseConfig,
   verifyFirebaseLogin,
 } from "../../src/services/firebaseAuth";
@@ -101,6 +102,29 @@ describe("firebaseAuth config & allowlist", () => {
       );
       assert.equal(missing.enabled, false);
     } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("validation is cached: request paths never re-read the service-account file", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cy-fb-cache-"));
+    const keyPath = path.join(dir, "sa.json");
+    try {
+      fs.writeFileSync(keyPath, JSON.stringify({ type: "service_account", project_id: "containeryard-prod" }));
+      const env = { ...BASE_ENABLED_ENV, FIREBASE_SERVICE_ACCOUNT_PATH: keyPath };
+      resetFirebaseValidationCacheForTests();
+      assert.equal(isFirebaseEnabled(env), true);
+      fs.rmSync(keyPath);
+      // Same env: cached answer, no file read.
+      assert.equal(isFirebaseEnabled(env), true);
+      // Startup validation (with a warn callback) always re-checks the file.
+      const warnings: string[] = [];
+      assert.equal(validateFirebaseConfig(env, (m) => warnings.push(m)).enabled, false);
+      assert.equal(warnings.length, 1);
+      // ...and refreshes the cache for later request-path calls.
+      assert.equal(isFirebaseEnabled(env), false);
+    } finally {
+      resetFirebaseValidationCacheForTests();
       fs.rmSync(dir, { recursive: true, force: true });
     }
   });
