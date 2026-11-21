@@ -165,9 +165,14 @@ export function AboutModal() {
                 Signed in as{" "}
                 <span className="font-medium text-foreground">{user.email}</span>
               </span>
-              <Badge variant="outline" className="font-mono text-[11px] uppercase">
-                {user.role}
-              </Badge>
+              <div className="flex items-center gap-1.5">
+                <Badge variant="secondary" className="text-[11px]" data-testid="about-auth-method">
+                  {user.authMethod === "google" ? "Signed in with Google" : "Password"}
+                </Badge>
+                <Badge variant="outline" className="font-mono text-[11px] uppercase">
+                  {user.role}
+                </Badge>
+              </div>
             </div>
           )}
 

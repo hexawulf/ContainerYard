@@ -1,4 +1,6 @@
 import { errorInfo } from "./lib/httpError";
+import { buildHelmetOptions } from "./lib/csp";
+import { initFirebaseAtStartup } from "./services/firebaseAuth";
 import express from "express";
 import fs from "fs";
 import helmet from "helmet";
@@ -42,30 +44,7 @@ export async function createApp() {
   app.set("trust proxy", 1);
   app.disable("x-powered-by");
 
-  app.use(
-    helmet({
-      crossOriginEmbedderPolicy: false,
-      strictTransportSecurity: process.env.CY_ENABLE_APP_HSTS === "1",
-      referrerPolicy: { policy: "strict-origin-when-cross-origin" },
-      contentSecurityPolicy:
-        process.env.NODE_ENV === "production"
-          ? {
-              useDefaults: false,
-              directives: {
-                defaultSrc: ["'self'"],
-                scriptSrc: ["'self'"],
-                styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-                fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
-                imgSrc: ["'self'", "data:", "blob:"],
-                connectSrc: ["'self'"],
-                frameAncestors: ["'self'"],
-                objectSrc: ["'none'"],
-                baseUri: ["'self'"],
-              },
-            }
-          : false,
-    }),
-  );
+  app.use(helmet(buildHelmetOptions(process.env)));
 
   app.use((req, res, next) => {
     const origin = typeof req.headers.origin === "string" ? req.headers.origin : undefined;
@@ -283,6 +262,10 @@ export async function createApp() {
     },
     () => {
       log(`API listening on port ${port}`);
+      initFirebaseAtStartup(process.env, {
+        info: (m) => log(m, "info"),
+        warn: (m) => log(m, "warn"),
+      });
       // Start background services after server is ready
       alertWorker.start().catch((error) => {
         log(`Failed to start alert worker: ${error}`, "error");

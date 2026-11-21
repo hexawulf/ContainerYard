@@ -1,0 +1,10 @@
+# Firebase Auth overlay for ContainerYard (mounts service-account key read-only)
+# Usage:
+#   docker compose -f docker-compose.yml -f deploy/firebase/docker-compose.firebase.yml up -d
+
+services:
+  app:
+    environment:
+      FIREBASE_SERVICE_ACCOUNT_PATH: /run/secrets/firebase-sa.json
+    volumes:
+      - ${FIREBASE_SA_HOST_PATH}:/run/secrets/firebase-sa.json:ro

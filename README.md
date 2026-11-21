@@ -304,6 +304,14 @@ The monitored hosts are configured via `CY_LOCAL_HOST_ID`, `CY_LOCAL_HOST_NAME`,
 
 Schema changes: `npm run db:push:prisma` (Prisma tables) and, on PostgreSQL, `npm run db:push` (Drizzle tables). Back up the database first.
 
+### Authentication
+
+- **Email & password (default / break-glass):** Bootstrap the first `ADMIN` user via `ADMIN_EMAIL` and `ADMIN_PASSWORD`; manage additional `ADMIN` / `VIEWER` accounts in the User Administration modal. Passwords use `bcrypt` (cost 12) and Redis sessions regenerate with a rotated CSRF token at login.
+- **Sign in with Google via Firebase Auth (optional):** Set `FIREBASE_ENABLED=true`, `FIREBASE_PROJECT_ID`, `FIREBASE_ALLOWED_EMAILS`, and the Firebase Web App keys (`FIREBASE_CLIENT_API_KEY`, `FIREBASE_CLIENT_AUTH_DOMAIN`, `FIREBASE_CLIENT_APP_ID`), and provide a service-account JSON key (in Docker Compose, set `FIREBASE_SA_HOST_PATH` to a `0600` key file and `scripts/docker-deploy.sh` automatically mounts it read-only via `deploy/firebase/docker-compose.firebase.yml`).
+  - Access requires **both** a verified Google email listed in `FIREBASE_ALLOWED_EMAILS` **and** an existing ContainerYard `User` row with the same email (no automatic account creation; roles always come from the database).
+  - Removing an email from `FIREBASE_ALLOWED_EMAILS` or disabling Firebase immediately ends active Google sessions and live SSE log streams. Email + password login remains available as a break-glass fallback.
+  - When disabled, the login page hides the Google button, the Firebase SDK chunk is never loaded, and the production CSP/COOP headers remain unchanged.
+
 ## 🛠️ Development
 
 ### Available Scripts

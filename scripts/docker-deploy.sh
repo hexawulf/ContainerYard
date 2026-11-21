@@ -103,7 +103,22 @@ if [ -f deploy/hostlogs/docker-compose.hostlogs.yml ] && [ "${CY_USE_HOSTLOGS_OV
   COMPOSE_FILES+=(-f deploy/hostlogs/docker-compose.hostlogs.yml)
 fi
 
+FIREBASE_SA_PATH="${FIREBASE_SA_HOST_PATH:-}"
+if [ -z "$FIREBASE_SA_PATH" ] && [ -f .env ]; then
+  FIREBASE_SA_PATH="$(grep -E '^FIREBASE_SA_HOST_PATH=' .env | tail -n 1 | cut -d= -f2- | tr -d '\r' || true)"
+fi
+if [ -n "$FIREBASE_SA_PATH" ]; then
+  if [ ! -f "$FIREBASE_SA_PATH" ]; then
+    err "FIREBASE_SA_HOST_PATH is set to '${FIREBASE_SA_PATH}', but that file does not exist."
+  fi
+  if [ ! -f deploy/firebase/docker-compose.firebase.yml ]; then
+    err "FIREBASE_SA_HOST_PATH is set, but deploy/firebase/docker-compose.firebase.yml is missing."
+  fi
+  COMPOSE_FILES+=(-f deploy/firebase/docker-compose.firebase.yml)
+fi
+
 log "ContainerYard Docker deploy starting (tag=${TAG}, project=${PROJECT}, dry_run=${DRY_RUN})"
+log "Compose files: ${COMPOSE_FILES[*]}"
 log "Log file: ${LOG}"
 
 # 1. Pull image and inspect digest / arch / version label

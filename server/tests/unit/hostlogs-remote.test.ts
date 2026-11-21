@@ -490,6 +490,36 @@ describe("hostLogsRouter remote SSE follow, audit, and RBAC", () => {
     assert.equal(audits.at(-1)?.target, "host-a/docker_worker");
   });
 
+  test("remote SSE follow: the first batch honours ?tail= (only the last N polled lines)", async () => {
+    const saved = agent.sources[0].lines;
+    agent.sources[0].lines = Array.from({ length: 50 }, (_, i) => `seed ${i + 1}`);
+    const controller = new AbortController();
+    try {
+      const res = await fetch(`${base}/api/hosts/host-a/logs/docker_worker?follow=1&tail=5`, {
+        headers: { "x-test-role": "ADMIN" },
+        signal: controller.signal,
+      });
+      assert.equal(res.status, 200);
+      const reader = res.body!.getReader();
+      const decoder = new TextDecoder();
+      let collected = "";
+      const deadline = Date.now() + 2000;
+      while (!collected.includes("data: seed 50") && Date.now() < deadline) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        collected += decoder.decode(value, { stream: true });
+      }
+      const sent = collected.match(/^data: seed \d+$/gm) ?? [];
+      assert.deepEqual(sent, ["data: seed 46", "data: seed 47", "data: seed 48", "data: seed 49", "data: seed 50"]);
+      controller.abort();
+      await reader.cancel().catch(() => undefined);
+    } finally {
+      controller.abort();
+      agent.sources[0].lines = saved;
+      await new Promise((r) => setTimeout(r, 80));
+    }
+  });
+
   test("remote SSE follow streams new lines + gap without auditing polls, and stops timers on close", async () => {
     const auditsBefore = audits.length;
     const controller = new AbortController();

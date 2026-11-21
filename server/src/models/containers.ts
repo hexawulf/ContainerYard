@@ -72,8 +72,11 @@ export interface ContainerStats {
   timestamp: string;
 }
 
+export type AuthMethod = "password" | "google";
+
 export interface SessionUser {
   id: string;
   email: string;
   role: "ADMIN" | "VIEWER";
+  authMethod?: AuthMethod;
 }

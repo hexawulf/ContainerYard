@@ -431,8 +431,13 @@ export function createHostLogsRouter(opts: HostLogsRouterOptions = {}): Router {
             grep: options.grep,
           });
           if (closed || res.writableEnded) return;
-          const { gap, newLines, nextAnchor } = diffPollLines(anchor, result.lines);
-          anchor = nextAnchor;
+          const isFirstPoll = anchor.length === 0;
+          const diff = diffPollLines(anchor, result.lines);
+          anchor = diff.nextAnchor;
+          const { gap } = diff;
+          // The first poll fetches REMOTE_POLL_LINES to seed the anchor; send
+          // only the last ?tail= lines of it, like the local `tail -n N -F`.
+          const newLines = isFirstPoll ? diff.newLines.slice(-Math.min(options.tail, 500)) : diff.newLines;
           if (gap) {
             res.write(
               `event: gap\ndata: ${JSON.stringify({ message: "Some log lines were skipped between polls" })}\n\n`,
