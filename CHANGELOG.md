@@ -3,7 +3,7 @@
 All notable changes to ContainerYard are documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [5.4.0] - 2026-11-21
 
 ### Added
 - Host Logs: host switcher next to the source filter; switching keeps the filter, closes the open viewer and updates the Dashboard's selected host.
