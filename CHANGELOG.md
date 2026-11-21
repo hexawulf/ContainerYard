@@ -3,6 +3,23 @@
 All notable changes to ContainerYard are documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [5.2.0] - 2026-11-21
+
+### Added
+- Remote read-only host logs via PiDeck agents: configure an optional `logs` object (`type: "pideck-agent"`, origin-only `url`, `tokenEnv` matching `^CY_HOSTLOG_TOKEN_[A-Z0-9_]{1,32}$`, `timeoutMs` 1000–9000) on any `CY_REMOTE_HOSTS` entry.
+- Server `HostLogProvider` abstraction (`LocalHostLogProvider` + `PideckAgentProvider`) with 15 s list caching, 2 MB response cap, `redirect: "error"`, strict source-ID validation (`^[a-z0-9_-]{1,64}$`), 3-strike 5-minute auth backoff, and zero leakage of tokens or remote paths.
+- Local multi-app PM2 logs via `HOSTLOG_PM2_APPS` (comma-separated app names yielding `pm2_<app>_out` and `pm2_<app>_err`) and self-container logs (`cy_app`, controlled by `HOSTLOG_SELF_CONTAINER=on`, reusing the shared Docker client and log demuxer).
+- Remote live tail (`?follow=1` SSE) polling every 3 s with a 20-line overlap anchor, `event: gap` markers, per-user SSE slot enforcement, ADMIN session heartbeat checks, and clean timer teardown on close.
+- Snapshot reads record `hostlogs.read` audit entries and surface `X-CY-Log-Truncated` / `X-CY-Log-Redacted` headers; `/api/logs/download?scope=hostlog` routes through the same provider (remote downloads return a labelled snapshot of up to 2,000 lines).
+- Host Logs UI groups sources by kind (`Files`, `journald`, `Docker`, `PM2`), adds a client-side filter box, maps agent error reasons to a single clear alert card, and shows truncation/redaction counts in the viewer footer.
+
+### Changed
+- Removed the stale `containeryard-api` default from `PM2_APP_NAME` and `deploy/hostlogs/docker-compose.hostlogs.yml`; explicit `PM2_APP_NAME` remains supported for backwards compatibility.
+- Removed unused static `grafana`/`prometheus`/`freqtrade` entries and duplicate empty-state card from the Host Logs page.
+
+### Tests
+- Unit tests: 158 → 174, adding a fake PiDeck agent test harness, fake Docker engine `cy_app` coverage, SSE polling overlap/gap/timer-leak checks, and client error-reason mapping tests.
+
 ## [5.1.3] - 2026-11-20
 
 ### Added
