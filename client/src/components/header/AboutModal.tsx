@@ -202,15 +202,12 @@ export function AboutModal() {
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="rounded-md border border-border/80 bg-card p-3">
               <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Developer &amp; Contact
+                Developer
               </h3>
               <div className="space-y-1 text-xs">
                 <p>
-                  <span className="text-muted-foreground">Author:</span>{" "}
-                  <span className="font-medium text-foreground">0xWulf (hexawulf)</span>
-                </p>
-                <p>
-                  <span className="text-muted-foreground">Email:</span>{" "}
+                  <span className="font-medium text-foreground">Erling Wulf Weinreich (0xWulf)</span>{" "}
+                  ·{" "}
                   <a
                     href="mailto:dev@0xwulf.dev"
                     className="font-medium text-primary underline underline-offset-4 hover:text-primary/80"
