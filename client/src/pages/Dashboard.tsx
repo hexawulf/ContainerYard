@@ -26,6 +26,11 @@ import { X, List, Layers } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { NormalizedStats } from "@shared/monitoring";
 import { ensureArray } from "@/lib/utils";
+import {
+  hostLogsPath,
+  readStoredHostId,
+  storeHostId,
+} from "@/lib/hostSelection";
 
 // Lazy load components with error handling
 const ContainerTable = lazy(() => 
@@ -112,7 +117,6 @@ class DashboardErrorBoundary extends Component<DashboardErrorBoundaryProps, Dash
   }
 }
 
-const HOST_STORAGE_KEY = "cy.selectedHost";
 const FILTERS_STORAGE_KEY = "cy.containerFilters";
 const SORT_STORAGE_KEY = "cy.containerSort";
 const HISTORY_POINTS = 30;
@@ -123,7 +127,7 @@ function createHistoryKey(hostId: string, containerId: string) {
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const [selectedHostId, setSelectedHostId] = useState<string | null>(() => localStorage.getItem(HOST_STORAGE_KEY));
+  const [selectedHostId, setSelectedHostId] = useState<string | null>(() => readStoredHostId());
   const [selectedContainerId, setSelectedContainerId] = useState<string | null>(null);
   const [statsHistory, setStatsHistory] = useState<Record<string, ContainerStats[]>>({});
   const [normalizedStatsHistory, setNormalizedStatsHistory] = useState<Record<string, NormalizedStats[]>>({});
@@ -178,7 +182,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (selectedHostId) {
-      localStorage.setItem(HOST_STORAGE_KEY, selectedHostId);
+      storeHostId(selectedHostId);
     }
   }, [selectedHostId]);
 
@@ -402,7 +406,7 @@ export default function Dashboard() {
             </Button>
           )}
           {user?.role === "ADMIN" && (
-            <Link href={`/hosts/${selectedHostId ?? hosts[0]?.id ?? "local"}/logs`}>
+            <Link href={hostLogsPath(selectedHostId ?? hosts[0]?.id ?? "local")}>
               <Button variant="outline" size="sm">
                 Host Logs
               </Button>

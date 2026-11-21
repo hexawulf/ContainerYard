@@ -13,18 +13,34 @@ interface HostSwitcherProps {
   selectedHostId: string | null;
   onChange: (hostId: string) => void;
   isLoading?: boolean;
+  id?: string;
+  className?: string;
+  label?: string;
 }
 
-export function HostSwitcher({ hosts, selectedHostId, onChange, isLoading }: HostSwitcherProps) {
+export function HostSwitcher({
+  hosts,
+  selectedHostId,
+  onChange,
+  isLoading,
+  id = "monitoring-host",
+  className = "space-y-2",
+  label = "Host",
+}: HostSwitcherProps) {
+  const hasValidSelection =
+    Boolean(selectedHostId) &&
+    Array.isArray(hosts) &&
+    hosts.some((host) => host.id === selectedHostId);
+
   return (
-    <div className="space-y-2">
-      <Label htmlFor="monitoring-host">Host</Label>
+    <div className={className}>
+      <Label htmlFor={id}>{label}</Label>
       <Select
-        value={selectedHostId ?? undefined}
+        value={hasValidSelection ? (selectedHostId as string) : undefined}
         onValueChange={onChange}
         disabled={isLoading || !Array.isArray(hosts) || hosts.length === 0}
       >
-        <SelectTrigger id="monitoring-host">
+        <SelectTrigger id={id} data-testid="host-switcher">
           <SelectValue placeholder={isLoading ? "Loading hosts…" : "Select host"} />
         </SelectTrigger>
         <SelectContent>
