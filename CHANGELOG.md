@@ -3,6 +3,13 @@
 All notable changes to ContainerYard are documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+- Web fonts never loaded in production: the Google Fonts stylesheet used a `media="print" onload="this.media='all'"` swap, and the CSP (`script-src 'self'`, since 5.1.0) blocks inline event handlers, so the sheet stayed print-only and the UI fell back to system fonts. It is now a plain stylesheet link (`display=swap` keeps text visible while loading).
+- The no-flash theme script was inline, so the CSP blocked it and dark-mode users saw a light flash until React loaded. It now lives in `client/public/theme-init.js` and is loaded as a blocking script before the app bundle.
+- `scripts/verify-dist.sh` and a unit test now fail the build if `index.html` gets an inline script or an inline event handler again.
+
 ## [5.3.0] - 2026-11-21
 
 ### Added
