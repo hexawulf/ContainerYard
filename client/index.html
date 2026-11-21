@@ -11,27 +11,11 @@
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <!--
-      No-flash theme script: sets <html class="light|dark"> and style.colorScheme
-      before first paint. Mirrors resolveTheme() in src/lib/theme.ts
-      (key: containeryard-theme; light by default).
+      No-flash theme script (public/theme-init.js): a classic, blocking script so
+      <html class="light|dark"> is set before first paint. It must stay an
+      external file: the CSP (script-src 'self') blocks inline scripts.
     -->
-    <script>
-      (function () {
-        var stored = null;
-        try {
-          stored = localStorage.getItem("containeryard-theme");
-        } catch (e) {}
-        var resolved = stored === "dark" ? "dark" : "light";
-        var root = document.documentElement;
-        root.classList.remove("light", "dark");
-        root.classList.add(resolved);
-        root.style.colorScheme = resolved;
-        var meta = document.querySelector('meta[name="theme-color"]');
-        if (meta) {
-          meta.setAttribute("content", resolved === "dark" ? "#0b0f17" : "#f8fafc");
-        }
-      })();
-    </script>
+    <script src="/theme-init.js"></script>
     
     <!-- SEO and Open Graph -->
     <title>ContainerYard - Self-Hosted Docker Management</title>
@@ -50,14 +34,12 @@
     <meta name="twitter:description" content="Fast, log-first Docker container observability with live tail, status visualization, and debugging tools" />
     <meta name="twitter:image" content="https://containeryard.org/screenshot.png" />
     
-    <!-- Fonts (Non-render-blocking) -->
+    <!-- Fonts. A plain stylesheet link: the old media="print" onload swap is an
+         inline event handler, which the CSP blocks, so the fonts never applied.
+         display=swap keeps text visible while the fonts load. -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" media="print" onload="this.media='all'">
-    <noscript>
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
-    </noscript>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
 
     <!-- Structured Data -->
     <script type="application/ld+json">

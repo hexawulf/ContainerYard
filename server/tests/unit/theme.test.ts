@@ -13,7 +13,9 @@ import {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const indexHtmlPath = path.resolve(__dirname, "../../../client/index.html");
 const indexHtml = fs.readFileSync(indexHtmlPath, "utf8");
-const inlineScriptMatch = /<script>\s*([\s\S]*?)\s*<\/script>/.exec(indexHtml);
+// The no-flash script is an external file: the CSP (script-src 'self') blocks inline scripts.
+const themeInitPath = path.resolve(__dirname, "../../../client/public/theme-init.js");
+const themeInitScript = fs.readFileSync(themeInitPath, "utf8");
 
 function createMemoryStorage(initial: Record<string, string> = {}) {
   const store = new Map<string, string>(Object.entries(initial));
@@ -64,9 +66,19 @@ test("readStoredTheme and writeStoredTheme handle valid, legacy, missing, and th
   assert.doesNotThrow(() => writeStoredTheme("dark", throwingStorage));
 });
 
-test("client/index.html inline no-flash script uses THEME_STORAGE_KEY and matches resolveTheme()", () => {
-  assert.ok(inlineScriptMatch, "Expected inline no-flash <script> in client/index.html");
-  const inlineScript = inlineScriptMatch[1];
+test("client/index.html has no inline script and loads /theme-init.js first", () => {
+  const executable = Array.from(indexHtml.matchAll(/<script([^>]*)>/g))
+    .map((m) => m[1])
+    .filter((attrs) => !/\bsrc=/.test(attrs) && !/type="application\/ld\+json"/.test(attrs));
+  assert.deepEqual(executable, [], "inline <script> tags are blocked by the CSP");
+  assert.equal(/\son[a-z]+=/i.test(indexHtml.replace(/<!--[\s\S]*?-->/g, "")), false, "inline event handlers are blocked by the CSP");
+  const themeTag = indexHtml.indexOf('<script src="/theme-init.js"></script>');
+  assert.ok(themeTag > 0, "index.html must load /theme-init.js");
+  assert.ok(themeTag < indexHtml.indexOf('src="/src/main.tsx"'), "theme-init.js must run before the app bundle");
+});
+
+test("client/public/theme-init.js no-flash script uses THEME_STORAGE_KEY and matches resolveTheme()", () => {
+  const inlineScript = themeInitScript;
   assert.ok(
     inlineScript.includes(`"${THEME_STORAGE_KEY}"`),
     `Expected inline script to reference "${THEME_STORAGE_KEY}"`,
