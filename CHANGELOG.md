@@ -3,6 +3,11 @@
 All notable changes to ContainerYard are documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [5.4.1] - 2026-11-21
+
+### Changed
+- About dialog: the "Developer & Contact" card is now **Developer** and reads `Erling Wulf Weinreich (0xWulf) · dev@0xwulf.dev` (mailto link), matching the other HexaWulf apps. The GitHub profile link stays.
+
 ## [5.4.0] - 2026-11-21
 
 ### Added
