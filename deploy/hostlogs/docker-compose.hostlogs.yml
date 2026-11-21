@@ -10,7 +10,8 @@ services:
       HOSTLOG_NGINX_ACCESS_FILE: ${HOSTLOG_NGINX_ACCESS_FILE:-access.log}
       HOSTLOG_NGINX_ERROR_FILE: ${HOSTLOG_NGINX_ERROR_FILE:-error.log}
       PM2_LOG_DIR: /host/pm2
-      PM2_APP_NAME: ${PM2_APP_NAME:-containeryard-api}
+      HOSTLOG_PM2_APPS: ${HOSTLOG_PM2_APPS:-}
+      HOSTLOG_SELF_CONTAINER: ${HOSTLOG_SELF_CONTAINER:-on}
     volumes:
       - /var/log/nginx:/host/nginx:ro
       - ${PM2_LOGS:-./logs/pm2}:/host/pm2:ro

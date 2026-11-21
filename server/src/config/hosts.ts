@@ -1,5 +1,6 @@
 import { HttpError } from "../lib/httpError";
 import { env, remoteHostsConfig } from "./env";
+import type { RemoteHostLogsConfig } from "./remoteHosts";
 import type { HostSummary, HostProvider } from "../models/containers";
 
 export type HostId = string;
@@ -12,6 +13,7 @@ export interface HostConfig extends HostSummary {
   cadvisorUrl?: string;
   docker?: { socketPath: string };
   cadvisor?: { baseUrl: string };
+  logs?: RemoteHostLogsConfig;
 }
 
 const dockerSocketPath = env.DOCKER_HOST.replace(/^unix:\/\//, "") || "/var/run/docker.sock";
@@ -35,6 +37,7 @@ const hostDefinitions: Record<string, HostConfig> = {
         dozzleUrl: remote.dozzleUrl ?? null,
         cadvisorUrl: remote.cadvisorUrl,
         cadvisor: { baseUrl: remote.cadvisorUrl },
+        ...(remote.logs ? { logs: remote.logs } : {}),
       } satisfies HostConfig,
     ]),
   ),
