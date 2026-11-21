@@ -3,7 +3,7 @@
 All notable changes to ContainerYard are documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [5.3.0] - 2026-11-21
 
 ### Added
 - Sign in with Google via Firebase Auth (off unless `FIREBASE_ENABLED=true` and the config is complete). The server verifies the ID token with `firebase-admin` (`checkRevoked`), requires a verified email, the `google.com` provider, an entry in `FIREBASE_ALLOWED_EMAILS` and an existing ContainerYard user with that email; the role comes from the database. Users are never created automatically.
