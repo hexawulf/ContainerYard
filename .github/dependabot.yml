@@ -17,7 +17,8 @@ updates:
         patterns: [prisma, "@prisma/*"]
     ignore:
       # Majors that need a planned migration, not a bump: React 19 (types must
-      # match the runtime) and Prisma 7 (driver adapter + new client generator).
+      # match the runtime), Prisma 7 (driver adapter + new client generator) and
+      # Express 5 (route syntax; @types/express must match the express runtime).
       - dependency-name: react
         update-types: [version-update:semver-major]
       - dependency-name: react-dom
@@ -29,6 +30,10 @@ updates:
       - dependency-name: prisma
         update-types: [version-update:semver-major]
       - dependency-name: "@prisma/*"
+        update-types: [version-update:semver-major]
+      - dependency-name: express
+        update-types: [version-update:semver-major]
+      - dependency-name: "@types/express"
         update-types: [version-update:semver-major]
 
   - package-ecosystem: docker

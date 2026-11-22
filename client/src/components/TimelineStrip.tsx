@@ -10,9 +10,13 @@ interface TimelineStripProps {
   onTimestampClick?: (timestamp: string, metric?: 'cpu' | 'mem' | 'net') => void;
 }
 
-/** What recharts passes to a chart onClick: the hovered point's data, if any. */
+/**
+ * What recharts 3 passes to a chart onClick: the index of the hovered point
+ * (a number, or a string TooltipIndex). recharts 2 also sent `activePayload`;
+ * 3.x does not, so the point is looked up in chartData by index.
+ */
 interface ChartClickState {
-  activePayload?: Array<{ payload?: { tsISO?: string } }>;
+  activeTooltipIndex?: number | string | null;
 }
 
 export function TimelineStrip({ stats, events = [], onSpikeClick, onTimestampClick }: TimelineStripProps) {
@@ -34,8 +38,10 @@ export function TimelineStrip({ stats, events = [], onSpikeClick, onTimestampCli
   }, [stats]);
 
   const handleChartClick = (state: ChartClickState | null | undefined, metric: 'cpu' | 'mem' | 'net') => {
-    if (!state || !state.activePayload || state.activePayload.length === 0) return;
-    const data = state.activePayload[0].payload;
+    if (state?.activeTooltipIndex == null) return;
+    const idx = Number(state.activeTooltipIndex);
+    if (!Number.isInteger(idx) || idx < 0 || idx >= chartData.length) return;
+    const data = chartData[idx];
     if (data && data.tsISO) {
       if (onTimestampClick) {
         onTimestampClick(data.tsISO, metric);
