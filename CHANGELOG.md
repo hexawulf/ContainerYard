@@ -3,6 +3,19 @@
 All notable changes to ContainerYard are documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [5.5.0] - 2026-11-22
+
+### Changed
+- **Sessions on node-redis:** connect-redis 7 → 11, which supports only the node-redis client, so the session store moves from `ioredis` to `redis` 6.3 (`createClient({ url: REDIS_URL })`). Same key prefix and JSON serializer: sessions written by 5.4.x stay valid across the upgrade (verified live against redis:7 with a password URL).
+- **Charts on recharts 3:** timeline click-to-jump now looks the clicked point up by `activeTooltipIndex` (recharts 3 no longer passes `activePayload`).
+- `@neondatabase/serverless` 1.2 (Postgres setups only; prod runs SQLite), eslint 10 (three dead assignments removed), `@types/express` 4.17.25, GitHub `codeql-action` 4.39.3.
+
+### Security
+- Dependabot alerts closed (all dev tooling): minimatch 11.0.9, postcss-selector-parser 6.1.6, esbuild 0.25.12 for drizzle-kit's loader, effect 3.22.5 (ReDoS, via prisma). `npm audit`: 0.
+
+### CI
+- Dependabot ignores planned-migration majors: express / @types/express (Express 5), tailwindcss (Tailwind 4), TypeScript 7 (typescript-eslint support pending).
+
 ## [5.4.1] - 2026-11-21
 
 ### Changed
