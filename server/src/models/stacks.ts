@@ -37,7 +37,7 @@ export function groupContainersByStack(containers: ContainerSummary[]): {
     const restartingCount = stackContainers.filter((c: ContainerSummary) => c.state === "restarting").length;
     const pausedCount = stackContainers.filter((c: ContainerSummary) => c.state === "paused").length;
     
-    let healthStatus: "healthy" | "unhealthy" | "partial" | "unknown" = "unknown";
+    let healthStatus: "healthy" | "unhealthy" | "partial" | "unknown";
     if (runningCount === stackContainers.length) {
       healthStatus = "healthy";
     } else if (runningCount === 0) {
