@@ -83,7 +83,6 @@ describe("Security Audit Hardening (PR 1)", () => {
     test("verifyCsrf rejects POST with valid CSRF token when Origin is untrusted", () => {
       const token = "a".repeat(64);
       let nextCalled = false;
-      let statusCode = 200;
       const req = asReq({
         method: "POST",
         headers: {
@@ -98,7 +97,7 @@ describe("Security Audit Hardening (PR 1)", () => {
       verifyCsrf(req, asRes(res), () => {
         nextCalled = true;
       });
-      statusCode = res.statusCode;
+      const statusCode = res.statusCode;
 
       assert.equal(nextCalled, false);
       assert.equal(statusCode, 403);

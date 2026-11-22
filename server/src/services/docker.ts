@@ -454,7 +454,7 @@ async function runAction(host: HostConfig, containerId: string, action: Containe
   const container = client.getContainer(containerId);
 
   let name: string | undefined;
-  let id = containerId;
+  let id: string;
   try {
     const info = await container.inspect();
     name = info.Name?.replace(/^\//, "");
