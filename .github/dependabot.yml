@@ -18,7 +18,8 @@ updates:
     ignore:
       # Majors that need a planned migration, not a bump: React 19 (types must
       # match the runtime), Prisma 7 (driver adapter + new client generator) and
-      # Express 5 (route syntax; @types/express must match the express runtime).
+      # Express 5 (route syntax; @types/express must match the express runtime),
+      # Tailwind 4 (CSS-first config, plugin swap; needs visual QA).
       - dependency-name: react
         update-types: [version-update:semver-major]
       - dependency-name: react-dom
@@ -34,6 +35,8 @@ updates:
       - dependency-name: express
         update-types: [version-update:semver-major]
       - dependency-name: "@types/express"
+        update-types: [version-update:semver-major]
+      - dependency-name: tailwindcss
         update-types: [version-update:semver-major]
 
   - package-ecosystem: docker

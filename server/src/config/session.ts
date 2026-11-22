@@ -1,17 +1,21 @@
 import session from "express-session";
-import RedisStore from "connect-redis";
-import Redis from "ioredis";
+import { RedisStore } from "connect-redis";
+import { createClient } from "redis";
 import type { RequestHandler } from "express";
 import { env } from "./env";
 import { log } from "../../vite";
 
-export const redisClient = new Redis(env.REDIS_URL, {
-  lazyConnect: false,
-  maxRetriesPerRequest: null,
-});
+// node-redis (connect-redis 8+ supports only this client). Commands issued
+// while it connects are queued, and the default reconnect strategy retries
+// indefinitely, like ioredis did with maxRetriesPerRequest: null.
+export const redisClient = createClient({ url: env.REDIS_URL });
 
 redisClient.on("error", (error) => {
   log(`Redis error: ${(error as Error).message}`, "redis");
+});
+
+redisClient.connect().catch((error) => {
+  log(`Redis connect failed: ${(error as Error).message}`, "redis");
 });
 
 const store = new RedisStore({

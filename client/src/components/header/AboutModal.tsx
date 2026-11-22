@@ -50,7 +50,7 @@ const TECH_SPECS = [
     group: "Data & Auth",
     items: [
       "Prisma + SQLite in production",
-      "Redis sessions (connect-redis + ioredis)",
+      "Redis sessions (connect-redis + node-redis)",
       "bcrypt (cost 12), CSRF tokens, audit log",
       "Drizzle/PostgreSQL optional (alerts & metrics history, disabled on SQLite)",
     ],
