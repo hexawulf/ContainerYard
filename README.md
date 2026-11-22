@@ -374,7 +374,7 @@ ContainerYard/
 - **Node.js & Express** - REST API and SSE log streaming server
 - **Dockerode & cAdvisor** - Local Docker UNIX socket and remote cAdvisor telemetry
 - **Prisma (SQLite / PostgreSQL)** - Users (`sessionVersion`), `AuditLog`, `LogBookmark`, and `SavedSearch`
-- **Redis (`connect-redis` + `ioredis`)** - Server-side session store with instant `sessionVersion` revocation
+- **Redis (`connect-redis` + `node-redis`)** - Server-side session store with instant `sessionVersion` revocation
 - **bcrypt (cost 12) + CSRF + Helmet** - Password hashing (72-byte UTF-8 cap), per-session CSRF tokens, rate limiting, and security headers
 - **Zod** - Request and environment schema validation
 - **Drizzle ORM (PostgreSQL optional)** - Alert rules/history and historical metrics aggregation

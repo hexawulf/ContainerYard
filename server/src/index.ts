@@ -297,7 +297,7 @@ export async function createApp() {
   httpServer.on("close", () => {
     alertWorker.stop();
     metricsAggregator.stop();
-    redisClient.disconnect();
+    redisClient.destroy();
   });
 
   return { app, httpServer };
