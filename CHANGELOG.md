@@ -3,6 +3,18 @@
 All notable changes to ContainerYard are documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [5.5.1] - 2026-11-23
+
+### Changed
+- **Dependencies:** Upgraded `helmet` (7.2 → 8.3) and `lucide-react` (0.453 → 1.77), replaced dev-only `nanoid` with `crypto.randomUUID()`, and removed dead `db:push` (`drizzle-kit`) script plus unused `date-fns`, `@svgr/rollup`, and `@tailwindcss/typography` (162 packages removed).
+- **Dashboard & mobile UI:** Compacted Dashboard filter/sort controls into a single wrapped toolbar, standardized card titles to `text-lg`, removed the duplicate per-row Host Logs button, stacked `StackView` headers/rows cleanly on 390px viewports, made `LogsDrawer` toolbar wrap and flex-fill height, differentiated unavailable Host Logs cards with outline buttons, and gave Log Bookmarks a distinct `BookmarkPlus` icon.
+- **Docs:** Aligned `AGENTS.md`, `README.md`, `DEPLOYMENT.md`, `SECURITY.md`, `docker/README.md`, and `design_guidelines.md` with v5.5.
+
+### Fixed
+- **Telemetry accuracy:** Propagated real `memLimitBytes` from container stats (fixing `StatsPanel` showing usage as limit), formatted `MetricsWidgets` Top Memory Consumers in bytes instead of MB with `%`, and replaced inverted KPI trend arrows.
+- **Accessibility & HTML validity:** Removed nested `<a>` tags inside wouter `<Link>` in `Navbar` and `Footer`, added `#main-content` skip-link target, removed `maximum-scale=1`, fixed uncontrolled-to-controlled `Select` warning in `HostSwitcher`, added `<Helmet>` titles on Dashboard/HostLogs/404, guarded `localStorage` and log JSON parsing, and removed dead `.xterm` CSS / stale UI copy.
+- **Server hardening:** Added UTF-8 byte-length guard before `timingSafeEqual` in CSRF validation (with unit test), sanitized CSV export filenames and SSE log lines, redacted cAdvisor URLs and production 502 error details, `.unref()`/`clearInterval` daily pruning timers, and converted `scripts/test-sse.js` to ESM without logging cookie prefixes.
+
 ## [5.5.0] - 2026-11-22
 
 ### Changed
