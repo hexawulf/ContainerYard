@@ -212,13 +212,6 @@ export async function createApp() {
 
   app.use((err: unknown, req: express.Request, res: express.Response, _next: express.NextFunction) => {
     const info = errorInfo(err);
-    if (info.code === "EBADCSRFTOKEN") {
-      return res.status(403).json({ error: "Invalid CSRF token" });
-    }
-    if (err && /misconfigured csrf/i.test(String(err))) {
-      return res.status(500).json({ error: "server csrf misconfig" });
-    }
-
     const status = info.status || info.statusCode || 500;
     const rawMessage = info.message || "Internal Server Error";
     if (status >= 500) {
@@ -253,6 +246,9 @@ export async function createApp() {
     log(`Unhandled Rejection at: ${promise}, reason: ${reason}`, "error");
   });
 
+  let restartPruneTimer: ReturnType<typeof setInterval> | null = null;
+  let auditPruneTimer: ReturnType<typeof setInterval> | null = null;
+
   const port = env.PORT;
   httpServer.listen(
     {
@@ -271,16 +267,18 @@ export async function createApp() {
         log(`Failed to start alert worker: ${error}`, "error");
       });
       // Start restart tracker cleanup (daily)
-      setInterval(() => {
+      restartPruneTimer = setInterval(() => {
         restartTracker.cleanupOldRestarts().catch((error) => {
           log(`Failed to cleanup old restart records: ${error}`, "error");
         });
       }, 24 * 60 * 60 * 1000); // Daily
+      restartPruneTimer.unref();
 
       // Audit log retention (AUDIT_RETENTION_DAYS, default 180)
       const runAuditPrune = () =>
         pruneAudit().catch((error) => log(`Failed to prune audit log: ${error}`, "error"));
-      setInterval(runAuditPrune, 24 * 60 * 60 * 1000);
+      auditPruneTimer = setInterval(runAuditPrune, 24 * 60 * 60 * 1000);
+      auditPruneTimer.unref();
       runAuditPrune();
 
       // Initial cleanup
@@ -295,6 +293,8 @@ export async function createApp() {
   );
 
   httpServer.on("close", () => {
+    if (restartPruneTimer) clearInterval(restartPruneTimer);
+    if (auditPruneTimer) clearInterval(auditPruneTimer);
     alertWorker.stop();
     metricsAggregator.stop();
     redisClient.destroy();

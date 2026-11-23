@@ -19,6 +19,10 @@ function escapeCsvField(value: string): string {
   return value;
 }
 
+function safeFilenameToken(value: string): string {
+  return value.replace(/[^a-zA-Z0-9_.-]/g, "_").slice(0, 64) || "metrics";
+}
+
 // Helper to return empty data for SQLite mode
 function emptyMetricsResponse(res: Response, format: string = 'json') {
   if (format === 'csv') {
@@ -267,7 +271,7 @@ router.get("/:hostId/metrics/export/csv", async (req, res, next) => {
 
     if (format === 'json') {
       res.setHeader('Content-Type', 'application/json');
-      res.setHeader('Content-Disposition', `attachment; filename="metrics-${hostId}-${Date.now()}.json"`);
+      res.setHeader('Content-Disposition', `attachment; filename="metrics-${safeFilenameToken(hostId)}-${Date.now()}.json"`);
       res.json(metrics);
       return;
     }
@@ -309,7 +313,7 @@ router.get("/:hostId/metrics/export/csv", async (req, res, next) => {
     const csvContent = [csvHeader, ...csvRows].join('\n');
 
     res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', `attachment; filename="metrics-${hostId}-${Date.now()}.csv"`);
+    res.setHeader('Content-Disposition', `attachment; filename="metrics-${safeFilenameToken(hostId)}-${Date.now()}.csv"`);
     res.send(csvContent);
   } catch (error) {
     next(error);
@@ -345,7 +349,7 @@ router.get("/:hostId/containers/:containerId/metrics/export/csv", async (req, re
 
     if (format === 'json') {
       res.setHeader('Content-Type', 'application/json');
-      res.setHeader('Content-Disposition', `attachment; filename="container-metrics-${containerId}-${Date.now()}.json"`);
+      res.setHeader('Content-Disposition', `attachment; filename="container-metrics-${safeFilenameToken(containerId)}-${Date.now()}.json"`);
       res.json(metrics);
       return;
     }
@@ -383,7 +387,7 @@ router.get("/:hostId/containers/:containerId/metrics/export/csv", async (req, re
     const csvContent = [csvHeader, ...csvRows].join('\n');
 
     res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', `attachment; filename="container-metrics-${containerId}-${Date.now()}.csv"`);
+    res.setHeader('Content-Disposition', `attachment; filename="container-metrics-${safeFilenameToken(containerId)}-${Date.now()}.csv"`);
     res.send(csvContent);
   } catch (error) {
     next(error);

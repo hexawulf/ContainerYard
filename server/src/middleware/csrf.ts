@@ -28,8 +28,11 @@ function configuredOrigins(): string[] {
 
 export function tokensMatch(expected: unknown, provided: unknown): boolean {
   if (typeof expected !== "string" || typeof provided !== "string") return false;
-  if (!expected || expected.length !== provided.length) return false;
-  return timingSafeEqual(Buffer.from(expected), Buffer.from(provided));
+  if (!expected) return false;
+  const expectedBuf = Buffer.from(expected, "utf8");
+  const providedBuf = Buffer.from(provided, "utf8");
+  if (expectedBuf.length !== providedBuf.length) return false;
+  return timingSafeEqual(expectedBuf, providedBuf);
 }
 
 export function isAllowedOrigin(

@@ -142,8 +142,9 @@ test("csrf: mutating requests need the session token", () => {
   assert.deepEqual(run("PATCH", "abc123", "abc123"), { nextCalled: true, status: 200 });
 });
 
-test("csrf: tokensMatch rejects length mismatch and non-strings", () => {
+test("csrf: tokensMatch rejects length mismatch, multi-byte UTF-8 same-length strings, and non-strings", () => {
   assert.equal(tokensMatch("abc", "abcd"), false);
+  assert.equal(tokensMatch("abcd", "éééé"), false);
   assert.equal(tokensMatch(undefined, "abc"), false);
   assert.equal(tokensMatch("", ""), false);
 });

@@ -243,19 +243,20 @@ router.get("/:hostId/containers/:containerId/logs/stream", requireAuth, async (r
         { stdout, stderr, grep },
         (line) => {
           if (!res.writableEnded) {
-            res.write(`event: line\ndata: ${line}\n\n`);
+            res.write(`event: line\ndata: ${line.replace(/[\r\n]+/g, " ")}\n\n`);
           }
         },
         (err) => {
           if (!res.writableEnded) {
-            res.write(`event: error\ndata: ${err.message}\n\n`);
+            res.write(`event: error\ndata: ${err.message.replace(/[\r\n]+/g, " ")}\n\n`);
           }
           closeStream();
         }
       );
     } catch (err: unknown) {
       if (!res.writableEnded) {
-        res.write(`event: error\ndata: ${errorMessage(err)}\n\n`);
+        const msg = (errorMessage(err) ?? "Stream error").replace(/[\r\n]+/g, " ");
+        res.write(`event: error\ndata: ${msg}\n\n`);
       }
       closeStream();
       return;

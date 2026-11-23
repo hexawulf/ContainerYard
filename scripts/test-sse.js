@@ -1,20 +1,21 @@
-// node scripts/test-sse.js https://containeryard.example.com local <cid> cy.sid=<cookie>
-const https = require('https');
+// node scripts/test-sse.js https://containeryard.example.com local <cid> "__Secure-cy.sid=<cookie>"
+import http from 'node:http';
+import https from 'node:https';
 const [,, base, host, cid, cookie] = process.argv;
 
 if (!base || !host || !cid || !cookie) {
   console.error('Usage: node scripts/test-sse.js <base_url> <host_id> <container_id> <cookie>');
-  console.error('Example: node scripts/test-sse.js https://containeryard.example.com local abc123 "cy.sid=xxx"');
+  console.error('Example: node scripts/test-sse.js https://containeryard.example.com local abc123 "__Secure-cy.sid=xxx"');
   process.exit(1);
 }
 
-const url = `${base}/api/hosts/${host}/containers/${cid}/logs/stream?stdout=true&stderr=false`;
+const url = `${base.replace(/\/+$/, '')}/api/hosts/${encodeURIComponent(host)}/containers/${encodeURIComponent(cid)}/logs/stream?stdout=true&stderr=false`;
+const transport = url.startsWith('http://') ? http : https;
 
 console.log(`Connecting to: ${url}`);
-console.log(`Using cookie: ${cookie.substring(0, 20)}...`);
 console.log('---\n');
 
-const req = https.request(url, { headers: { 'Cookie': cookie }}, res => {
+const req = transport.request(url, { headers: { 'Cookie': cookie }}, res => {
   res.setEncoding('utf8');
   let count = 0;
   

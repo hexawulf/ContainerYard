@@ -408,10 +408,11 @@ export type CadStat = {
 };
 
 export async function listContainersOld(baseUrl: string): Promise<CadStat[]> {
-  const response = await fetch(`${baseUrl}/api/v1.3/subcontainers`, {
+  const normalizedBase = baseUrl.replace(/\/+$/, "");
+  const response = await fetch(`${normalizedBase}/api/v1.3/subcontainers`, {
     signal: AbortSignal.timeout(10000),
   });
-  if (!response.ok) throw new Error(`cAdvisor ${baseUrl} ${response.status}`);
+  if (!response.ok) throw new Error(`cAdvisor upstream returned HTTP ${response.status}`);
   const data = await response.json() as CadvisorContainer[];
   
   const out: CadStat[] = [];

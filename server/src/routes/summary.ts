@@ -29,7 +29,9 @@ r.get("/:hostId/summary", requireAuth, async (req, res) => {
     if (status === 404) {
       return res.status(404).json({ error: message || "Unknown host" });
     }
-    res.status(502).json({ error: message || "summary failed" });
+    const clientMessage =
+      process.env.NODE_ENV === "production" ? "Host summary unavailable" : (message || "summary failed");
+    res.status(502).json({ error: clientMessage });
   }
 });
 export default r;
