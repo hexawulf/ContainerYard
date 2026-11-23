@@ -1,6 +1,5 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import svgr from "@svgr/rollup";
 import fs from "fs";
 import path from "path";
 
@@ -21,7 +20,6 @@ export default defineConfig(async () => {
     },
     plugins: [
       react(),
-      svgr(),
     ],
     resolve: {
       alias: {
