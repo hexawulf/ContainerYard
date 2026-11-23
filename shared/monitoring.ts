@@ -88,6 +88,7 @@ export interface NormalizedStats {
   cpuPct: number;
   memPct: number;
   memBytes: number;
+  memLimitBytes?: number;
   blkRead: number;
   blkWrite: number;
   netRx: number;

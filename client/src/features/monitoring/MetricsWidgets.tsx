@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { getQueryFn } from "@/lib/queryClient";
-import { TrendingUp, TrendingDown, Activity, MemoryStick, Cpu } from "lucide-react";
+import { Activity, MemoryStick, Cpu } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface MetricsWidgetsProps {
@@ -22,20 +22,19 @@ function formatBytes(bytes?: number) {
 interface TopConsumer {
   containerId: string;
   containerName: string;
-  avgCpuPercent: string;
-  avgMemoryPercent: string;
+  displayValue: string;
 }
 
 function WidgetCard({ title, icon: Icon, children }: { title: string; icon: LucideIcon; children: React.ReactNode }) {
   return (
     <Card className="min-w-0 overflow-hidden">
-      <CardHeader className="pb-3">
+      <CardHeader className="pb-2.5 pt-4 px-4">
         <div className="flex items-center gap-2">
-          <Icon className="h-5 w-5 text-muted-foreground" />
-          <CardTitle className="text-base">{title}</CardTitle>
+          <Icon className="h-4 w-4 text-muted-foreground shrink-0" />
+          <CardTitle className="text-sm font-semibold">{title}</CardTitle>
         </div>
       </CardHeader>
-      <CardContent>{children}</CardContent>
+      <CardContent className="px-4 pb-4 pt-0">{children}</CardContent>
     </Card>
   );
 }
@@ -50,11 +49,11 @@ function TopConsumersList({ data, type }: { data: TopConsumer[]; type: "cpu" | "
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-1">
       {data.map((item, index) => (
-        <div key={item.containerId} className="flex items-center justify-between gap-2 py-2 border-b last:border-0 min-w-0">
+        <div key={item.containerId} className="flex items-center justify-between gap-2 py-1.5 border-b last:border-0 min-w-0">
           <div className="flex items-center gap-2 min-w-0 flex-1">
-            <Badge variant="outline" className="text-xs shrink-0">
+            <Badge variant="outline" className="text-[11px] px-1.5 py-0 font-mono shrink-0">
               #{index + 1}
             </Badge>
             <span className="text-sm font-medium truncate" title={item.containerName}>{item.containerName}</span>
@@ -65,8 +64,8 @@ function TopConsumersList({ data, type }: { data: TopConsumer[]; type: "cpu" | "
             ) : (
               <MemoryStick className="h-3.5 w-3.5 text-[hsl(var(--chart-1))]" />
             )}
-            <span className="text-sm font-semibold tabular-nums">
-              {type === "cpu" ? item.avgCpuPercent : item.avgMemoryPercent}%
+            <span className="text-sm font-semibold font-mono tabular-nums">
+              {item.displayValue}
             </span>
           </div>
         </div>
@@ -75,22 +74,19 @@ function TopConsumersList({ data, type }: { data: TopConsumer[]; type: "cpu" | "
   );
 }
 
-function HealthIndicator({ title, value, trend }: { title: string; value: string; trend: "up" | "down" | "stable" }) {
-  const TrendIcon = trend === "up" ? TrendingUp : trend === "down" ? TrendingDown : Activity;
-  const trendColor =
-    trend === "up"
-      ? "text-status-running"
-      : trend === "down"
-        ? "text-status-danger"
-        : "text-muted-foreground";
-
+function StatKpi({
+  title,
+  value,
+  valueClassName = "text-foreground",
+}: {
+  title: string;
+  value: string;
+  valueClassName?: string;
+}) {
   return (
-    <div className="flex items-center justify-between p-3 bg-muted/50 border border-border/60 rounded-lg">
-      <div>
-        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{title}</p>
-        <p className="text-2xl font-bold tabular-nums mt-0.5">{value}</p>
-      </div>
-      <TrendIcon className={`h-5 w-5 ${trendColor}`} />
+    <div className="p-2.5 bg-muted/50 border border-border/60 rounded-lg">
+      <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">{title}</p>
+      <p className={`text-xl font-bold font-mono tabular-nums mt-0.5 ${valueClassName}`}>{value}</p>
     </div>
   );
 }
@@ -117,8 +113,7 @@ export function MetricsWidgets({ hostId }: MetricsWidgetsProps) {
     return summaryData.topCpu.map((item, index) => ({
       containerId: `cpu-${index}`,
       containerName: item.name,
-      avgCpuPercent: item.cpuPct.toFixed(1),
-      avgMemoryPercent: "0",
+      displayValue: `${item.cpuPct.toFixed(1)}%`,
     }));
   }, [summaryData]);
 
@@ -127,8 +122,7 @@ export function MetricsWidgets({ hostId }: MetricsWidgetsProps) {
     return summaryData.topMem.map((item, index) => ({
       containerId: `mem-${index}`,
       containerName: item.name,
-      avgCpuPercent: "0",
-      avgMemoryPercent: (item.memBytes / 1024 / 1024).toFixed(1), // Convert to MB for display
+      displayValue: formatBytes(item.memBytes),
     }));
   }, [summaryData]);
 
@@ -137,11 +131,11 @@ export function MetricsWidgets({ hostId }: MetricsWidgetsProps) {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {[...Array(3)].map((_, i) => (
           <Card key={i}>
-            <CardHeader>
+            <CardHeader className="pb-2.5 pt-4 px-4">
               <Skeleton className="h-4 w-32" />
             </CardHeader>
-            <CardContent>
-              <Skeleton className="h-[200px] w-full" />
+            <CardContent className="px-4 pb-4 pt-0">
+              <Skeleton className="h-[120px] w-full" />
             </CardContent>
           </Card>
         ))}
@@ -149,42 +143,50 @@ export function MetricsWidgets({ hostId }: MetricsWidgetsProps) {
     );
   }
 
+  const cpuValueClass =
+    summaryData && summaryData.totalCpu >= 80
+      ? "text-status-danger"
+      : summaryData && summaryData.totalCpu >= 60
+        ? "text-status-warning"
+        : "text-foreground";
+
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
       <WidgetCard title="Top CPU Consumers" icon={Cpu}>
-        <TopConsumersList data={topCpuData || []} type="cpu" />
+        <TopConsumersList data={topCpuData} type="cpu" />
       </WidgetCard>
 
       <WidgetCard title="Top Memory Consumers" icon={MemoryStick}>
-        <TopConsumersList data={topMemoryData || []} type="memory" />
+        <TopConsumersList data={topMemoryData} type="memory" />
       </WidgetCard>
 
       <WidgetCard title="Overall Statistics" icon={Activity}>
-        <div className="space-y-3">
+        <div className="space-y-2.5">
           {summaryData ? (
             <>
-              <HealthIndicator 
-                title="Total CPU" 
-                value={`${summaryData.totalCpu.toFixed(1)}%`} 
-                trend={summaryData.totalCpu > 50 ? "up" : "down"} 
-              />
-              <HealthIndicator 
-                title="Memory Used" 
-                value={formatBytes(summaryData.memUsed)} 
-                trend={summaryData.memUsed > 1024 * 1024 * 1024 ? "up" : "down"} 
-              />
-              <div className="pt-2 border-t">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Containers</span>
-                  <span className="font-semibold">{summaryData.containers}</span>
+              <div className="grid grid-cols-2 gap-2">
+                <StatKpi
+                  title="Avg CPU"
+                  value={`${summaryData.totalCpu.toFixed(1)}%`}
+                  valueClassName={cpuValueClass}
+                />
+                <StatKpi
+                  title="Memory Used"
+                  value={formatBytes(summaryData.memUsed)}
+                />
+              </div>
+              <div className="pt-2 border-t space-y-1">
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">Running containers</span>
+                  <span className="font-semibold font-mono tabular-nums">{summaryData.containers}</span>
                 </div>
-                <div className="flex justify-between text-sm mt-1">
+                <div className="flex justify-between text-xs">
                   <span className="text-muted-foreground">Top CPU</span>
-                  <span className="font-semibold">{summaryData.topCpu?.[0]?.cpuPct.toFixed(1) ?? 0}%</span>
+                  <span className="font-semibold font-mono tabular-nums">{summaryData.topCpu?.[0]?.cpuPct.toFixed(1) ?? 0}%</span>
                 </div>
-                <div className="flex justify-between text-sm mt-1">
+                <div className="flex justify-between text-xs">
                   <span className="text-muted-foreground">Top Memory</span>
-                  <span className="font-semibold">{formatBytes(summaryData.topMem?.[0]?.memBytes ?? 0)}</span>
+                  <span className="font-semibold font-mono tabular-nums">{formatBytes(summaryData.topMem?.[0]?.memBytes ?? 0)}</span>
                 </div>
               </div>
             </>

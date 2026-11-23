@@ -116,6 +116,7 @@ router.get("/:hostId/containers/:containerId/stats", requireAuth, async (req, re
       cpuPct: Number(stats.cpuPercent || 0),
       memPct: Number(stats.memoryPercent || 0),
       memBytes: Number(stats.memoryUsage || 0),
+      memLimitBytes: Number(stats.memoryLimit || 0),
       blkRead: Number(stats.blockRead || 0),
       blkWrite: Number(stats.blockWrite || 0),
       netRx: Number(stats.networkRx || 0),

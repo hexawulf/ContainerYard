@@ -12,7 +12,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { Bookmark, Clock, Filter, Trash2, ExternalLink } from 'lucide-react';
+import { Bookmark, BookmarkPlus, Clock, Filter, Trash2, ExternalLink } from 'lucide-react';
 import { queryClient, apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import type { LogBookmark } from '@shared/schema';
@@ -140,7 +140,7 @@ export function LogBookmarks({
             data-testid="button-save-bookmark"
             title="Bookmark this log moment"
           >
-            <Bookmark className="h-3 w-3 mr-2" />
+            <BookmarkPlus className="h-3.5 w-3.5 mr-1.5" />
             Bookmark
           </Button>
         </DialogTrigger>
@@ -202,6 +202,7 @@ export function LogBookmarks({
             className="h-8 w-8"
             data-testid="button-view-bookmarks"
             title="View all bookmarks"
+            aria-label="View all bookmarks"
           >
             <Bookmark className="h-4 w-4" />
           </Button>

@@ -11,9 +11,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { FileText, Info } from "lucide-react";
 import type { ContainerSummary, ContainerStats, HostSummary } from "@shared/monitoring";
-import { Link } from "wouter";
 import { ContainerActions } from "./ContainerActions";
-import { useAuth } from "@/components/AuthGate";
 
 interface ContainerTableProps {
   containers: ContainerSummary[];
@@ -54,8 +52,6 @@ export function ContainerTable({
   onLogsClick,
   onInspectClick,
 }: ContainerTableProps) {
-  const { user } = useAuth();
-  const isAdmin = user?.role === "ADMIN";
   return (
     <ScrollArea className="h-[520px] w-full [&>div>div]:!block">
       <div className="w-full overflow-x-auto">
@@ -141,21 +137,6 @@ export function ContainerTable({
                 <TableCell className="px-3 py-2.5 text-right">
                   <div className="flex items-center justify-end gap-0.5">
                     <ContainerActions container={container} host={host} />
-                    {host && isAdmin && (
-                      <Link href={`/hosts/${host.id}/logs`}>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-7 w-7 hidden sm:inline-flex"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                          }}
-                          title="Host Logs"
-                        >
-                          <FileText className="h-3.5 w-3.5" />
-                        </Button>
-                      </Link>
-                    )}
                     {onLogsClick && (
                       <Button
                         size="icon"
@@ -166,6 +147,7 @@ export function ContainerTable({
                           onLogsClick(container.id);
                         }}
                         title="View logs"
+                        aria-label={`View logs for ${container.name}`}
                       >
                         <FileText className="h-3.5 w-3.5" />
                       </Button>
@@ -180,6 +162,7 @@ export function ContainerTable({
                           onInspectClick(container.id);
                         }}
                         title="Inspect"
+                        aria-label={`Inspect ${container.name}`}
                       >
                         <Info className="h-3.5 w-3.5" />
                       </Button>

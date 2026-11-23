@@ -312,7 +312,7 @@ export default function Dashboard() {
       provider: host?.provider || "DOCKER",
       cpuPercent: stats.cpuPct,
       memoryUsage: stats.memBytes,
-      memoryLimit: stats.memBytes, // TODO: get actual limit
+      memoryLimit: stats.memLimitBytes ?? 0,
       memoryPercent: stats.memPct,
       networkRx: stats.netRx,
       networkTx: stats.netTx,
@@ -459,9 +459,9 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
         <Card className="overflow-hidden min-w-0">
-          <CardHeader className="space-y-3">
+          <CardHeader className="space-y-2.5 pb-3 pt-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <CardTitle>Hosts</CardTitle>
+              <CardTitle className="text-lg">Hosts</CardTitle>
               <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as "containers" | "stacks")}>
                 <TabsList className="grid w-full grid-cols-2">
                   <TabsTrigger value="containers" className="gap-1.5 text-xs sm:text-sm">
@@ -487,83 +487,83 @@ export default function Dashboard() {
             <Suspense fallback={<div className="p-4 text-sm text-muted-foreground">Loading view...</div>}>
               {viewMode === "containers" && (
               <>
-              {/* Filter Controls */}
-              <div className="p-4 space-y-3 border-b bg-muted/20">
-                <div className="flex flex-wrap gap-2 items-center">
-                  <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Filters:</span>
-                  
-                  {/* State Filter */}
-                  <Select value={filters.state} onValueChange={(value) => setFilters(prev => ({ ...prev, state: value }))}>
-                    <SelectTrigger className="w-28 h-8 text-xs">
-                      <SelectValue placeholder="State" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All</SelectItem>
-                      <SelectItem value="running">Running</SelectItem>
-                      <SelectItem value="exited">Exited</SelectItem>
-                    </SelectContent>
-                  </Select>
+              {/* Compact Filter & Sort Toolbar */}
+              <div className="px-4 py-2.5 border-b bg-muted/20 flex flex-wrap items-center gap-2">
+                <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Filter</span>
 
-                  {/* Label Filter */}
-                  <Input
-                    placeholder="Label filter"
-                    value={filters.label}
-                    onChange={(e) => setFilters(prev => ({ ...prev, label: e.target.value }))}
-                    className="flex-1 min-w-[110px] sm:w-36 h-8 text-xs"
-                  />
+                {/* State Filter */}
+                <Select value={filters.state} onValueChange={(value) => setFilters(prev => ({ ...prev, state: value }))}>
+                  <SelectTrigger className="w-24 h-8 text-xs" aria-label="Filter by state">
+                    <SelectValue placeholder="State" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    <SelectItem value="running">Running</SelectItem>
+                    <SelectItem value="exited">Exited</SelectItem>
+                  </SelectContent>
+                </Select>
 
-                  {/* Image Filter */}
-                  <Input
-                    placeholder="Image filter"
-                    value={filters.image}
-                    onChange={(e) => setFilters(prev => ({ ...prev, image: e.target.value }))}
-                    className="flex-1 min-w-[110px] sm:w-36 h-8 text-xs"
-                  />
+                {/* Label Filter */}
+                <Input
+                  placeholder="Label"
+                  aria-label="Filter by label"
+                  value={filters.label}
+                  onChange={(e) => setFilters(prev => ({ ...prev, label: e.target.value }))}
+                  className="flex-1 min-w-[96px] sm:max-w-[130px] h-8 text-xs"
+                />
 
-                  {/* Clear Filters */}
-                  {(filters.state !== "all" || filters.label || filters.image) && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 px-2"
-                      onClick={() => setFilters({ state: "all", label: "", image: "" })}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
+                {/* Image Filter */}
+                <Input
+                  placeholder="Image"
+                  aria-label="Filter by image"
+                  value={filters.image}
+                  onChange={(e) => setFilters(prev => ({ ...prev, image: e.target.value }))}
+                  className="flex-1 min-w-[96px] sm:max-w-[130px] h-8 text-xs"
+                />
 
-                {/* Sort Controls */}
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Sort by:</span>
-                  <Select 
-                    value={sort.field} 
-                    onValueChange={(field) => setSort(prev => ({ ...prev, field }))}
+                {/* Clear Filters */}
+                {(filters.state !== "all" || filters.label || filters.image) && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 px-2"
+                    aria-label="Clear filters"
+                    onClick={() => setFilters({ state: "all", label: "", image: "" })}
                   >
-                    <SelectTrigger className="w-32 h-8 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="name">Name</SelectItem>
-                      <SelectItem value="cpu">CPU %</SelectItem>
-                      <SelectItem value="memory">Memory %</SelectItem>
-                      <SelectItem value="uptime">Uptime</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  
-                  <Select 
-                    value={sort.direction} 
-                    onValueChange={(direction) => setSort(prev => ({ ...prev, direction }))}
-                  >
-                    <SelectTrigger className="w-28 h-8 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="asc">Ascending</SelectItem>
-                      <SelectItem value="desc">Descending</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+
+                <span className="hidden sm:block h-4 w-px bg-border mx-0.5" aria-hidden="true" />
+
+                <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Sort</span>
+                <Select
+                  value={sort.field}
+                  onValueChange={(field) => setSort(prev => ({ ...prev, field }))}
+                >
+                  <SelectTrigger className="w-28 h-8 text-xs" aria-label="Sort field">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="name">Name</SelectItem>
+                    <SelectItem value="cpu">CPU %</SelectItem>
+                    <SelectItem value="memory">Memory %</SelectItem>
+                    <SelectItem value="uptime">Uptime</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Select
+                  value={sort.direction}
+                  onValueChange={(direction) => setSort(prev => ({ ...prev, direction }))}
+                >
+                  <SelectTrigger className="w-24 h-8 text-xs" aria-label="Sort direction">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="asc">Asc</SelectItem>
+                    <SelectItem value="desc">Desc</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <ContainerTable
@@ -597,8 +597,8 @@ export default function Dashboard() {
         <div className="flex min-w-0 flex-col gap-6">
            {Array.isArray(normalizedHistory) && normalizedHistory.length > 0 && (
             <Card>
-              <CardHeader>
-                <CardTitle>Real-time Metrics</CardTitle>
+              <CardHeader className="pb-3 pt-4">
+                <CardTitle className="text-lg">Real-time Metrics</CardTitle>
               </CardHeader>
               <CardContent>
                 <Suspense fallback={<div className="h-24 bg-muted/20 animate-pulse rounded" />}>
@@ -610,8 +610,8 @@ export default function Dashboard() {
           
           {detailLoading ? (
             <Card className="flex-1">
-              <CardHeader>
-                <CardTitle>Container overview</CardTitle>
+              <CardHeader className="pb-3 pt-4">
+                <CardTitle className="text-lg">Container overview</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <p className="text-sm text-muted-foreground">Loading container details…</p>

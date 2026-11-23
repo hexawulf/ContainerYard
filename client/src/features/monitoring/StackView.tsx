@@ -95,22 +95,22 @@ function ContainerRow({
 
   return (
     <div
-      className={`flex items-center justify-between p-3 rounded-md border cursor-pointer transition-colors ${
+      className={`flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between p-3 rounded-md border cursor-pointer transition-colors ${
         isSelected ? "bg-accent" : "hover:bg-muted/50"
       }`}
       onClick={onSelect}
     >
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <Server className="h-4 w-4 flex-shrink-0" />
-          <span className="text-sm font-medium truncate">{container.name}</span>
-          <Badge className={stateColor} variant="outline">
+        <div className="flex items-center gap-2 min-w-0">
+          <Server className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <span className="text-sm font-medium truncate" title={container.name}>{container.name}</span>
+          <Badge className={`shrink-0 ${stateColor}`} variant="outline">
             {container.state}
           </Badge>
         </div>
-        <p className="text-xs text-muted-foreground mt-1 truncate">{container.image}</p>
+        <p className="text-xs text-muted-foreground mt-1 truncate" title={container.image}>{container.image}</p>
       </div>
-      <div className="flex gap-1">
+      <div className="flex items-center gap-1 shrink-0 self-end sm:self-auto">
         <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); onLogsClick(); }}>
           Logs
         </Button>
@@ -200,18 +200,18 @@ function StackCard({
       )}
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
         <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-2 min-w-0">
               <CollapsibleTrigger asChild>
-                <Button variant="ghost" size="sm" className="p-0 h-6 w-6">
+                <Button variant="ghost" size="sm" className="p-0 h-6 w-6 shrink-0" aria-label={isOpen ? `Collapse ${stack.name}` : `Expand ${stack.name}`}>
                   {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                 </Button>
               </CollapsibleTrigger>
-              <Layers className="h-5 w-5" />
-              <CardTitle className="text-lg">{stack.name}</CardTitle>
+              <Layers className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <CardTitle className="text-base truncate">{stack.name}</CardTitle>
               <HealthBadge status={stack.healthStatus} />
             </div>
-            <div className="flex gap-2">
+            <div className="flex items-center gap-1.5 shrink-0">
               <Button 
                 variant="outline" 
                 size="sm" 

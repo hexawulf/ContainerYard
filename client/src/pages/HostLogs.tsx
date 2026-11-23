@@ -299,6 +299,7 @@ export default function HostLogs({ hostId }: { hostId: string }) {
                         </p>
                         <Button
                           size="sm"
+                          variant={log.exists ? "default" : "outline"}
                           onClick={() => setSelectedLog(log)}
                           className="w-full"
                         >

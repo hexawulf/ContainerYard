@@ -42,8 +42,8 @@ export function StatsPanel({ host, detail, statsHistory, onTimelineClick }: Stat
 
   return (
     <Card className="flex-1">
-      <CardHeader>
-        <CardTitle>Container overview</CardTitle>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-lg">Container overview</CardTitle>
         <CardDescription>
           {detail
             ? `${detail.name} • ${host?.nodeLabel ?? ""}`
@@ -146,7 +146,10 @@ export function StatsPanel({ host, detail, statsHistory, onTimelineClick }: Stat
               <div className="grid gap-4 grid-cols-2 text-xs">
                 <div className="space-y-1">
                   <span className="text-muted-foreground uppercase">Mem Usage</span>
-                  <p className="font-medium">{formatBytes(latestStats.memoryUsage)} / {formatBytes(latestStats.memoryLimit)}</p>
+                  <p className="font-medium font-mono tabular-nums">
+                    {formatBytes(latestStats.memoryUsage)}
+                    {latestStats.memoryLimit > 0 ? ` / ${formatBytes(latestStats.memoryLimit)}` : ""}
+                  </p>
                 </div>
                 <div className="space-y-1">
                   <span className="text-muted-foreground uppercase">Net I/O</span>

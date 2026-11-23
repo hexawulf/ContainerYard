@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { LineChart, Line, ResponsiveContainer, YAxis } from "recharts";
 import { Badge } from "@/components/ui/badge";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { NormalizedStats } from "@shared/monitoring";
 
 interface StatsChipsProps {
@@ -42,38 +42,36 @@ function StatChip({ label, value, data, color, tooltip }: ChipProps) {
   const maxValue = useMemo(() => Math.max(...data, 1), [data]);
 
   return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <div className="flex items-center gap-2 px-3 py-2 rounded-md border bg-card hover:bg-accent/50 transition-colors cursor-help">
-            <div className="flex-1 space-y-1">
-              <div className="text-xs text-muted-foreground">{label}</div>
-              <div className="text-sm font-semibold">{value}</div>
-            </div>
-            <div className="w-16 h-8">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData}>
-                  <YAxis domain={[0, maxValue]} hide />
-                  <Line
-                    type="monotone"
-                    dataKey="val"
-                    stroke={color}
-                    strokeWidth={2}
-                    dot={false}
-                    isAnimationActive={false}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div className="flex items-center gap-2 px-3 py-2 rounded-md border bg-card hover:bg-accent/50 transition-colors cursor-help">
+          <div className="flex-1 min-w-0 space-y-0.5">
+            <div className="text-xs text-muted-foreground">{label}</div>
+            <div className="text-sm font-semibold font-mono tabular-nums">{value}</div>
           </div>
-        </TooltipTrigger>
-        {tooltip && (
-          <TooltipContent>
-            <p className="text-xs">{tooltip}</p>
-          </TooltipContent>
-        )}
-      </Tooltip>
-    </TooltipProvider>
+          <div className="w-16 h-8 shrink-0">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartData}>
+                <YAxis domain={[0, maxValue]} hide />
+                <Line
+                  type="monotone"
+                  dataKey="val"
+                  stroke={color}
+                  strokeWidth={2}
+                  dot={false}
+                  isAnimationActive={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </TooltipTrigger>
+      {tooltip && (
+        <TooltipContent>
+          <p className="text-xs">{tooltip}</p>
+        </TooltipContent>
+      )}
+    </Tooltip>
   );
 }
 

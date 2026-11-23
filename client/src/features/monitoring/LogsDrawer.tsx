@@ -268,7 +268,7 @@ export function LogsDrawer({
       const displayContent = isLive ? liveLines : snapshotLines;
 
       return (
-        <ScrollArea className="h-[600px] w-full" ref={scrollRef}>
+        <ScrollArea className="h-full w-full" ref={scrollRef}>
           <div className="text-xs font-mono p-4">
             {displayContent.length > 0 ? (
               displayContent.map((line, idx) => {
@@ -297,13 +297,13 @@ export function LogsDrawer({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full sm:max-w-3xl">
-        <SheetHeader>
+      <SheetContent side="right" className="flex flex-col w-full sm:max-w-3xl overflow-hidden">
+        <SheetHeader className="shrink-0">
           <SheetTitle>Container Logs</SheetTitle>
           <SheetDescription>{containerName}</SheetDescription>
         </SheetHeader>
 
-        <div className="mt-4 space-y-4">
+        <div className="mt-4 flex flex-1 min-h-0 flex-col gap-3">
           {jumpTimestamp && (
             <div className="bg-status-warning/10 border border-status-warning/30 rounded-md p-2 flex items-center justify-between">
               <div className="text-xs flex items-center gap-2">
@@ -396,8 +396,8 @@ export function LogsDrawer({
             </div>
           </div>
 
-           <div className="flex items-center justify-between gap-2">
-             <div className="flex items-center gap-2">
+           <div className="flex flex-wrap items-center justify-between gap-2 shrink-0">
+             <div className="flex flex-wrap items-center gap-2">
                <Button
                  size="sm"
                  variant={isLive ? "default" : "outline"}
@@ -415,7 +415,7 @@ export function LogsDrawer({
                )}
                {isLive && <Badge variant="secondary">{liveLines.length} lines</Badge>}
              </div>
-             <div className="flex items-center gap-2">
+             <div className="flex flex-wrap items-center gap-2">
                <LogBookmarks
                  containerId={containerId}
                  currentTimestamp={currentTimestamp}
@@ -445,10 +445,10 @@ export function LogsDrawer({
             </div>
  
             {data && data.mode === "docker" && data.truncated && (
-              <Badge variant="destructive">Truncated at 5000 lines</Badge>
+              <Badge variant="destructive" className="self-start shrink-0">Truncated at 5000 lines</Badge>
             )}
 
-           <div className="border rounded-lg overflow-hidden bg-muted/20">
+           <div className="flex-1 min-h-0 border rounded-lg overflow-hidden bg-muted/20">
              {renderContent()}
            </div>
          </div>
