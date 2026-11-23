@@ -3,6 +3,12 @@
 All notable changes to ContainerYard are documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [5.5.2] - 2026-11-23
+
+### Changed
+- **0xWulf Canonical Teal Palette:** Migrated ContainerYard's primary accent tokens from blue (`217 91% 50%`) to canonical teal (`#0F766E` light primary with 5.47:1 WCAG AA contrast, `#0D9488` light ring/chart-1, `#14B8A6` dark primary with deep teal-ink foreground 7.4:1, `#2DD4BF` dark chart-1) plus canonical light (`#99F6E4`) and dark (`#134E4A`) `::selection` highlights.
+- **Favicons & Docs:** Updated `client/public/favicon.svg` to the canonical 2-stop teal gradient (`#14B8A6` → `#0D9488`), regenerated `favicon.ico` and `apple-touch-icon.png`, and aligned `design_guidelines.md` and README website badges.
+
 ## [5.5.1] - 2026-11-23
 
 ### Changed
