@@ -30,8 +30,9 @@
 | `--card-border` | `214 32% 89%` | Crisp 1px card border |
 | `--border` | `214 28% 86%` | Standard structural divider |
 | `--input` | `214 26% 82%` | Form control border |
-| `--primary` | `217 91% 50%` | Refined primary blue (~5.15:1 with white text) |
+| `--primary` | `175 77% 26%` | Canonical 0xWulf deep teal (`#0F766E`, ~5.47:1 with white & on white) |
 | `--primary-foreground` | `0 0% 100%` | Button / badge text on primary |
+| `--ring` / `--chart-1` | `173 84% 32%` | Canonical light active teal (`#0D9488`, `teal-600`) |
 | `--secondary` | `214 32% 93%` | Subtle secondary surface |
 | `--secondary-foreground` | `222 47% 11%` | Text on secondary |
 | `--muted` | `210 28% 95%` | Muted panels & table headers |
@@ -59,8 +60,9 @@
 | `--card-border` | `220 16% 18%` | 1px card border |
 | `--border` | `220 15% 20%` | Standard structural divider |
 | `--input` | `220 15% 24%` | Form control border |
-| `--primary` | `217 91% 60%` | Electric blue primary accent |
-| `--primary-foreground` | `0 0% 100%` | Text on primary |
+| `--primary` | `173 80% 40%` | Canonical 0xWulf primary teal (`#14B8A6`, `teal-500`, ~7.1:1 on dark card) |
+| `--primary-foreground` | `180 48% 6%` | Deep teal-ink text on dark primary (~7.4:1 contrast) |
+| `--chart-1` | `172 66% 50%` | Dark chart teal accent (`#2DD4BF`, `teal-400`) |
 | `--secondary` | `220 16% 17%` | Subtle secondary surface |
 | `--secondary-foreground` | `210 25% 96%` | Text on secondary |
 | `--muted` | `220 16% 14%` | Muted panels & table headers |

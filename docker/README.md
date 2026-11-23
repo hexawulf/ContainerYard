@@ -2,7 +2,7 @@
 
 **Self-hosted Docker observability dashboard: live logs, stack and container actions, metrics and an audit trail in one fast, light/dark web UI.**
 
-[![Website](https://img.shields.io/badge/website-containeryard.org-blue)](https://containeryard.org)
+[![Website](https://img.shields.io/badge/website-containeryard.org-0D9488)](https://containeryard.org)
 [![GitHub](https://img.shields.io/badge/source-hexawulf%2FContainerYard-181717?logo=github)](https://github.com/hexawulf/ContainerYard)
 [![Release](https://img.shields.io/github/v/release/hexawulf/ContainerYard?label=release)](https://github.com/hexawulf/ContainerYard/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](https://github.com/hexawulf/ContainerYard/blob/main/LICENSE)

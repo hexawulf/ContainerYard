@@ -1,4 +1,4 @@
-[![Website](https://img.shields.io/badge/website-containeryard.org-blue)](https://containeryard.org)
+[![Website](https://img.shields.io/badge/website-containeryard.org-0D9488)](https://containeryard.org)
 [![GitHub](https://img.shields.io/github/stars/hexawulf/ContainerYard?style=social)](https://github.com/hexawulf/ContainerYard)
 
 # ContainerYard 5.5 🐳

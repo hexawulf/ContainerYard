@@ -19,7 +19,7 @@
 
   --border: 214 28% 86%;
   --input: 214 26% 82%;
-  --ring: 217 91% 50%;
+  --ring: 173 84% 32%;
 
   --card: 0 0% 100%;
   --card-foreground: 222 47% 11%;
@@ -28,17 +28,17 @@
   --sidebar: 210 28% 97%;
   --sidebar-foreground: 222 47% 11%;
   --sidebar-border: 214 28% 88%;
-  --sidebar-primary: 217 91% 50%;
+  --sidebar-primary: 175 77% 26%;
   --sidebar-primary-foreground: 0 0% 100%;
   --sidebar-accent: 214 32% 93%;
   --sidebar-accent-foreground: 222 47% 11%;
-  --sidebar-ring: 217 91% 50%;
+  --sidebar-ring: 173 84% 32%;
 
   --popover: 0 0% 100%;
   --popover-foreground: 222 47% 11%;
   --popover-border: 214 28% 86%;
 
-  --primary: 217 91% 50%;
+  --primary: 175 77% 26%;
   --primary-foreground: 0 0% 100%;
 
   --secondary: 214 32% 93%;
@@ -66,7 +66,7 @@
   --log-debug: 268 70% 46%;
   --log-fatal: 346 84% 40%;
 
-  --chart-1: 217 91% 50%;
+  --chart-1: 173 84% 32%;
   --chart-2: 142 72% 35%;
   --chart-3: 28 92% 44%;
   --chart-4: 268 72% 52%;
@@ -124,7 +124,7 @@
 
   --border: 220 15% 20%;
   --input: 220 15% 24%;
-  --ring: 217 91% 60%;
+  --ring: 173 80% 40%;
 
   --card: 222 21% 10%;
   --card-foreground: 210 25% 96%;
@@ -133,18 +133,18 @@
   --sidebar: 222 22% 9%;
   --sidebar-foreground: 210 25% 96%;
   --sidebar-border: 220 15% 18%;
-  --sidebar-primary: 217 91% 60%;
-  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-primary: 173 80% 40%;
+  --sidebar-primary-foreground: 180 48% 6%;
   --sidebar-accent: 220 16% 16%;
   --sidebar-accent-foreground: 210 25% 96%;
-  --sidebar-ring: 217 91% 60%;
+  --sidebar-ring: 173 80% 40%;
 
   --popover: 222 20% 12%;
   --popover-foreground: 210 25% 96%;
   --popover-border: 220 15% 20%;
 
-  --primary: 217 91% 60%;
-  --primary-foreground: 0 0% 100%;
+  --primary: 173 80% 40%;
+  --primary-foreground: 180 48% 6%;
 
   --secondary: 220 16% 17%;
   --secondary-foreground: 210 25% 96%;
@@ -171,7 +171,7 @@
   --log-debug: 272 76% 72%;
   --log-fatal: 348 88% 66%;
 
-  --chart-1: 217 91% 62%;
+  --chart-1: 172 66% 50%;
   --chart-2: 142 72% 52%;
   --chart-3: 35 94% 58%;
   --chart-4: 272 76% 68%;
@@ -215,6 +215,16 @@
 
   body {
     @apply font-sans antialiased bg-background text-foreground;
+  }
+
+  ::selection {
+    background-color: hsl(168 84% 78%);
+    color: hsl(222 47% 11%);
+  }
+
+  .dark ::selection {
+    background-color: hsl(176 61% 19%);
+    color: hsl(210 25% 96%);
   }
 }
 
