@@ -76,7 +76,7 @@
     "esbuild": "^0.28.2",
     "eslint": "^10.15.0",
     "eslint-plugin-react-hooks": "^7.0.0",
-    "lucide-react": "^0.453.0",
+    "lucide-react": "^1.77.0",
     "madge": "^8.0.0",
     "postcss": "^8.4.47",
     "prisma": "^6.17.1",
