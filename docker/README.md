@@ -34,7 +34,7 @@ ContainerYard sits between a bare log viewer and a full monitoring stack. Point 
 | Tag | Meaning |
 | --- | --- |
 | `5.5.0` | Exact release (recommended for production; pin it) |
-| `5.4` | Latest patch of the 5.4 line |
+| `5.5` | Latest patch of the 5.5 line |
 | `latest` | Most recent stable release |
 
 Multi-arch images for **`linux/amd64`** and **`linux/arm64`**, built by GitHub Actions from signed `vX.Y.Z` tags with Trivy scanning, SBOM, and SLSA provenance attestations. See the [changelog](https://github.com/hexawulf/ContainerYard/blob/main/CHANGELOG.md) and full configuration docs in the [README](https://github.com/hexawulf/ContainerYard#configuration).

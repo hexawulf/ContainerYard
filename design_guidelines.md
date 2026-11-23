@@ -11,7 +11,7 @@
 - Instant visual feedback: State changes must be immediately apparent
 - Scannable density: Maximum information without cognitive overload
 - Dual-theme parity: WCAG AA contrast (≥ 4.5:1 body text, ≥ 3:1 UI) in both light and dark modes
-- Terminal-native feel: Embedded shell (xterm.js) stays dark in both themes, cleanly framed in light mode
+- Log-native feel: Monospace log viewers preserve semantic severity contrast in both light and dark themes
 
 ---
 
@@ -104,7 +104,7 @@
 - **Default**: Light mode (`<html class="light">`)
 - **Toggle**: Sun/Moon icon button (`data-testid="button-theme-toggle"`) in the right side of `Navbar` on every route (Landing, Login, Dashboard, HostLogs, StyleGuide, 404)
 - **Persistence**: `localStorage` key `'containeryard-theme'`. Stored `'dark'` resolves to `'dark'`; `'light'`, missing, invalid, or legacy `'system'` resolves to `'light'`
-- **No-Flash Script**: Inline `<script>` in `client/index.html` sets `<html class="light|dark">`, `document.documentElement.style.colorScheme`, and `<meta name="theme-color">` before any module loads
+- **No-Flash Script**: Blocking `<script src="/theme-init.js">` in `client/index.html` (CSP-safe external script) sets `<html class="light|dark">`, `document.documentElement.style.colorScheme`, and `<meta name="theme-color">` before any module loads
 - **Transition**: 150ms color transition applied only on user toggle (`html.theme-transition`) and disabled under `prefers-reduced-motion: reduce` and during first paint
 
 ### E. Header Action Row (`Navbar`)

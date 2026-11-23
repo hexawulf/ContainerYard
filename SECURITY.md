@@ -15,7 +15,7 @@ If you discover a security issue in ContainerYard, please email **dev@0xwulf.dev
   - Every authenticated request (`requireAuth`) and live SSE heartbeat (`isSseSessionValid`) re-checks `FIREBASE_ENABLED` and `FIREBASE_ALLOWED_EMAILS` for Google sessions, immediately revoking sessions and closing streams if an account is removed.
   - Service-account JSON keys are mounted read-only from a `0600` host file (`deploy/firebase/docker-compose.firebase.yml`) and never logged or baked into images.
   - Misconfigured Firebase settings degrade cleanly to disabled at startup so break-glass password login continues working.
-- **Session management:** Redis-backed `express-session` with `HttpOnly`, `Secure` (`__Secure-cy.sid`), and `SameSite` cookies. Sessions regenerate on login and password change, rotating the synchronizer CSRF token. `User.sessionVersion` enforces instant global session revocation on password reset, role change, or deletion.
+- **Session management:** Redis-backed `express-session` with `HttpOnly`, `Secure` (`__Secure-cy.sid`), and `SameSite` cookies. Sessions regenerate on login (rotating the synchronizer CSRF token) and on password change (regenerating the session ID while preserving the active CSRF token). `User.sessionVersion` enforces instant global session revocation on password reset, role change, or deletion.
 
 ### Web & Transport Hardening
 - **CSRF protection:** Every mutating `/api/*` request validates both `Origin` against `ALLOWED_ORIGINS` and a constant-time synchronizer token (`x-csrf-token`).

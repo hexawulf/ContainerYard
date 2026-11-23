@@ -36,7 +36,7 @@ Internet / LAN
 │ Docker Compose network (cy-internal)                      │
 │                                                           │
 │  ┌─────────────────────────────────────────────────────┐  │
-│  │ app (0xwulf/containeryard:4.0.0)                    │  │
+│  │ app (0xwulf/containeryard:5.5.0)                    │  │
 │  │  • uid 1000 (node), tini PID 1, read-only rootfs    │  │
 │  │  •cy-data:/data (SQLite app.db)                     │  │
 │  │  • /var/run/docker.sock (local Docker API)          │  │
@@ -67,7 +67,7 @@ Published multi-arch images (`linux/amd64` and `linux/arm64`) are available on D
 ### Quick Start (3 Commands)
 
 ```bash
-cp .env.example .env && nano .env     # Set SESSION_SECRET, REDIS_PASSWORD, ADMIN_*, ALLOWED_ORIGINS, CADVISOR_URLs
+cp .env.example .env && nano .env     # Set SESSION_SECRET, REDIS_PASSWORD, ADMIN_*, ALLOWED_ORIGINS, optional CY_REMOTE_HOSTS
 docker compose pull
 docker compose up -d
 ```
@@ -99,8 +99,8 @@ This bind-mounts `/var/log/nginx` to `/host/nginx:ro` and `~/.pm2/logs` to `/hos
 Use `scripts/docker-deploy.sh` to pull a new version, back up the `cy-data` SQLite database volume, recreate the container, and verify `/health`:
 
 ```bash
-scripts/docker-deploy.sh 4.0.0 --dry-run   # preview actions
-scripts/docker-deploy.sh 4.0.0             # deploy and verify
+scripts/docker-deploy.sh 5.5.0 --dry-run   # preview actions
+scripts/docker-deploy.sh 5.5.0             # deploy and verify
 ```
 
 ### Backup & Restore
@@ -152,7 +152,7 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
 
-        # Required for SSE live log streaming and WebSocket terminal
+        # Required for SSE live log streaming
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
         proxy_buffering off;
@@ -203,7 +203,7 @@ Remote hosts configured in `CY_REMOTE_HOSTS` (parsed by `server/src/config/env.t
 | `COOKIE_NAME` | No | `__Secure-cy.sid` | Session cookie name |
 | `COOKIE_DOMAIN` | No | unset | Optional session cookie domain |
 | `COOKIE_SAMESITE` | No | `none` | Cookie SameSite policy (`lax` recommended when UI & API share origin) |
-| `METRICS_TOKEN` | No | unset | Optional bearer token for `GET /metrics` |
+| `METRICS_TOKEN` | No | unset | Optional token via `x-metrics-token` header for `GET /metrics` |
 | `PUBLIC_API_BASE` | No | request origin | Optional override returned by `/api/runtime-config` |
 | `WEBHOOK_ALLOW_PRIVATE` | No | `false` | Allow alert webhooks to private/LAN IPs |
 | `WEBHOOK_ALLOWED_HOSTS` | No | empty | Comma-separated webhook hostnames exempt from private IP block |
@@ -228,7 +228,7 @@ Remote hosts configured in `CY_REMOTE_HOSTS` (parsed by `server/src/config/env.t
 If you are currently running ContainerYard under PM2 on `:5008`:
 
 1. Ensure `REDIS_PASSWORD` is set in `.env` (`openssl rand -hex 24`).
-2. Back up `server/prisma/app.db` and `.env`, stop `pm2 containeryard-api`, copy `app.db` into the `containeryard_cy-data` Docker volume, and start the Compose stack with `scripts/docker-deploy.sh 5.0.0`.
+2. Back up `server/prisma/app.db` and `.env`, stop `pm2 containeryard-api`, copy `app.db` into the `containeryard_cy-data` Docker volume, and start the Compose stack with `scripts/docker-deploy.sh 5.5.0`.
 3. Once verified, remove the legacy PM2 process:
    ```bash
    pm2 delete containeryard-api && pm2 save
@@ -248,5 +248,3 @@ node server/prisma/seed.js
 npm run build
 pm2 startOrReload ecosystem.config.cjs && pm2 save
 ```
-
-The legacy helper `scripts/deploy-static.sh [--dry-run]` remains available for PM2 updates.

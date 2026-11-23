@@ -1,7 +1,7 @@
 # ContainerYard - Agent Guidelines
 
 ## Project Snapshot
-Simple full-stack TypeScript project (not a monorepo). React 18 + Express.js + Prisma (PostgreSQL). Docker container observability dashboard with real-time log streaming, metrics, and terminal access. Sub-directories have detailed AGENTS.md files for specific guidance.
+Simple full-stack TypeScript project (not a monorepo). React 18 + Express.js + Prisma (SQLite by default, optional PostgreSQL). Docker container observability dashboard with real-time SSE log streaming, compose stack actions, and metrics.
 
 ## Root Setup Commands
 ```bash
@@ -30,7 +30,7 @@ npm run e2e                    # Playwright tests
 
 # Docker Compose (production)
 docker compose up -d           # Pull/run 0xwulf/containeryard + redis on 127.0.0.1:5008
-scripts/docker-deploy.sh 4.0.0 # Pull tagged release, backup cy-data DB, recreate & verify
+scripts/docker-deploy.sh 5.5.0 # Pull tagged release, backup cy-data DB, recreate & verify
 ```
 
 ## Universal Conventions
@@ -67,36 +67,36 @@ scripts/docker-deploy.sh 4.0.0 # Pull tagged release, backup cy-data DB, recreat
 
 **Environment Variables**
 - Copy `.env.example` to `.env` for local development
-- Required vars: `DATABASE_URL`, `SESSION_SECRET`, `PROVIDER` (MOCK/SIMULATION/REMOTE)
+- Required vars: `DATABASE_URL`, `SESSION_SECRET`, `REDIS_URL`, `ALLOWED_ORIGINS`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`
 - Client-side vars: None currently (no VITE_* vars in production)
 
 **PII Handling**
-- User data stored in Prisma (PostgreSQL): email, hashed passwords
-- Session data in express-session (MemoryStore or Redis)
+- User data stored in Prisma (SQLite by default; PostgreSQL optional): email, hashed passwords, `sessionVersion`, audit logs, bookmarks, saved searches
+- Session data in `express-session` backed by Redis (`connect-redis`)
 
 ## JIT Index (What to Open, Not What to Paste)
 
 ### Directory Structure
 ```
 ContainerYard/
-├── client/          → Frontend (React 18 + Vite) [see client/AGENTS.md]
+├── client/          → Frontend (React 18 + Vite)
 │   └── src/
 │       ├── components/   UI components (shadcn/ui + custom)
 │       ├── pages/        Page-level components
 │       ├── features/     Feature modules
 │       ├── hooks/        Custom React hooks
 │       └── lib/          Client utilities (API, query client)
-├── server/          → Backend (Express + Prisma) [see server/AGENTS.md]
+├── server/          → Backend (Express + Prisma)
+│   ├── prisma/           Database schema, migrations & seed
 │   └── src/
+│       ├── config/       Validated env, hosts, Redis session config
 │       ├── routes/       API route handlers
-│       ├── services/     Business logic (Docker, cAdvisor)
-│       ├── middleware/   Auth, rate limiting, CSRF
-│       ├── db/           Database client
-│       └── prisma/       Database schema & migrations
-├── shared/          → Shared types & schemas [see shared/AGENTS.md]
-│   ├── schema.ts         Zod validation schemas
-│   └── monitoring.ts     Monitoring utilities
-└── e2e/             → Playwright E2E tests [see e2e/AGENTS.md]
+│       ├── services/     Business logic (Docker, cAdvisor, host logs)
+│       └── middleware/   Auth, rate limiting, CSRF
+├── shared/          → Shared types & schemas
+│   ├── schema.ts         Drizzle/Zod schemas
+│   └── monitoring.ts     Monitoring types
+└── e2e/             → Playwright E2E tests
 ```
 
 ### Quick Find Commands
@@ -126,7 +126,7 @@ rg -n "^model " server/prisma/schema.prisma
 find e2e -name "*.spec.ts"
 
 # Check for circular dependencies
-npx madge client/src --circular
+npx madge client/src --extensions ts,tsx --ts-config tsconfig.json --circular
 ```
 
 ### Path Aliases (tsconfig.json)
@@ -139,7 +139,7 @@ npx madge client/src --circular
 - [ ] `npm run check` passes (TypeScript)
 - [ ] `npm run lint` passes (ESLint)
 - [ ] `npm run build` succeeds (server + client)
-- [ ] No circular dependencies: `npx madge client/src --circular`
+- [ ] No circular dependencies: `npx madge client/src --extensions ts,tsx --ts-config tsconfig.json --circular`
 - [ ] Manual testing completed (dev server)
 - [ ] No secrets/credentials in committed files
 - [ ] `npm run check:tests` and `npm test` pass (unit tests, server + client)
@@ -159,7 +159,7 @@ npx madge client/src --circular
 6. Response ← Service ← Route ← Query ← Component
 
 **Authentication Flow**
-- Session-based auth with Passport.js
+- Session-based auth with `express-session` + Redis (plus optional Google sign-in via Firebase Auth)
 - CSRF tokens for all mutations (POST/PUT/PATCH/DELETE)
 - Auth middleware: `requireAuth()`, `requireRole(...roles)`
 - Client-side auth context: `AuthGate` component + `useAuth()` hook
@@ -168,17 +168,16 @@ npx madge client/src --circular
 - Docker API via Dockerode (server/src/services/docker.ts)
 - cAdvisor for container metrics (server/src/services/cadvisor.ts)
 - Prometheus metrics export (server/src/metrics.ts)
-- WebSocket for real-time log streaming
-- xterm.js for web-based terminal
+- Server-Sent Events (SSE) for real-time container and host log streaming
 
 ## Common Gotchas
 
 1. **CSRF Tokens**: All mutations require CSRF token. Use `apiRequest()` from `lib/queryClient.ts` (auto-handles CSRF).
 2. **Path Aliases**: `@/` only works in client code. Server uses relative imports.
 3. **Prisma Client**: Must run `npx prisma generate` after schema changes.
-4. **Docker Provider**: Set `PROVIDER=MOCK` in `.env` if you don't have Docker daemon.
-5. **Session Storage**: Uses MemoryStore by default (not production-ready). Use Redis for production.
-6. **Port Conflicts**: Dev server runs on port 5000. Change in `.env` if needed.
+4. **Docker Socket**: Local Docker access uses `DOCKER_HOST` (default `unix:///var/run/docker.sock`); remote read-only hosts are configured via `CY_REMOTE_HOSTS`.
+5. **Session Storage**: Requires Redis (`REDIS_URL`).
+6. **Port Conflicts**: Dev server runs on port 5008. Change `PORT` in `.env` if needed.
 
 ## Quick Reference
 
@@ -190,8 +189,8 @@ npx madge client/src --circular
 - Config: `vite.config.ts`, `tsconfig.json`, `eslint.config.js`
 
 **Tech Stack at a Glance**
-- UI: React 18, shadcn/ui (Radix), Tailwind CSS v4, Wouter (routing)
+- UI: React 18, shadcn/ui (Radix), Tailwind CSS v3, Wouter (routing)
 - State: TanStack Query (server state), React Context (auth, theme)
-- Backend: Express, Prisma, Passport, Dockerode
+- Backend: Express, Prisma, Redis (`connect-redis`), Dockerode
 - Build: Vite (client), esbuild (server)
 - Testing: `node:test` unit tests (`server/tests/unit`, `client/tests/unit`; Docker and cAdvisor are exercised against fake engines on a Unix socket / local HTTP port), live integration suite, Playwright E2E

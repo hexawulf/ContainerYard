@@ -1,7 +1,7 @@
 [![Website](https://img.shields.io/badge/website-containeryard.org-blue)](https://containeryard.org)
 [![GitHub](https://img.shields.io/github/stars/hexawulf/ContainerYard?style=social)](https://github.com/hexawulf/ContainerYard)
 
-# ContainerYard 5.0 🐳
+# ContainerYard 5.5 🐳
 
 > A complete Docker stack monitoring platform with log analysis, alerting, and historical trends
 
@@ -46,7 +46,6 @@ ContainerYard is a comprehensive Docker observability platform that goes beyond 
 - 🔴 **Real-time Container Monitoring** - Live status updates, metrics, and health checks
 - 📜 **Advanced Log Streaming** - Virtual scrolling for performance with large log datasets
 - 🔍 **Powerful Search & Filtering** - Regex support, log level filtering, and custom DSL queries
-- 💻 **Integrated Terminal** - Web-based shell access for container debugging
 - ⌨️ **Keyboard Shortcuts** - Navigate efficiently with keyboard-driven controls
 - ☀️ **Light/Dark Mode Toggle** - Light mode by default with a persistent per-browser toggle on every page, zero flash on load, and WCAG AA contrast tuned for log readability in both themes
 - 👥 **User Administration & Session Revocation** - Self-service password change, ADMIN user management modal (create users, assign `ADMIN`/`VIEWER` roles, reset passwords, delete users), and instant `sessionVersion`-based revocation across active sessions
@@ -57,9 +56,7 @@ ContainerYard is a comprehensive Docker observability platform that goes beyond 
 - 📊 **JSON Field Detection** - Auto-parse structured logs with interactive field chips
 - 🔎 **Query DSL** - Advanced query syntax: `level:warn..error`, `service:auth`, `-"exclude"`
 - 📈 **Timeline Spike Analysis** - Clickable metric spikes auto-scope logs to relevant time windows
-- 🔥 **Log Rate Heatmap** - Visualize log bursts with Z-score detection and auto-filtering
-- 🔄 **Restart Comparison** - Before/after restart analysis with error pattern detection
-- 💾 **Saved Searches** - Persist search queries with PostgreSQL for quick reuse
+- 💾 **Saved Searches** - Persist search queries per user for quick reuse
 - 🌐 **Environment Viewer** - Search, filter, and bulk export container environment variables
 
 ## 🆕 What's New in 5.0
@@ -219,7 +216,7 @@ docker compose -f docker-compose.yml -f deploy/hostlogs/docker-compose.hostlogs.
   docker run --rm -v containeryard_cy-data:/data:ro -v "$HOME/backups/containeryard:/backup" \
     --entrypoint /bin/cp 0xwulf/containeryard:latest -a /data/app.db "/backup/app.db.bak-$(date +%Y%m%d-%H%M%S)"
   ```
-- **Deploy / Upgrade:** `scripts/docker-deploy.sh 5.0.0 [--dry-run]` pulls the tag, backs up `cy-data`, runs `docker compose up -d`, waits for the container healthcheck, and verifies `/health`.
+- **Deploy / Upgrade:** `scripts/docker-deploy.sh 5.5.0 [--dry-run]` pulls the tag, backs up `cy-data`, runs `docker compose up -d`, waits for the container healthcheck, and verifies `/health`.
 
 ### Bare-Metal / Development Installation
 
@@ -265,7 +262,7 @@ The server (`server/src/config/env.ts`) and container entrypoint (`docker/entryp
 | `COOKIE_NAME` | No | `__Secure-cy.sid` | Session cookie name |
 | `COOKIE_DOMAIN` | No | unset | Cookie domain |
 | `COOKIE_SAMESITE` | No | `none` | `lax` is recommended when UI and API share an origin |
-| `METRICS_TOKEN` | No | unset | Bearer token required for the Prometheus `/metrics` endpoint |
+| `METRICS_TOKEN` | No | unset | Optional token sent via `x-metrics-token` header for the Prometheus `/metrics` endpoint |
 | `PUBLIC_API_BASE` | No | derived from request | API base URL returned by `/api/runtime-config` |
 | `WEBHOOK_ALLOW_PRIVATE` | No | `false` | Allow alert webhooks to LAN/loopback targets |
 | `WEBHOOK_ALLOWED_HOSTS` | No | empty | Comma-separated webhook hostnames that skip IP checks |
@@ -302,7 +299,7 @@ The monitored hosts are configured via `CY_LOCAL_HOST_ID`, `CY_LOCAL_HOST_NAME`,
 | Users, audit log, bookmarks, saved searches (Prisma) | ✅ | ✅ |
 | Alert rules/history, historical metrics, restart tracking (Drizzle) | ❌ disabled | ✅ |
 
-Schema changes: `npm run db:push:prisma` (Prisma tables) and, on PostgreSQL, `npm run db:push` (Drizzle tables). Back up the database first.
+Schema changes: `npm run db:push:prisma` (Prisma tables). Back up the database first.
 
 ### Authentication
 
@@ -326,7 +323,6 @@ npm test                    # unit tests, server + client (no Docker, DB or netw
 npm run test:coverage       # the same, with a per-file coverage report
 npm run test:integration    # against a running instance (see server/tests/integration/api.test.ts)
 npm run db:push:prisma      # Prisma schema -> database (SQLite or PostgreSQL)
-npm run db:push             # Drizzle schema -> PostgreSQL (alerts/metrics tables)
 ```
 
 ### Project Structure
@@ -366,7 +362,6 @@ ContainerYard/
 - **Tailwind CSS 3** - Utility-first styling with semantic light/dark CSS tokens
 - **shadcn/ui + Radix UI** - Accessible Dialog, AlertDialog, Select, Tooltip, and Table primitives
 - **TanStack Query & Virtual** - Server state management and virtualized log rendering
-- **xterm.js** - Interactive container terminal emulator
 - **Recharts** - Real-time and historical metrics visualization
 - **Wouter** - Lightweight routing
 
@@ -602,14 +597,14 @@ ContainerYard runs two background services for continuous monitoring:
 
 ```bash
 # Manual cURL test
-curl -s -H "cookie: cy.sid=<session>" \
+curl -s -H "cookie: __Secure-cy.sid=<session>" \
   "https://your-app.dev/api/hosts/local/containers/<cid>/logs?tail=100" | jq .
 
 # SSE streaming test
-node scripts/test-sse.js https://your-app.dev local <cid> "cy.sid=<session>"
+node scripts/test-sse.js https://your-app.dev local <cid> "__Secure-cy.sid=<session>"
 
 # Test stack detection
-curl -s -H "cookie: cy.sid=<session>" \
+curl -s -H "cookie: __Secure-cy.sid=<session>" \
   "https://your-app.dev/api/hosts/local/stacks" | jq .
 
 # Unit tests (log demuxer, SSRF guard, CSRF); no Docker or DB needed
