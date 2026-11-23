@@ -34,7 +34,7 @@ const TECH_SPECS = [
       "React 18, Vite, TypeScript",
       "TailwindCSS 3, shadcn/ui + Radix UI",
       "TanStack Query & Virtual, wouter",
-      "xterm.js, Recharts, lucide-react",
+      "Recharts, lucide-react",
     ],
   },
   {

@@ -20,16 +20,15 @@ const Navbar: React.FC = () => {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/80 bg-background/85 backdrop-blur-md supports-[backdrop-filter]:bg-background/75">
       <div className="mx-auto flex h-14 max-w-container items-center justify-between gap-2 px-3 sm:px-6">
-        <Link href={homeHref}>
-          <a
-            aria-label="ContainerYard home"
-            className="flex shrink-0 items-center gap-2.5 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <Logo size="sm" />
-            <span className="hidden text-sm font-semibold tracking-tight text-foreground sm:inline">
-              ContainerYard
-            </span>
-          </a>
+        <Link
+          href={homeHref}
+          aria-label="ContainerYard home"
+          className="flex shrink-0 items-center gap-2.5 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <Logo size="sm" />
+          <span className="hidden text-sm font-semibold tracking-tight text-foreground sm:inline">
+            ContainerYard
+          </span>
         </Link>
 
         <div

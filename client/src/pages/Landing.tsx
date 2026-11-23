@@ -150,7 +150,7 @@ const LandingPage: React.FC = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent className="text-sm leading-6 text-muted-foreground">
-                Read whitelisted host logs (Nginx, PM2, Prometheus, Grafana) safely from the browser with instant client and server grep.
+                Read whitelisted host logs (Nginx, PM2, container stdout, remote agents) safely from the browser with instant client and server grep.
               </CardContent>
             </Card>
 

@@ -36,7 +36,7 @@ export function HostSwitcher({
     <div className={className}>
       <Label htmlFor={id}>{label}</Label>
       <Select
-        value={hasValidSelection ? (selectedHostId as string) : undefined}
+        value={hasValidSelection ? (selectedHostId as string) : ""}
         onValueChange={onChange}
         disabled={isLoading || !Array.isArray(hosts) || hosts.length === 0}
       >

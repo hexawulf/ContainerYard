@@ -318,13 +318,3 @@
     color: hsl(var(--log-fatal));
   }
 }
-
-/* Terminal Styles */
-.xterm {
-  height: 100%;
-  padding: 0;
-}
-
-.xterm .xterm-viewport {
-  background-color: transparent !important;
-}

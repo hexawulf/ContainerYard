@@ -184,7 +184,14 @@ export function LogsViewer({
       // Server-sent `event: error` frames are MessageEvents with a JSON body;
       // a dropped connection is a plain Event (handled by onerror below).
       const data = e instanceof MessageEvent ? e.data : undefined;
-      const errorData: { message?: string; reason?: string } = data ? JSON.parse(data) : {};
+      let errorData: { message?: string; reason?: string } = {};
+      if (typeof data === 'string' && data.length > 0) {
+        try {
+          errorData = JSON.parse(data) as { message?: string; reason?: string };
+        } catch {
+          errorData = { message: data };
+        }
+      }
       setError(
         errorData.reason
           ? hostLogReasonMessage(errorData.reason, errorData.message)
@@ -277,7 +284,7 @@ export function LogsViewer({
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="relative flex flex-col h-full">
       {/* Controls Bar */}
       <div className="p-3 border-b bg-card flex items-center gap-2 flex-wrap">
         <h3 className="font-semibold text-sm mr-auto">{title}</h3>

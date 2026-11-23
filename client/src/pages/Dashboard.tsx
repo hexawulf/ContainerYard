@@ -6,6 +6,7 @@ import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/components/AuthGate";
 import { getQueryFn, queryClient } from "@/lib/queryClient";
 import { Link } from "wouter";
+import { Helmet } from "react-helmet-async";
 import type {
   ContainerDetail,
   ContainerStats,
@@ -152,12 +153,35 @@ export default function Dashboard() {
   }
   
   const [filters, setFilters] = useState<FilterState>(() => {
-    const saved = localStorage.getItem(FILTERS_STORAGE_KEY);
-    return saved ? JSON.parse(saved) : { state: "all", label: "", image: "" };
+    try {
+      const saved = localStorage.getItem(FILTERS_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved) as Partial<FilterState>;
+        return {
+          state: typeof parsed.state === "string" ? parsed.state : "all",
+          label: typeof parsed.label === "string" ? parsed.label : "",
+          image: typeof parsed.image === "string" ? parsed.image : "",
+        };
+      }
+    } catch {
+      // Ignore corrupt or unavailable localStorage
+    }
+    return { state: "all", label: "", image: "" };
   });
   const [sort, setSort] = useState<SortState>(() => {
-    const saved = localStorage.getItem(SORT_STORAGE_KEY);
-    return saved ? JSON.parse(saved) : { field: "name", direction: "asc" };
+    try {
+      const saved = localStorage.getItem(SORT_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved) as Partial<SortState>;
+        return {
+          field: typeof parsed.field === "string" ? parsed.field : "name",
+          direction: parsed.direction === "desc" ? "desc" : "asc",
+        };
+      }
+    } catch {
+      // Ignore corrupt or unavailable localStorage
+    }
+    return { field: "name", direction: "asc" };
   });
   
   const [viewMode, setViewMode] = useState<"containers" | "stacks">("containers");
@@ -187,11 +211,19 @@ export default function Dashboard() {
   }, [selectedHostId]);
 
   useEffect(() => {
-    localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(filters));
+    try {
+      localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(filters));
+    } catch {
+      // Storage unavailable
+    }
   }, [filters]);
 
   useEffect(() => {
-    localStorage.setItem(SORT_STORAGE_KEY, JSON.stringify(sort));
+    try {
+      localStorage.setItem(SORT_STORAGE_KEY, JSON.stringify(sort));
+    } catch {
+      // Storage unavailable
+    }
   }, [sort]);
 
   const containersQueryKey = useMemo(() => {
@@ -391,6 +423,9 @@ export default function Dashboard() {
 
   return (
     <DashboardErrorBoundary>
+    <Helmet>
+      <title>Dashboard - ContainerYard</title>
+    </Helmet>
     <div className="mx-auto max-w-container px-4 sm:px-6 py-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
         <h1 className="text-2xl sm:text-display font-semibold tracking-tight">Dashboard</h1>

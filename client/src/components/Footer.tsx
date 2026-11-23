@@ -16,10 +16,11 @@ const Footer: React.FC = () => {
           </p>
         </div>
         <div className="flex items-center gap-5">
-          <Link href="/styleguide">
-            <a className="text-xs font-medium text-muted-foreground transition-colors hover:text-foreground sm:text-sm">
-              Style Guide
-            </a>
+          <Link
+            href="/styleguide"
+            className="text-xs font-medium text-muted-foreground transition-colors hover:text-foreground sm:text-sm"
+          >
+            Style Guide
           </Link>
         </div>
       </div>
