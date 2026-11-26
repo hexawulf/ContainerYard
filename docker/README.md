@@ -16,8 +16,9 @@ ContainerYard sits between a bare log viewer and a full monitoring stack. Point 
 - **Real-time logs:** live tail over SSE, virtualized log viewer, `since` / `grep` filtering, Log Moment bookmarks, saved searches, and ADMIN log download.
 - **Compose stacks:** automatic grouping by project, health badges, combined stack logs, and ADMIN start/stop/restart actions with confirmation and audit logging.
 - **Container actions & inspect:** start, stop, restart, pause, unpause, remove, and raw `docker inspect` for ADMINs only; `VIEWER` role sees `[hidden]` env values.
-- **Metrics:** live CPU, memory, and network stats per container and host with short TTL + singleflight caching for sub-5ms dashboard polls.
-- **Users and roles:** `ADMIN` / `VIEWER` roles, password policies, instant session revocation (`sessionVersion`) on password reset, role change, or deletion, and full audit log.
+- **Metrics & historical trends:** live CPU, memory, and network stats per container and host with short TTL + singleflight caching, plus hourly metrics aggregation (JSON/CSV export) and restart tracking persisted in SQLite.
+- **Proactive alerting:** alert rules engine (CPU, memory, status, restarts), notification channels (SSRF-safe webhooks, email, browser), alert history & acknowledgment — works out of the box on SQLite with zero external database.
+- **Users and roles:** `ADMIN` / `VIEWER` roles, optional Google Sign-In (Firebase with email allowlist), password policies, instant session revocation (`sessionVersion`) on password reset, role change, or deletion, and full audit log.
 - **Security by default:** synchronizer CSRF tokens with `Origin` enforcement, `bcrypt` cost 12, rate limiting, Helmet CSP + security headers, `Secure` Redis sessions, SSRF-safe webhooks, and `read_only: true` non-root (`uid 1000`) container runtime.
 
 | Light | Dark |
@@ -33,11 +34,11 @@ ContainerYard sits between a bare log viewer and a full monitoring stack. Point 
 
 | Tag | Meaning |
 | --- | --- |
-| `5.5.2` | Exact release (recommended for production; pin it) |
-| `5.5` | Latest patch of the 5.5 line |
+| `5.6.0` | Exact release (recommended for production; pin it) |
+| `5.6` | Latest patch of the 5.6 line |
 | `latest` | Most recent stable release |
 
-Multi-arch images for **`linux/amd64`** and **`linux/arm64`**, built by GitHub Actions from signed `vX.Y.Z` tags with Trivy scanning, SBOM, and SLSA provenance attestations. See the [changelog](https://github.com/hexawulf/ContainerYard/blob/main/CHANGELOG.md) and full configuration docs in the [README](https://github.com/hexawulf/ContainerYard#configuration).
+Multi-arch images for **`linux/amd64`** and **`linux/arm64`**, built by GitHub Actions from signed `vX.Y.Z` tags with Trivy scanning, SBOM, and SLSA provenance attestations. See the [changelog](https://github.com/hexawulf/ContainerYard/blob/main/CHANGELOG.md), [architecture guide](https://github.com/hexawulf/ContainerYard/blob/main/docs/ARCHITECTURE.md), and [deployment guide](https://github.com/hexawulf/ContainerYard/blob/main/DEPLOYMENT.md).
 
 ## Quick start (Docker Compose)
 
