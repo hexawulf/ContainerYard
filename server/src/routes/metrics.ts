@@ -1,8 +1,5 @@
-import { Router, type Response } from "express";
-import { db } from "../../db";
-import { eq, and, gte, desc } from "drizzle-orm";
-import { containerMetricsHourly } from "@shared/schema";
-import { isSQLite, logSQLiteDisabled } from "../config/databaseCapabilities";
+import { Router } from "express";
+import { prisma } from "../db/client";
 
 const router = Router();
 
@@ -23,42 +20,24 @@ function safeFilenameToken(value: string): string {
   return value.replace(/[^a-zA-Z0-9_.-]/g, "_").slice(0, 64) || "metrics";
 }
 
-// Helper to return empty data for SQLite mode
-function emptyMetricsResponse(res: Response, format: string = 'json') {
-  if (format === 'csv') {
-    res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', `attachment; filename="metrics-empty-${Date.now()}.csv"`);
-    res.send('Container ID,Container Name,Timestamp,Avg CPU %,Max CPU %,Avg Memory %,Max Memory %,Avg Memory (Bytes),Max Memory (Bytes),Network Rx,Network Tx,Block Read,Block Write,Sample Count\n');
-    return;
-  }
-  res.json([]);
-}
-
 // Get historical metrics for a specific container
 router.get("/:hostId/containers/:containerId/metrics/history", async (req, res, next) => {
-  if (isSQLite) {
-    logSQLiteDisabled("Container metrics history");
-    return emptyMetricsResponse(res);
-  }
-  
+  if (!prisma) return res.json([]);
   try {
     const { hostId, containerId } = req.params;
     const days = safeParseInt(req.query.days as string, 7, 365);
-    
+
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - days);
 
-    const metrics = await db
-      .select()
-      .from(containerMetricsHourly)
-      .where(
-        and(
-          eq(containerMetricsHourly.hostId, hostId),
-          eq(containerMetricsHourly.containerId, containerId),
-          gte(containerMetricsHourly.aggregatedAt, cutoffDate)
-        )
-      )
-      .orderBy(containerMetricsHourly.aggregatedAt);
+    const metrics = await prisma.containerMetricsHourly.findMany({
+      where: {
+        hostId,
+        containerId,
+        aggregatedAt: { gte: cutoffDate },
+      },
+      orderBy: { aggregatedAt: "asc" },
+    });
 
     res.json(metrics);
   } catch (error) {
@@ -68,28 +47,21 @@ router.get("/:hostId/containers/:containerId/metrics/history", async (req, res, 
 
 // Get aggregated metrics summary for all containers
 router.get("/:hostId/metrics/summary", async (req, res, next) => {
-  if (isSQLite) {
-    logSQLiteDisabled("Metrics summary");
-    return emptyMetricsResponse(res);
-  }
-  
+  if (!prisma) return res.json([]);
   try {
     const { hostId } = req.params;
     const days = safeParseInt(req.query.days as string, 7, 365);
-    
+
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - days);
 
-    const metrics = await db
-      .select()
-      .from(containerMetricsHourly)
-      .where(
-        and(
-          eq(containerMetricsHourly.hostId, hostId),
-          gte(containerMetricsHourly.aggregatedAt, cutoffDate)
-        )
-      )
-      .orderBy(desc(containerMetricsHourly.aggregatedAt));
+    const metrics = await prisma.containerMetricsHourly.findMany({
+      where: {
+        hostId,
+        aggregatedAt: { gte: cutoffDate },
+      },
+      orderBy: { aggregatedAt: "desc" },
+    });
 
     interface ContainerAccumulator {
       containerId: string;
@@ -101,7 +73,7 @@ router.get("/:hostId/metrics/summary", async (req, res, next) => {
       dataPoints: number;
     }
     const containerStats = new Map<string, ContainerAccumulator>();
-    
+
     for (const metric of metrics) {
       if (!containerStats.has(metric.containerId)) {
         containerStats.set(metric.containerId, {
@@ -114,7 +86,7 @@ router.get("/:hostId/metrics/summary", async (req, res, next) => {
           dataPoints: 0,
         });
       }
-      
+
       const stats = containerStats.get(metric.containerId)!;
       stats.avgCpu.push(parseFloat(metric.avgCpuPercent) || 0);
       stats.maxCpu.push(parseFloat(metric.maxCpuPercent) || 0);
@@ -141,31 +113,24 @@ router.get("/:hostId/metrics/summary", async (req, res, next) => {
 
 // Get top CPU consumers
 router.get("/:hostId/metrics/top-cpu", async (req, res, next) => {
-  if (isSQLite) {
-    logSQLiteDisabled("Top CPU consumers");
-    return emptyMetricsResponse(res);
-  }
-  
+  if (!prisma) return res.json([]);
   try {
     const { hostId } = req.params;
     const limit = safeParseInt(req.query.limit as string, 5, 100);
     const days = safeParseInt(req.query.days as string, 7, 365);
-    
+
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - days);
 
-    const metrics = await db
-      .select()
-      .from(containerMetricsHourly)
-      .where(
-        and(
-          eq(containerMetricsHourly.hostId, hostId),
-          gte(containerMetricsHourly.aggregatedAt, cutoffDate)
-        )
-      );
+    const metrics = await prisma.containerMetricsHourly.findMany({
+      where: {
+        hostId,
+        aggregatedAt: { gte: cutoffDate },
+      },
+    });
 
     const containerCpu = new Map<string, { name: string; avgCpu: number[] }>();
-    
+
     for (const metric of metrics) {
       if (!containerCpu.has(metric.containerId)) {
         containerCpu.set(metric.containerId, {
@@ -193,31 +158,24 @@ router.get("/:hostId/metrics/top-cpu", async (req, res, next) => {
 
 // Get top memory consumers
 router.get("/:hostId/metrics/top-memory", async (req, res, next) => {
-  if (isSQLite) {
-    logSQLiteDisabled("Top memory consumers");
-    return emptyMetricsResponse(res);
-  }
-  
+  if (!prisma) return res.json([]);
   try {
     const { hostId } = req.params;
     const limit = safeParseInt(req.query.limit as string, 5, 100);
     const days = safeParseInt(req.query.days as string, 7, 365);
-    
+
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - days);
 
-    const metrics = await db
-      .select()
-      .from(containerMetricsHourly)
-      .where(
-        and(
-          eq(containerMetricsHourly.hostId, hostId),
-          gte(containerMetricsHourly.aggregatedAt, cutoffDate)
-        )
-      );
+    const metrics = await prisma.containerMetricsHourly.findMany({
+      where: {
+        hostId,
+        aggregatedAt: { gte: cutoffDate },
+      },
+    });
 
     const containerMemory = new Map<string, { name: string; avgMemory: number[] }>();
-    
+
     for (const metric of metrics) {
       if (!containerMemory.has(metric.containerId)) {
         containerMemory.set(metric.containerId, {
@@ -245,29 +203,23 @@ router.get("/:hostId/metrics/top-memory", async (req, res, next) => {
 
 // Export metrics as CSV
 router.get("/:hostId/metrics/export/csv", async (req, res, next) => {
-  if (isSQLite) {
-    logSQLiteDisabled("Metrics CSV export");
-    return emptyMetricsResponse(res, 'csv');
-  }
-  
   try {
     const { hostId } = req.params;
     const days = safeParseInt(req.query.days as string, 7, 365);
     const format = req.query.format || 'csv';
-    
+
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - days);
 
-    const metrics = await db
-      .select()
-      .from(containerMetricsHourly)
-      .where(
-        and(
-          eq(containerMetricsHourly.hostId, hostId),
-          gte(containerMetricsHourly.aggregatedAt, cutoffDate)
-        )
-      )
-      .orderBy(containerMetricsHourly.aggregatedAt);
+    const metrics = prisma
+      ? await prisma.containerMetricsHourly.findMany({
+          where: {
+            hostId,
+            aggregatedAt: { gte: cutoffDate },
+          },
+          orderBy: { aggregatedAt: "asc" },
+        })
+      : [];
 
     if (format === 'json') {
       res.setHeader('Content-Type', 'application/json');
@@ -322,30 +274,24 @@ router.get("/:hostId/metrics/export/csv", async (req, res, next) => {
 
 // Export container-specific metrics as CSV
 router.get("/:hostId/containers/:containerId/metrics/export/csv", async (req, res, next) => {
-  if (isSQLite) {
-    logSQLiteDisabled("Container metrics CSV export");
-    return emptyMetricsResponse(res, 'csv');
-  }
-  
   try {
     const { hostId, containerId } = req.params;
     const days = safeParseInt(req.query.days as string, 7, 365);
     const format = req.query.format || 'csv';
-    
+
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - days);
 
-    const metrics = await db
-      .select()
-      .from(containerMetricsHourly)
-      .where(
-        and(
-          eq(containerMetricsHourly.hostId, hostId),
-          eq(containerMetricsHourly.containerId, containerId),
-          gte(containerMetricsHourly.aggregatedAt, cutoffDate)
-        )
-      )
-      .orderBy(containerMetricsHourly.aggregatedAt);
+    const metrics = prisma
+      ? await prisma.containerMetricsHourly.findMany({
+          where: {
+            hostId,
+            containerId,
+            aggregatedAt: { gte: cutoffDate },
+          },
+          orderBy: { aggregatedAt: "asc" },
+        })
+      : [];
 
     if (format === 'json') {
       res.setHeader('Content-Type', 'application/json');

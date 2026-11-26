@@ -1,11 +1,9 @@
 /**
- * Prisma client — CANONICAL for auth/user data (SQLite).
+ * Prisma client — CANONICAL data layer for ContainerYard (SQLite).
  *
- * Schema: server/prisma/schema.prisma (User model, Role enum)
- * Used by: server/src/routes/auth.ts, server/src/index.ts
- *
- * The monitoring/alerting data layer uses Drizzle + PostgreSQL instead (server/db.ts).
- * See server/src/config/databaseCapabilities.ts for runtime detection.
+ * Schema: server/prisma/schema.prisma
+ * Models: User, AuditLog, LogBookmark, SavedSearch, NotificationChannel,
+ *         AlertRule, AlertHistory, ContainerMetricsHourly, ContainerRestart
  */
 import { PrismaClient } from '@prisma/client';
 
