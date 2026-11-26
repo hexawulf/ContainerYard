@@ -64,3 +64,88 @@ model SavedSearch {
 
   @@index([userId, createdAt])
 }
+
+/// Notification delivery channels for alert rules (webhook, email, browser)
+model NotificationChannel {
+  id        Int      @id @default(autoincrement())
+  name      String
+  type      String
+  config    String
+  enabled   String   @default("true")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([createdAt])
+}
+
+/// Proactive container alert rules evaluated by alertWorker
+model AlertRule {
+  id              Int      @id @default(autoincrement())
+  name            String
+  description     String?
+  conditionType   String
+  operator        String
+  threshold       String
+  durationMinutes Int      @default(0)
+  containerFilter String?
+  channelId       Int
+  enabled         String   @default("true")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([enabled])
+  @@index([createdAt])
+}
+
+/// Triggered alert history with acknowledgement tracking
+model AlertHistory {
+  id             Int       @id @default(autoincrement())
+  ruleId         Int
+  containerId    String
+  containerName  String
+  message        String
+  severity       String    @default("warning")
+  acknowledgedAt DateTime?
+  acknowledgedBy String?
+  createdAt      DateTime  @default(now())
+
+  @@index([ruleId, containerId, createdAt])
+  @@index([createdAt])
+}
+
+/// Hourly aggregated container resource metrics (90-day trend history)
+model ContainerMetricsHourly {
+  id               Int      @id @default(autoincrement())
+  hostId           String
+  containerId      String
+  containerName    String
+  aggregatedAt     DateTime
+  avgCpuPercent    String
+  maxCpuPercent    String
+  avgMemoryPercent String
+  maxMemoryPercent String
+  avgMemoryBytes   String
+  maxMemoryBytes   String
+  totalNetworkRx   String
+  totalNetworkTx   String
+  totalBlockRead   String
+  totalBlockWrite  String
+  sampleCount      Int
+  createdAt        DateTime @default(now())
+
+  @@index([hostId, containerId, aggregatedAt])
+  @@index([hostId, aggregatedAt])
+}
+
+/// Container restart events tracked across polling intervals
+model ContainerRestart {
+  id            Int      @id @default(autoincrement())
+  hostId        String
+  containerId   String
+  containerName String
+  restartReason String?
+  createdAt     DateTime @default(now())
+
+  @@index([hostId, containerId, createdAt])
+  @@index([createdAt])
+}

@@ -1,10 +1,8 @@
-import { db } from "../../db";
-import { containerMetricsHourly } from "@shared/schema";
+import { prisma } from "../db/client";
 import { listContainers as listDockerContainers, getContainerStats as getDockerContainerStats } from "./docker";
 import { getCadvisorService } from "./cadvisor";
 import { getHost, listHosts } from "../config/hosts";
 import type { ContainerSummary, ContainerStats } from "../models/containers";
-import { isSQLite, logSQLiteInfo, requirePostgreSQLAsync } from "../config/databaseCapabilities";
 
 interface MetricsAccumulator {
   hostId: string;
@@ -25,13 +23,6 @@ class MetricsAggregatorService {
   private collectionInterval: NodeJS.Timeout | null = null;
   private aggregationIntervalMs = 60 * 60 * 1000; // 1 hour
   private metricsAccumulators = new Map<string, MetricsAccumulator>();
-  private isEnabled = !isSQLite;
-
-  constructor() {
-    if (isSQLite) {
-      logSQLiteInfo("Metrics aggregator disabled - historical metrics require PostgreSQL");
-    }
-  }
 
   async start() {
     if (this.interval) {
@@ -39,15 +30,15 @@ class MetricsAggregatorService {
       return;
     }
 
-    if (!this.isEnabled) {
-      logSQLiteInfo("Metrics aggregator not started - requires PostgreSQL for persistence");
+    if (!prisma) {
+      console.log("Metrics aggregator not started - DATABASE_URL not configured");
       return;
     }
 
     console.log("Starting metrics aggregator service...");
-    
+
     this.startMetricsCollection();
-    
+
     this.interval = setInterval(() => {
       this.aggregateAndSave().catch((error) => {
         console.error("Error aggregating metrics:", error);
@@ -84,12 +75,12 @@ class MetricsAggregatorService {
   private async collectMetrics() {
     try {
       const hostSummaries = listHosts();
-      
+
       for (const hostSummary of hostSummaries) {
         try {
           const host = getHost(hostSummary.id);
           let containers: ContainerSummary[] = [];
-          
+
           if (host.provider === "DOCKER") {
             containers = await listDockerContainers(host);
           } else {
@@ -107,7 +98,7 @@ class MetricsAggregatorService {
           for (const container of runningContainers) {
             try {
               let stats: ContainerStats | null = null;
-              
+
               if (host.provider === "DOCKER") {
                 stats = await getDockerContainerStats(host, container.id);
               } else {
@@ -138,7 +129,7 @@ class MetricsAggregatorService {
 
   private accumulateMetrics(container: ContainerSummary, stats: ContainerStats) {
     const key = `${container.hostId}:${container.id}`;
-    
+
     if (!this.metricsAccumulators.has(key)) {
       this.metricsAccumulators.set(key, {
         hostId: container.hostId,
@@ -167,61 +158,58 @@ class MetricsAggregatorService {
   }
 
   private async aggregateAndSave() {
-    return requirePostgreSQLAsync(
-      "Metrics aggregation",
-      async () => {
-        try {
-          const now = new Date();
-          const aggregatedAt = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), 0, 0, 0);
+    if (!prisma) return;
+    try {
+      const now = new Date();
+      const aggregatedAt = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), 0, 0, 0);
 
-          console.log(`Aggregating metrics for ${this.metricsAccumulators.size} containers...`);
+      console.log(`Aggregating metrics for ${this.metricsAccumulators.size} containers...`);
 
-          const entries = Array.from(this.metricsAccumulators.entries());
-          for (const [key, accumulator] of entries) {
-            if (accumulator.sampleCount === 0) {
-              continue;
-            }
-
-            try {
-              const avgCpu = this.average(accumulator.cpuSamples);
-              const maxCpu = Math.max(...accumulator.cpuSamples);
-              const avgMemory = this.average(accumulator.memorySamples);
-              const maxMemory = Math.max(...accumulator.memorySamples);
-              const avgMemoryBytes = this.average(accumulator.memoryBytesSamples);
-              const maxMemoryBytes = Math.max(...accumulator.memoryBytesSamples);
-
-              await db.insert(containerMetricsHourly).values({
-                hostId: accumulator.hostId,
-                containerId: accumulator.containerId,
-                containerName: accumulator.containerName,
-                aggregatedAt,
-                avgCpuPercent: avgCpu.toFixed(2),
-                maxCpuPercent: maxCpu.toFixed(2),
-                avgMemoryPercent: avgMemory.toFixed(2),
-                maxMemoryPercent: maxMemory.toFixed(2),
-                avgMemoryBytes: Math.round(avgMemoryBytes).toString(),
-                maxMemoryBytes: Math.round(maxMemoryBytes).toString(),
-                totalNetworkRx: accumulator.networkRx.toString(),
-                totalNetworkTx: accumulator.networkTx.toString(),
-                totalBlockRead: accumulator.blockRead.toString(),
-                totalBlockWrite: accumulator.blockWrite.toString(),
-                sampleCount: accumulator.sampleCount,
-              });
-
-              console.log(`Saved hourly metrics for ${accumulator.containerName}`);
-            } catch (error) {
-              console.error(`Error saving metrics for container ${key}:`, error);
-            }
-          }
-
-          this.metricsAccumulators.clear();
-          console.log("Metrics aggregation completed");
-        } catch (error) {
-          console.error("Error in aggregateAndSave:", error);
+      const entries = Array.from(this.metricsAccumulators.entries());
+      for (const [key, accumulator] of entries) {
+        if (accumulator.sampleCount === 0) {
+          continue;
         }
-      },
-      undefined
-    );
+
+        try {
+          const avgCpu = this.average(accumulator.cpuSamples);
+          const maxCpu = Math.max(...accumulator.cpuSamples);
+          const avgMemory = this.average(accumulator.memorySamples);
+          const maxMemory = Math.max(...accumulator.memorySamples);
+          const avgMemoryBytes = this.average(accumulator.memoryBytesSamples);
+          const maxMemoryBytes = Math.max(...accumulator.memoryBytesSamples);
+
+          await prisma.containerMetricsHourly.create({
+            data: {
+              hostId: accumulator.hostId,
+              containerId: accumulator.containerId,
+              containerName: accumulator.containerName,
+              aggregatedAt,
+              avgCpuPercent: avgCpu.toFixed(2),
+              maxCpuPercent: maxCpu.toFixed(2),
+              avgMemoryPercent: avgMemory.toFixed(2),
+              maxMemoryPercent: maxMemory.toFixed(2),
+              avgMemoryBytes: Math.round(avgMemoryBytes).toString(),
+              maxMemoryBytes: Math.round(maxMemoryBytes).toString(),
+              totalNetworkRx: accumulator.networkRx.toString(),
+              totalNetworkTx: accumulator.networkTx.toString(),
+              totalBlockRead: accumulator.blockRead.toString(),
+              totalBlockWrite: accumulator.blockWrite.toString(),
+              sampleCount: accumulator.sampleCount,
+            },
+          });
+
+          console.log(`Saved hourly metrics for ${accumulator.containerName}`);
+        } catch (error) {
+          console.error(`Error saving metrics for container ${key}:`, error);
+        }
+      }
+
+      this.metricsAccumulators.clear();
+      console.log("Metrics aggregation completed");
+    } catch (error) {
+      console.error("Error in aggregateAndSave:", error);
+    }
   }
 
   private average(numbers: number[]): number {

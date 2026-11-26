@@ -430,6 +430,86 @@ test("user lifecycle: create viewer, RBAC, password change + session revocation,
   }
 });
 
+// ---------- Prisma-backed alerts & historical metrics (SQLite) ----------
+
+test("alerts CRUD and historical metrics endpoints work on SQLite", async () => {
+  // 1. Runtime config advertises alerts, historicalMetrics, and restartTracking enabled
+  const cfgRes = await admin.req("/api/runtime-config");
+  assert.equal(cfgRes.status, 200);
+  const cfg = (await cfgRes.json()) as {
+    database?: { type: string; isSQLite: boolean; isPostgreSQL: boolean };
+    features?: { alerts: boolean; historicalMetrics: boolean; restartTracking: boolean };
+  };
+  assert.equal(cfg.database?.isSQLite, true);
+  assert.equal(cfg.database?.isPostgreSQL, false);
+  assert.equal(cfg.features?.alerts, true);
+  assert.equal(cfg.features?.historicalMetrics, true);
+  assert.equal(cfg.features?.restartTracking, true);
+
+  // 2. Notification channel + alert rule CRUD round-trip
+  let channelId = 0;
+  let ruleId = 0;
+  try {
+    const chRes = await admin.mutate("/api/alerts/channels", "POST", {
+      name: "ci-browser-channel",
+      type: "browser",
+      config: JSON.stringify({}),
+      enabled: "true",
+    });
+    assert.equal(chRes.status, 201);
+    const ch = (await chRes.json()) as { id: number; name: string };
+    channelId = ch.id;
+    assert.ok(channelId > 0);
+
+    const ruleRes = await admin.mutate("/api/alerts/rules", "POST", {
+      name: "ci-high-cpu",
+      conditionType: "cpu_percent",
+      operator: ">",
+      threshold: "95",
+      durationMinutes: 5,
+      channelId,
+      enabled: "true",
+    });
+    assert.equal(ruleRes.status, 201);
+    const rule = (await ruleRes.json()) as { id: number; name: string };
+    ruleId = rule.id;
+    assert.ok(ruleId > 0);
+
+    const listRules = await admin.req("/api/alerts/rules");
+    assert.equal(listRules.status, 200);
+    const rules = (await listRules.json()) as Array<{ id: number }>;
+    assert.ok(rules.some((r) => r.id === ruleId));
+
+    const patchRule = await admin.mutate(`/api/alerts/rules/${ruleId}`, "PATCH", { enabled: "false" });
+    assert.equal(patchRule.status, 200);
+    assert.equal(((await patchRule.json()) as { enabled: string }).enabled, "false");
+
+    // Partial PATCH must preserve omitted fields (enabled, durationMinutes)
+    const patchName = await admin.mutate(`/api/alerts/rules/${ruleId}`, "PATCH", { name: "ci-high-cpu-renamed" });
+    assert.equal(patchName.status, 200);
+    const renamed = (await patchName.json()) as { name: string; enabled: string; durationMinutes: number };
+    assert.equal(renamed.name, "ci-high-cpu-renamed");
+    assert.equal(renamed.enabled, "false");
+    assert.equal(renamed.durationMinutes, 5);
+
+    const histRes = await admin.req("/api/alerts/history?limit=10");
+    assert.equal(histRes.status, 200);
+    assert.ok(Array.isArray(await histRes.json()));
+
+    // 3. Historical metrics endpoints answer 200 JSON / CSV without 503
+    const sumRes = await admin.req(`/api/hosts/${HOST}/metrics/summary?days=7`);
+    assert.equal(sumRes.status, 200);
+    assert.ok(Array.isArray(await sumRes.json()));
+
+    const csvRes = await admin.req(`/api/hosts/${HOST}/metrics/export/csv?days=7`);
+    assert.equal(csvRes.status, 200);
+    assert.match(csvRes.headers.get("content-type") ?? "", /text\/csv/);
+  } finally {
+    if (ruleId) await admin.mutate(`/api/alerts/rules/${ruleId}`, "DELETE");
+    if (channelId) await admin.mutate(`/api/alerts/channels/${channelId}`, "DELETE");
+  }
+});
+
 // ---------- container actions (opt-in, cy-test* only) ----------
 
 test("container lifecycle actions", { skip: skipActions }, async () => {

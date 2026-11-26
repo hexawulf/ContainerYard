@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { isSQLite, isPostgreSQL } from "../config/databaseCapabilities";
+import { prisma } from "../db/client";
 import { isFirebaseEnabled } from "../services/firebaseAuth";
 
 export function registerRuntimeConfigRoute(app: import("express").Express) {
@@ -8,22 +8,23 @@ export function registerRuntimeConfigRoute(app: import("express").Express) {
     const apiBase =
       process.env.PUBLIC_API_BASE ??
       `${protocol}://${req.headers.host ?? "localhost"}`;
+    const dbConfigured = Boolean(prisma);
 
     res.json({
       apiBase,
       database: {
-        type: isSQLite ? 'sqlite' : (isPostgreSQL ? 'postgresql' : 'unknown'),
-        isSQLite,
-        isPostgreSQL,
+        type: dbConfigured ? "sqlite" : "none",
+        isSQLite: dbConfigured,
+        isPostgreSQL: false,
       },
       features: {
         logs: true,
         multiHost: true,
-        alerts: !isSQLite,
-        savedSearches: true, // Prisma-backed since v3.1.1
-        logBookmarks: true, // Prisma-backed since v3.1.0 (SQLite + PostgreSQL)
-        historicalMetrics: !isSQLite,
-        restartTracking: !isSQLite,
+        alerts: dbConfigured,
+        savedSearches: dbConfigured,
+        logBookmarks: dbConfigured,
+        historicalMetrics: dbConfigured,
+        restartTracking: dbConfigured,
         googleSignIn: isFirebaseEnabled(),
       },
     });

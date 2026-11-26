@@ -1,15 +1,10 @@
 import { errorMessage } from "../lib/httpError";
 import { Router } from "express";
-import { db } from "../../db";
-import { eq, desc } from "drizzle-orm";
+import { prisma } from "../db/client";
 import {
-  alertRules,
-  notificationChannels,
-  alertHistory,
   insertAlertRuleSchema,
   insertNotificationChannelSchema,
 } from "@shared/schema";
-import { isSQLite, logSQLiteDisabled } from "../config/databaseCapabilities";
 import { requireRole } from "../middleware/auth";
 import { sendNotification } from "../services/notifications";
 import { validateWebhookUrl } from "../lib/safeWebhook";
@@ -43,28 +38,18 @@ function parseIntParam(value: string): number | null {
   return Number.isNaN(n) ? null : n;
 }
 
-// Error response helper for SQLite mode
-function sqliteErrorResponse(action: string) {
-  return {
-    error: "Feature unavailable",
-    message: `${action} requires PostgreSQL. SQLite is currently configured.`,
-    sqliteMode: true,
-  };
+function isNotFoundError(error: unknown): boolean {
+  return typeof error === "object" && error !== null && (error as { code?: string }).code === "P2025";
 }
 
 // ==================== Notification Channels ====================
 
 router.get("/channels", async (_req, res, next) => {
-  if (isSQLite) {
-    logSQLiteDisabled("Notification channels list");
-    return res.json([]);
-  }
-  
+  if (!prisma) return res.json([]);
   try {
-    const channels = await db
-      .select()
-      .from(notificationChannels)
-      .orderBy(desc(notificationChannels.createdAt));
+    const channels = await prisma.notificationChannel.findMany({
+      orderBy: { createdAt: "desc" },
+    });
     res.json(channels);
   } catch (error) {
     next(error);
@@ -72,23 +57,15 @@ router.get("/channels", async (_req, res, next) => {
 });
 
 router.get("/channels/:id", async (req, res, next) => {
-  if (isSQLite) {
-    return res.status(503).json(sqliteErrorResponse("Notification channel retrieval"));
-  }
-  
+  if (!prisma) return res.status(503).json({ error: "Database unavailable" });
   try {
     const id = parseIntParam(req.params.id);
     if (id === null) return res.status(400).json({ error: "Invalid channel ID" });
 
-    const [channel] = await db
-      .select()
-      .from(notificationChannels)
-      .where(eq(notificationChannels.id, id));
-    
+    const channel = await prisma.notificationChannel.findUnique({ where: { id } });
     if (!channel) {
       return res.status(404).json({ error: "Channel not found" });
     }
-    
     res.json(channel);
   } catch (error) {
     next(error);
@@ -96,16 +73,13 @@ router.get("/channels/:id", async (req, res, next) => {
 });
 
 router.post("/channels", async (req, res, next) => {
-  if (isSQLite) {
-    return res.status(503).json(sqliteErrorResponse("Notification channel creation"));
-  }
-  
+  if (!prisma) return res.status(503).json({ error: "Database unavailable" });
   try {
     const result = insertNotificationChannelSchema.safeParse(req.body);
     if (!result.success) {
       return res.status(400).json({
         error: "Invalid channel data",
-        details: { name: "ZodError", issues: result.error.issues }
+        details: { name: "ZodError", issues: result.error.issues },
       });
     }
     const webhookError = webhookConfigError(result.data.type, result.data.config);
@@ -113,11 +87,14 @@ router.post("/channels", async (req, res, next) => {
       return res.status(400).json({ error: webhookError });
     }
 
-    const [channel] = await db
-      .insert(notificationChannels)
-      .values(result.data)
-      .returning();
-    
+    const channel = await prisma.notificationChannel.create({
+      data: {
+        name: result.data.name,
+        type: result.data.type,
+        config: result.data.config,
+        enabled: result.data.enabled ?? "true",
+      },
+    });
     res.status(201).json(channel);
   } catch (error) {
     next(error);
@@ -125,10 +102,7 @@ router.post("/channels", async (req, res, next) => {
 });
 
 router.patch("/channels/:id", async (req, res, next) => {
-  if (isSQLite) {
-    return res.status(503).json(sqliteErrorResponse("Notification channel update"));
-  }
-  
+  if (!prisma) return res.status(503).json({ error: "Database unavailable" });
   try {
     const id = parseIntParam(req.params.id);
     if (id === null) {
@@ -145,10 +119,7 @@ router.patch("/channels/:id", async (req, res, next) => {
 
     const { name, type, config, enabled } = parsed.data;
     if (type !== undefined || config !== undefined) {
-      const [existing] = await db
-        .select()
-        .from(notificationChannels)
-        .where(eq(notificationChannels.id, id));
+      const existing = await prisma.notificationChannel.findUnique({ where: { id } });
       if (!existing) {
         return res.status(404).json({ error: "Channel not found" });
       }
@@ -157,40 +128,33 @@ router.patch("/channels/:id", async (req, res, next) => {
         return res.status(400).json({ error: webhookError });
       }
     }
-    const updates: Partial<typeof notificationChannels.$inferInsert> = { updatedAt: new Date() };
-    if (name !== undefined) updates.name = name;
-    if (type !== undefined) updates.type = type;
-    if (config !== undefined) updates.config = config;
-    if (enabled !== undefined) updates.enabled = enabled;
 
-    const [channel] = await db
-      .update(notificationChannels)
-      .set(updates)
-      .where(eq(notificationChannels.id, id))
-      .returning();
-    
-    if (!channel) {
-      return res.status(404).json({ error: "Channel not found" });
-    }
-    
+    const data: { name?: string; type?: string; config?: string; enabled?: string } = {};
+    if (name !== undefined) data.name = name;
+    if (type !== undefined) data.type = type;
+    if (config !== undefined) data.config = config;
+    if (enabled !== undefined) data.enabled = enabled;
+
+    const channel = await prisma.notificationChannel.update({
+      where: { id },
+      data,
+    });
     res.json(channel);
   } catch (error) {
+    if (isNotFoundError(error)) {
+      return res.status(404).json({ error: "Channel not found" });
+    }
     next(error);
   }
 });
 
 router.delete("/channels/:id", async (req, res, next) => {
-  if (isSQLite) {
-    return res.status(503).json(sqliteErrorResponse("Notification channel deletion"));
-  }
-  
+  if (!prisma) return res.status(503).json({ error: "Database unavailable" });
   try {
     const id = parseIntParam(req.params.id);
     if (id === null) return res.status(400).json({ error: "Invalid channel ID" });
 
-    await db
-      .delete(notificationChannels)
-      .where(eq(notificationChannels.id, id));
+    await prisma.notificationChannel.deleteMany({ where: { id } });
     res.json({ success: true });
   } catch (error) {
     next(error);
@@ -198,19 +162,12 @@ router.delete("/channels/:id", async (req, res, next) => {
 });
 
 router.post("/channels/:id/test", async (req, res, next) => {
-  if (isSQLite) {
-    return res.status(503).json(sqliteErrorResponse("Notification testing"));
-  }
-  
+  if (!prisma) return res.status(503).json({ error: "Database unavailable" });
   try {
     const id = parseIntParam(req.params.id);
     if (id === null) return res.status(400).json({ error: "Invalid channel ID" });
 
-    const [channel] = await db
-      .select()
-      .from(notificationChannels)
-      .where(eq(notificationChannels.id, id));
-    
+    const channel = await prisma.notificationChannel.findUnique({ where: { id } });
     if (!channel) {
       return res.status(404).json({ error: "Channel not found" });
     }
@@ -225,9 +182,9 @@ router.post("/channels/:id/test", async (req, res, next) => {
       await sendNotification(channel, testMessage);
       res.json({ success: true, message: "Test notification sent successfully" });
     } catch (error: unknown) {
-      res.status(500).json({ 
-        error: "Failed to send test notification", 
-        details: errorMessage(error) 
+      res.status(500).json({
+        error: "Failed to send test notification",
+        details: errorMessage(error),
       });
     }
   } catch (error) {
@@ -238,16 +195,11 @@ router.post("/channels/:id/test", async (req, res, next) => {
 // ==================== Alert Rules ====================
 
 router.get("/rules", async (_req, res, next) => {
-  if (isSQLite) {
-    logSQLiteDisabled("Alert rules list");
-    return res.json([]);
-  }
-  
+  if (!prisma) return res.json([]);
   try {
-    const rules = await db
-      .select()
-      .from(alertRules)
-      .orderBy(desc(alertRules.createdAt));
+    const rules = await prisma.alertRule.findMany({
+      orderBy: { createdAt: "desc" },
+    });
     res.json(rules);
   } catch (error) {
     next(error);
@@ -255,23 +207,15 @@ router.get("/rules", async (_req, res, next) => {
 });
 
 router.get("/rules/:id", async (req, res, next) => {
-  if (isSQLite) {
-    return res.status(503).json(sqliteErrorResponse("Alert rule retrieval"));
-  }
-  
+  if (!prisma) return res.status(503).json({ error: "Database unavailable" });
   try {
     const id = parseIntParam(req.params.id);
     if (id === null) return res.status(400).json({ error: "Invalid rule ID" });
 
-    const [rule] = await db
-      .select()
-      .from(alertRules)
-      .where(eq(alertRules.id, id));
-    
+    const rule = await prisma.alertRule.findUnique({ where: { id } });
     if (!rule) {
       return res.status(404).json({ error: "Rule not found" });
     }
-    
     res.json(rule);
   } catch (error) {
     next(error);
@@ -279,24 +223,29 @@ router.get("/rules/:id", async (req, res, next) => {
 });
 
 router.post("/rules", async (req, res, next) => {
-  if (isSQLite) {
-    return res.status(503).json(sqliteErrorResponse("Alert rule creation"));
-  }
-  
+  if (!prisma) return res.status(503).json({ error: "Database unavailable" });
   try {
     const result = insertAlertRuleSchema.safeParse(req.body);
     if (!result.success) {
-      return res.status(400).json({ 
-        error: "Invalid rule data", 
-        details: { name: "ZodError", issues: result.error.issues } 
+      return res.status(400).json({
+        error: "Invalid rule data",
+        details: { name: "ZodError", issues: result.error.issues },
       });
     }
 
-    const [rule] = await db
-      .insert(alertRules)
-      .values(result.data)
-      .returning();
-    
+    const rule = await prisma.alertRule.create({
+      data: {
+        name: result.data.name,
+        description: result.data.description ?? null,
+        conditionType: result.data.conditionType,
+        operator: result.data.operator,
+        threshold: result.data.threshold,
+        durationMinutes: result.data.durationMinutes ?? 0,
+        containerFilter: result.data.containerFilter ?? null,
+        channelId: result.data.channelId,
+        enabled: result.data.enabled ?? "true",
+      },
+    });
     res.status(201).json(rule);
   } catch (error) {
     next(error);
@@ -304,10 +253,7 @@ router.post("/rules", async (req, res, next) => {
 });
 
 router.patch("/rules/:id", async (req, res, next) => {
-  if (isSQLite) {
-    return res.status(503).json(sqliteErrorResponse("Alert rule update"));
-  }
-  
+  if (!prisma) return res.status(503).json({ error: "Database unavailable" });
   try {
     const id = parseIntParam(req.params.id);
     if (id === null) {
@@ -322,46 +268,58 @@ router.patch("/rules/:id", async (req, res, next) => {
       });
     }
 
-    const { name, description, conditionType, operator, threshold, durationMinutes, containerFilter, channelId, enabled } = parsed.data;
-    const updates: Partial<typeof alertRules.$inferInsert> = { updatedAt: new Date() };
-    if (name !== undefined) updates.name = name;
-    if (description !== undefined) updates.description = description;
-    if (conditionType !== undefined) updates.conditionType = conditionType;
-    if (operator !== undefined) updates.operator = operator;
-    if (threshold !== undefined) updates.threshold = threshold;
-    if (durationMinutes !== undefined) updates.durationMinutes = durationMinutes;
-    if (containerFilter !== undefined) updates.containerFilter = containerFilter;
-    if (channelId !== undefined) updates.channelId = channelId;
-    if (enabled !== undefined) updates.enabled = enabled;
+    const {
+      name,
+      description,
+      conditionType,
+      operator,
+      threshold,
+      durationMinutes,
+      containerFilter,
+      channelId,
+      enabled,
+    } = parsed.data;
+    const data: {
+      name?: string;
+      description?: string | null;
+      conditionType?: string;
+      operator?: string;
+      threshold?: string;
+      durationMinutes?: number;
+      containerFilter?: string | null;
+      channelId?: number;
+      enabled?: string;
+    } = {};
+    if (name !== undefined) data.name = name;
+    if (description !== undefined) data.description = description;
+    if (conditionType !== undefined) data.conditionType = conditionType;
+    if (operator !== undefined) data.operator = operator;
+    if (threshold !== undefined) data.threshold = threshold;
+    if (durationMinutes !== undefined) data.durationMinutes = durationMinutes;
+    if (containerFilter !== undefined) data.containerFilter = containerFilter;
+    if (channelId !== undefined) data.channelId = channelId;
+    if (enabled !== undefined) data.enabled = enabled;
 
-    const [rule] = await db
-      .update(alertRules)
-      .set(updates)
-      .where(eq(alertRules.id, id))
-      .returning();
-    
-    if (!rule) {
-      return res.status(404).json({ error: "Rule not found" });
-    }
-    
+    const rule = await prisma.alertRule.update({
+      where: { id },
+      data,
+    });
     res.json(rule);
   } catch (error) {
+    if (isNotFoundError(error)) {
+      return res.status(404).json({ error: "Rule not found" });
+    }
     next(error);
   }
 });
 
 router.delete("/rules/:id", async (req, res, next) => {
-  if (isSQLite) {
-    return res.status(503).json(sqliteErrorResponse("Alert rule deletion"));
-  }
-  
+  if (!prisma) return res.status(503).json({ error: "Database unavailable" });
   try {
     const id = parseIntParam(req.params.id);
     if (id === null) return res.status(400).json({ error: "Invalid rule ID" });
 
-    await db
-      .delete(alertRules)
-      .where(eq(alertRules.id, id));
+    await prisma.alertRule.deleteMany({ where: { id } });
     res.json({ success: true });
   } catch (error) {
     next(error);
@@ -371,21 +329,15 @@ router.delete("/rules/:id", async (req, res, next) => {
 // ==================== Alert History ====================
 
 router.get("/history", async (req, res, next) => {
-  if (isSQLite) {
-    logSQLiteDisabled("Alert history");
-    return res.json([]);
-  }
-  
+  if (!prisma) return res.json([]);
   try {
     const rawLimit = req.query.limit ? parseInt(String(req.query.limit), 10) : 100;
     const limit = Number.isNaN(rawLimit) ? 100 : Math.min(Math.max(rawLimit, 1), 1000);
-    
-    const history = await db
-      .select()
-      .from(alertHistory)
-      .orderBy(desc(alertHistory.createdAt))
-      .limit(limit);
-    
+
+    const history = await prisma.alertHistory.findMany({
+      orderBy: { createdAt: "desc" },
+      take: limit,
+    });
     res.json(history);
   } catch (error) {
     next(error);
@@ -393,44 +345,43 @@ router.get("/history", async (req, res, next) => {
 });
 
 router.post("/history/:id/acknowledge", async (req, res, next) => {
-  if (isSQLite) {
-    return res.status(503).json(sqliteErrorResponse("Alert acknowledgment"));
-  }
-  
+  if (!prisma) return res.status(503).json({ error: "Database unavailable" });
   try {
     const id = parseIntParam(req.params.id);
     if (id === null) return res.status(400).json({ error: "Invalid alert ID" });
 
-    const { acknowledgedBy } = req.body;
-    
-    const [alert] = await db
-      .update(alertHistory)
-      .set({ 
+    const acknowledgedBy =
+      typeof req.body?.acknowledgedBy === "string" && req.body.acknowledgedBy.trim()
+        ? req.body.acknowledgedBy.trim()
+        : "system";
+
+    const alert = await prisma.alertHistory.update({
+      where: { id },
+      data: {
         acknowledgedAt: new Date(),
-        acknowledgedBy: acknowledgedBy || "system"
-      })
-      .where(eq(alertHistory.id, id))
-      .returning();
-    
-    if (!alert) {
-      return res.status(404).json({ error: "Alert not found" });
-    }
-    
+        acknowledgedBy,
+      },
+    });
     res.json(alert);
   } catch (error) {
+    if (isNotFoundError(error)) {
+      return res.status(404).json({ error: "Alert not found" });
+    }
     next(error);
   }
 });
 
 router.delete("/history", async (req, res, next) => {
-  if (isSQLite) {
-    return res.status(503).json(sqliteErrorResponse("Alert history cleanup"));
-  }
-  
+  if (!prisma) return res.status(503).json({ error: "Database unavailable" });
   try {
-    const days = req.query.days ? parseInt(String(req.query.days)) : 30;
-    
-    res.json({ success: true, message: `Would delete alerts older than ${days} days` });
+    const rawDays = req.query.days ? parseInt(String(req.query.days), 10) : 30;
+    const days = Number.isNaN(rawDays) ? 30 : Math.min(Math.max(rawDays, 1), 3650);
+    const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+    const { count } = await prisma.alertHistory.deleteMany({
+      where: { createdAt: { lt: cutoff } },
+    });
+    res.json({ success: true, deleted: count, olderThanDays: days });
   } catch (error) {
     next(error);
   }

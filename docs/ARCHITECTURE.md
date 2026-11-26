@@ -25,7 +25,7 @@ flowchart LR
 | **Frontend (`client/`)** | React, TypeScript, Vite, Tailwind CSS, TanStack Query & Virtual, Recharts, Wouter | Real-time dashboard, virtualized log streaming, Compose stack views, RBAC user/password modals, light/dark themes |
 | **API & SSE (`server/src/`)** | Node.js 22, Express, `dockerode`, Zod 4, Helmet, `prom-client` | REST API, Server-Sent Events log demuxing (`dockerDemux.ts`), container/stack lifecycle actions, Prometheus `/metrics` |
 | **Sessions** | `express-session` + `connect-redis` (Redis 7 AOF on internal network) | Server-side session storage, `SameSite` cookies, instant revocation via `User.sessionVersion` |
-| **Persistence** | Prisma + SQLite (`/data/app.db`) | Users, RBAC roles (`ADMIN`/`VIEWER`), `AuditLog`, `LogBookmark`, `SavedSearch` (optional PostgreSQL for legacy Drizzle monitoring tables — unification tracked for v6) |
+| **Persistence** | Prisma + SQLite (`/data/app.db`) | Users, RBAC roles (`ADMIN`/`VIEWER`), `AuditLog`, `LogBookmark`, `SavedSearch`, `NotificationChannel`, `AlertRule`, `AlertHistory`, `ContainerMetricsHourly`, `ContainerRestart` |
 | **Multi-Host Sources** | Docker Engine API, cAdvisor HTTP, PiDeck Agent API | Local read/write Docker host + remote read-only cAdvisor/Dozzle and host-log nodes |
 
 ## Security Controls

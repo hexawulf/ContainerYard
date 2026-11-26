@@ -22,14 +22,11 @@
     "postinstall": "prisma generate"
   },
   "dependencies": {
-    "@neondatabase/serverless": "^1.2.1",
     "@prisma/client": "^6.17.1",
     "bcrypt": "^6.0.0",
     "connect-redis": "^11.0.0",
     "dockerode": "^5.0.0",
     "dotenv": "^18.0.10",
-    "drizzle-orm": "^0.45.2",
-    "drizzle-zod": "^0.8.3",
     "express": "^4.21.2",
     "express-rate-limit": "^7.5.1",
     "express-session": "^1.18.2",
