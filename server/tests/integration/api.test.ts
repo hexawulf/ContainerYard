@@ -484,6 +484,14 @@ test("alerts CRUD and historical metrics endpoints work on SQLite", async () => 
     assert.equal(patchRule.status, 200);
     assert.equal(((await patchRule.json()) as { enabled: string }).enabled, "false");
 
+    // Partial PATCH must preserve omitted fields (enabled, durationMinutes)
+    const patchName = await admin.mutate(`/api/alerts/rules/${ruleId}`, "PATCH", { name: "ci-high-cpu-renamed" });
+    assert.equal(patchName.status, 200);
+    const renamed = (await patchName.json()) as { name: string; enabled: string; durationMinutes: number };
+    assert.equal(renamed.name, "ci-high-cpu-renamed");
+    assert.equal(renamed.enabled, "false");
+    assert.equal(renamed.durationMinutes, 5);
+
     const histRes = await admin.req("/api/alerts/history?limit=10");
     assert.equal(histRes.status, 200);
     assert.ok(Array.isArray(await histRes.json()));

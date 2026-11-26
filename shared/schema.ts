@@ -131,7 +131,7 @@ export const insertNotificationChannelSchema = z.object({
   name: z.string().min(1).max(255),
   type: z.string().min(1).max(50),
   config: z.string().min(1),
-  enabled: z.string().max(10).default("true").optional(),
+  enabled: z.string().max(10).optional(),
 });
 export type InsertNotificationChannel = z.infer<typeof insertNotificationChannelSchema>;
 export interface NotificationChannel {
@@ -151,10 +151,10 @@ export const insertAlertRuleSchema = z.object({
   conditionType: z.string().min(1).max(50),
   operator: z.string().min(1).max(10),
   threshold: z.string().min(1).max(255),
-  durationMinutes: z.number().int().min(0).default(0).optional(),
+  durationMinutes: z.number().int().min(0).optional(),
   containerFilter: z.string().nullable().optional(),
   channelId: z.number().int(),
-  enabled: z.string().max(10).default("true").optional(),
+  enabled: z.string().max(10).optional(),
 });
 export type InsertAlertRule = z.infer<typeof insertAlertRuleSchema>;
 export interface AlertRule {
