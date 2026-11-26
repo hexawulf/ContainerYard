@@ -3,6 +3,20 @@
 All notable changes to ContainerYard are documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [5.6.0] - 2026-11-27
+
+### Added
+- **Unified Prisma + SQLite Data Layer:** Added `NotificationChannel`, `AlertRule`, `AlertHistory`, `ContainerMetricsHourly`, and `ContainerRestart` models + SQLite migration to Prisma so proactive alerting, hourly historical metrics, and restart tracking work out of the box in Docker/SQLite without PostgreSQL.
+- **Showcase Documentation:** Added `CONTRIBUTING.md`, `docs/ARCHITECTURE.md` (with Mermaid trust-boundary diagram), `docs/API.md`, and moved `design_guidelines.md` to `docs/DESIGN_GUIDELINES.md`.
+- **Integration Tests:** Added Docker Compose SQLite integration coverage for alert channel/rule CRUD, partial `PATCH` preservation, `/api/runtime-config` feature flags, and historical metrics JSON/CSV endpoints.
+
+### Changed
+- **Package & Repo Hygiene:** Renamed package from `rest-express` to `containeryard`, removed mismatched `packageManager: pnpm` field, trimmed `README.md` into a concise showcase guide, and removed redundant root files (`.env.production`, `CLAUDE.md`, `GEMINI.md`).
+- **Removed Drizzle/Neon Split:** Deleted `server/db.ts`, `server/src/config/databaseCapabilities.ts`, and removed `drizzle-orm`, `drizzle-zod`, and `@neondatabase/serverless` (`shared/schema.ts` is now pure Zod schemas and TypeScript types).
+
+### Fixed
+- **Alert History Retention & Debounce:** Implemented real age-based deletion in `DELETE /api/alerts/history` and ordered alert debounce lookups by `createdAt desc`.
+
 ## [5.5.2] - 2026-11-23
 
 ### Changed
