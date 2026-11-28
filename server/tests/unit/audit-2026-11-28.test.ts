@@ -321,3 +321,18 @@ describe("CY-15: plain-http PiDeck agent URLs are flagged", () => {
     assert.deepEqual(plainHttpAgentHosts(hosts as never), ["a"]);
   });
 });
+
+describe("CY-16: rate limits bucket IPv6 clients by /64", () => {
+  test("addresses in one /64 share a key; IPv4 and v4-mapped keep the full address", async () => {
+    const { rateLimitKeyForIp } = await import("../../src/lib/rateLimitKey");
+    const a = rateLimitKeyForIp("2001:db8:1:2:aaaa:bbbb:cccc:dddd");
+    assert.equal(a, "2001:db8:1:2::/64");
+    assert.equal(rateLimitKeyForIp("2001:db8:1:2::1"), a);
+    assert.equal(rateLimitKeyForIp("2001:0db8:0001:0002:ffff::9"), a);
+    assert.notEqual(rateLimitKeyForIp("2001:db8:1:3::1"), a);
+    assert.equal(rateLimitKeyForIp("::1"), "0:0:0:0::/64");
+    assert.equal(rateLimitKeyForIp("203.0.113.7"), "203.0.113.7");
+    assert.equal(rateLimitKeyForIp("::ffff:203.0.113.7"), "203.0.113.7");
+    assert.equal(rateLimitKeyForIp(undefined), "unknown");
+  });
+});

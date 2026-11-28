@@ -161,6 +161,24 @@ server {
 }
 ```
 
+### Behind a CDN (Cloudflare or similar)
+
+Login and global rate limits, and the audit log, key on the client IP that
+`trust proxy 1` takes from the right-most `X-Forwarded-For` entry, which nginx
+fills from `$remote_addr`. With a CDN in front of nginx, `$remote_addr` is the CDN
+edge, so every visitor behind one edge would share a bucket (an attacker could lock
+everyone out of login) unless nginx restores the real client address first:
+
+```nginx
+# http {} context, e.g. /etc/nginx/conf.d/real_ip.conf
+# One set_real_ip_from line per published CDN range (keep the list current).
+set_real_ip_from 203.0.113.0/24;   # example range, replace with your CDN's list
+real_ip_header CF-Connecting-IP;   # or X-Forwarded-For with real_ip_recursive on
+```
+
+Only trust that header from the CDN ranges, and do not expose the origin directly.
+IPv6 clients are bucketed by their /64 prefix.
+
 ---
 
 ## Docker Socket Security
