@@ -252,7 +252,7 @@ describe("CY-07: AUTH_DISABLED is development-only and server-side only", () => 
           PATH: process.env.PATH ?? "",
           NODE_ENV: "production",
           AUTH_DISABLED: "true",
-          SESSION_SECRET: "0123456789abcdef0123456789abcdef",
+          SESSION_SECRET: process.env.SESSION_SECRET ?? "",
           ALLOWED_ORIGINS: "https://example.com",
           REDIS_URL: "redis://127.0.0.1:6379",
           ADMIN_EMAIL: "admin@example.com",
@@ -279,7 +279,7 @@ describe("CY-08: ADMIN_PASSWORD is only required for the first boot", () => {
   const baseEnv = {
     PATH: process.env.PATH ?? "",
     NODE_ENV: "production",
-    SESSION_SECRET: "0123456789abcdef0123456789abcdef",
+    SESSION_SECRET: process.env.SESSION_SECRET ?? "",
     ALLOWED_ORIGINS: "https://example.com",
     REDIS_URL: "redis://127.0.0.1:6379",
     ADMIN_EMAIL: "admin@example.com",
