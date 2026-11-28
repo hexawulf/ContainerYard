@@ -10,7 +10,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { clampLogTail, MAX_LOG_TAIL } from "../../src/services/docker";
 import { isDockerContainerPath } from "../../src/services/cadvisor";
-import { escapeCsvField } from "../../src/routes/metrics";
+import { escapeCsvField, MAX_METRICS_DAYS, safeParseInt } from "../../src/routes/metrics";
 import { channelConfigForRole, containerDetailForRole, HIDDEN_VALUE } from "../../src/lib/redact";
 import type { ContainerDetail } from "../../src/models/containers";
 import { isPlaceholderSecret, redisUrlHasPlaceholderPassword } from "../../src/lib/placeholderSecrets";
@@ -163,5 +163,13 @@ describe("CY-20: CSV export neutralises spreadsheet formulas", () => {
   test("ordinary values are unchanged, commas still quoted", () => {
     assert.equal(escapeCsvField("web-1"), "web-1");
     assert.equal(escapeCsvField("a,b"), '"a,b"');
+  });
+});
+
+describe("CY-06: metrics windows are capped at the documented 90 days", () => {
+  test("days above the cap are clamped, the UI choices are unchanged", () => {
+    assert.equal(MAX_METRICS_DAYS, 90);
+    assert.equal(safeParseInt("365", 7, MAX_METRICS_DAYS), 90);
+    for (const d of ["7", "30", "90"]) assert.equal(safeParseInt(d, 7, MAX_METRICS_DAYS), Number(d));
   });
 });
