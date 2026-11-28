@@ -16,7 +16,7 @@ import {
 import { getDockerHostStats } from "../services/dockerHostStats";
 import { getCadvisorService } from "../services/cadvisor";
 import { requireAuth } from "../middleware/auth";
-import { containerDetailForRole } from "../lib/redact";
+import { containerDetailForRole, summaryForRole } from "../lib/redact";
 import { acquireSseStreamSlot, isSseSessionValid } from "../lib/sseGuard";
 import type { NormalizedStats, HostStats } from "@shared/monitoring";
 
@@ -59,9 +59,10 @@ router.get("/:hostId/containers", requireAuth, async (req, res, next) => {
   try {
     const host = getHost(String(req.params.hostId));
 
+    const role = req.session.user?.role;
     if (host.provider === "DOCKER") {
       const containers = await listDockerContainers(host);
-      return res.json(containers);
+      return res.json(containers.map((c) => summaryForRole(c, role)));
     }
 
     const service = getCadvisorService(host);
@@ -69,7 +70,7 @@ router.get("/:hostId/containers", requireAuth, async (req, res, next) => {
       return res.status(503).json({ error: "cAdvisor service unavailable for this host" });
     }
     const containers = await service.listContainers(host);
-    return res.json(containers);
+    return res.json(containers.map((c) => summaryForRole(c, role)));
   } catch (error) {
     next(error);
   }
@@ -91,7 +92,7 @@ router.get("/:hostId/containers/:containerId", requireAuth, async (req, res, nex
       return res.status(503).json({ error: "cAdvisor service unavailable for this host" });
     }
     const container = await service.getContainer(host, containerId);
-    return res.json(container);
+    return res.json(summaryForRole(container, req.session.user?.role));
   } catch (error) {
     next(error);
   }

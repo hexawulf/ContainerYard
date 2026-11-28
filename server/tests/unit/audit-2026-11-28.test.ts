@@ -12,7 +12,7 @@ import { pathToFileURL } from "node:url";
 import { clampLogTail, MAX_LOG_TAIL } from "../../src/services/docker";
 import { isDockerContainerPath, urlForLog } from "../../src/services/cadvisor";
 import { escapeCsvField, MAX_METRICS_DAYS, safeParseInt } from "../../src/routes/metrics";
-import { channelConfigForRole, containerDetailForRole, HIDDEN_VALUE } from "../../src/lib/redact";
+import { channelConfigForRole, containerDetailForRole, HIDDEN_VALUE, labelsForRole, summaryForRole } from "../../src/lib/redact";
 import type { ContainerDetail } from "../../src/models/containers";
 import { isPlaceholderSecret, redisUrlHasPlaceholderPassword } from "../../src/lib/placeholderSecrets";
 
@@ -406,5 +406,38 @@ describe("CY-24 (review): cAdvisor failure logs never contain URL credentials", 
     }
     assert.ok(lines.length > 0, "the failure was logged");
     assert.ok(!lines.join("\n").includes("pa55w0rd"), lines.join("\n"));
+  });
+});
+
+describe("CY-03 (review): container label values are admin-only", () => {
+  const labels = {
+    "com.docker.compose.project": "web",
+    "com.docker.compose.service": "proxy",
+    "org.opencontainers.image.version": "3.1",
+    "traefik.http.middlewares.auth.basicauth.users": "admin:$apr1$hash",
+  };
+
+  test("non-admins keep every key, compose/OCI values, and nothing else", () => {
+    const out = labelsForRole(labels, "VIEWER");
+    assert.deepEqual(Object.keys(out), Object.keys(labels));
+    assert.equal(out["com.docker.compose.project"], "web");
+    assert.equal(out["org.opencontainers.image.version"], "3.1");
+    assert.equal(out["traefik.http.middlewares.auth.basicauth.users"], HIDDEN_VALUE);
+    assert.deepEqual(labelsForRole(labels, "ADMIN"), labels);
+  });
+
+  test("summaries and details apply the label filter", () => {
+    const summary = summaryForRole({ id: "x", labels }, "VIEWER");
+    assert.ok(!JSON.stringify(summary).includes("$apr1$hash"));
+    const detail = containerDetailForRole({ labels, env: [], mounts: [], command: null } as unknown as ContainerDetail, "VIEWER");
+    assert.ok(!JSON.stringify(detail).includes("$apr1$hash"));
+  });
+
+  test("every route that returns containers applies the filter", () => {
+    const read = (f: string) => fs.readFileSync(path.resolve(process.cwd(), f), "utf8");
+    assert.equal((read("server/src/routes/hosts.ts").match(/summaryForRole\(/g) ?? []).length, 3);
+    assert.equal((read("server/src/routes/stacks.ts").match(/summaryForRole\(/g) ?? []).length, 2);
+    assert.equal((read("server/src/index.ts").match(/summaryForRole\(/g) ?? []).length, 3);
+    assert.match(read("server/src/routes/inspect.ts"), /labelsForRole\(spec\.labels/);
   });
 });

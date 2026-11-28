@@ -34,10 +34,35 @@ export function mountsForRole(mounts: ContainerMount[] | undefined, role: string
   return mounts.map((m) => ({ ...m, source: m.source ? HIDDEN_VALUE : m.source }));
 }
 
+/** Label namespaces that describe the container, never credentials; stack grouping needs them. */
+export const SAFE_LABEL_PREFIXES = ["com.docker.compose.", "org.opencontainers.image."];
+
+/**
+ * Labels carry credentials too (e.g. Traefik basic-auth hashes). Non-admins
+ * keep every key, but only values in SAFE_LABEL_PREFIXES; the rest are hidden.
+ */
+export function labelsForRole(
+  labels: Record<string, string> | undefined | null,
+  role: string | undefined,
+): Record<string, string> {
+  if (!labels) return {};
+  if (role === "ADMIN") return labels;
+  return Object.fromEntries(
+    Object.entries(labels).map(([k, v]) => [k, SAFE_LABEL_PREFIXES.some((p) => k.startsWith(p)) ? v : HIDDEN_VALUE]),
+  );
+}
+
+/** Per-role redaction for a container summary (lists, stacks). */
+export function summaryForRole<T extends { labels?: Record<string, string> }>(container: T, role: string | undefined): T {
+  if (role === "ADMIN") return container;
+  return { ...container, labels: labelsForRole(container.labels, role) };
+}
+
 /** Applies every per-role redaction to a container detail response. */
 export function containerDetailForRole(detail: ContainerDetail, role: string | undefined): ContainerDetail {
   return {
     ...detail,
+    labels: labelsForRole(detail.labels, role),
     command: commandForRole(detail.command, role),
     env: envForRole(detail.env, role),
     mounts: mountsForRole(detail.mounts, role),

@@ -4,6 +4,7 @@ import { assertDockerContainerRef, dockerClient } from "../services/docker";
 import { cadvisorDisplayName, isDockerContainerPath } from "../services/cadvisor";
 import { requireAuth } from "../middleware/auth";
 import { errorInfo } from "../lib/httpError";
+import { labelsForRole } from "../lib/redact";
 
 const r = Router();
 
@@ -77,7 +78,11 @@ r.get("/api/hosts/:hostId/containers/:id/inspect", requireAuth, async (req, res)
       });
       if (!resp.ok) return res.status(404).json({ error: "not_found" });
       const data = (await resp.json()) as CadvisorInspectRaw | null;
-      return res.json({ provider: "CADVISOR_ONLY", spec: cadvisorInspectSpec(data, id) });
+      const spec = cadvisorInspectSpec(data, id);
+      return res.json({
+        provider: "CADVISOR_ONLY",
+        spec: { ...spec, labels: labelsForRole(spec.labels, req.session.user?.role) },
+      });
     }
   } catch (e: unknown) {
     const { message, name, status, statusCode } = errorInfo(e);

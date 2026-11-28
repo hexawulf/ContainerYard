@@ -36,6 +36,7 @@ import { metricsAggregator } from "./services/metricsAggregator";
 import { restartTracker } from "./services/restartTracker";
 import { getHost, listHosts } from "./config/hosts";
 import { listContainers as listDockerContainers } from "./services/docker";
+import { summaryForRole } from "./lib/redact";
 import { getCadvisorService } from "./services/cadvisor";
 
 export async function createApp() {
@@ -131,7 +132,7 @@ export async function createApp() {
 
         if (host.provider === "DOCKER") {
           const containers = await listDockerContainers(host);
-          return res.json(containers);
+          return res.json(containers.map((c) => summaryForRole(c, req.session.user?.role)));
         }
 
         // CADVISOR_ONLY provider
@@ -140,7 +141,7 @@ export async function createApp() {
           return res.status(503).json({ error: "cAdvisor service unavailable for this host" });
         }
         const containers = await service.listContainers(host);
-        return res.json(containers);
+        return res.json(containers.map((c) => summaryForRole(c, req.session.user?.role)));
       }
 
       // No host parameter - return containers from all hosts in parallel (legacy behavior)
@@ -165,7 +166,7 @@ export async function createApp() {
         }
       }
 
-      res.json(allContainers);
+      res.json(allContainers.map((c) => summaryForRole(c, req.session.user?.role)));
     } catch (error: unknown) {
       const { message, status } = errorInfo(error);
       if (status === 404) {
