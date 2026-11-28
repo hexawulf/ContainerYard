@@ -352,23 +352,27 @@ router.post("/history/:id/acknowledge", async (req, res, next) => {
     const id = parseIntParam(req.params.id);
     if (id === null) return res.status(400).json({ error: "Invalid alert ID" });
 
-    const acknowledgedBy =
-      typeof req.body?.acknowledgedBy === "string" && req.body.acknowledgedBy.trim()
-        ? req.body.acknowledgedBy.trim()
-        : "system";
+    // Who acknowledged comes from the session, never from the request body.
+    const acknowledgedBy = req.session.user?.email ?? "unknown";
 
-    const alert = await prisma.alertHistory.update({
-      where: { id },
+    // Only an unacknowledged alert can be acknowledged, so the first record
+    // is never overwritten (the where clause makes this atomic).
+    const { count } = await prisma.alertHistory.updateMany({
+      where: { id, acknowledgedAt: null },
       data: {
         acknowledgedAt: new Date(),
         acknowledgedBy,
       },
     });
-    res.json(alert);
-  } catch (error) {
-    if (isNotFoundError(error)) {
+    const alert = await prisma.alertHistory.findUnique({ where: { id } });
+    if (!alert) {
       return res.status(404).json({ error: "Alert not found" });
     }
+    if (count === 0) {
+      return res.status(409).json({ error: "Alert already acknowledged", alert });
+    }
+    res.json(alert);
+  } catch (error) {
     next(error);
   }
 });
