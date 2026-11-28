@@ -9,11 +9,17 @@ function safeParseInt(value: string | undefined, fallback: number, max = 10000):
   return Number.isNaN(n) ? fallback : Math.min(Math.max(n, 1), max);
 }
 
-function escapeCsvField(value: string): string {
-  if (/[",\n\r]/.test(value)) {
-    return `"${value.replace(/"/g, '""')}"`;
+/**
+ * Quotes a CSV field and neutralises spreadsheet formulas: a field that starts
+ * with = + - @ TAB or CR is prefixed with a single quote (OWASP CSV injection
+ * guidance), because container names can come from a remote cAdvisor.
+ */
+export function escapeCsvField(value: string): string {
+  const safe = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+  if (/[",\n\r]/.test(safe)) {
+    return `"${safe.replace(/"/g, '""')}"`;
   }
-  return value;
+  return safe;
 }
 
 function safeFilenameToken(value: string): string {

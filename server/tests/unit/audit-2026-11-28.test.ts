@@ -10,6 +10,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { clampLogTail, MAX_LOG_TAIL } from "../../src/services/docker";
 import { isDockerContainerPath } from "../../src/services/cadvisor";
+import { escapeCsvField } from "../../src/routes/metrics";
 import { channelConfigForRole, containerDetailForRole, HIDDEN_VALUE } from "../../src/lib/redact";
 import type { ContainerDetail } from "../../src/models/containers";
 import { isPlaceholderSecret, redisUrlHasPlaceholderPassword } from "../../src/lib/placeholderSecrets";
@@ -148,5 +149,19 @@ describe("CY-21: cAdvisor container path check is anchored at both ends", () => 
     ]) {
       assert.equal(isDockerContainerPath(bad), false, bad);
     }
+  });
+});
+
+describe("CY-20: CSV export neutralises spreadsheet formulas", () => {
+  test("fields starting with = + - @ TAB or CR get a leading quote", () => {
+    assert.equal(escapeCsvField("=HYPERLINK(\"http://x\")"), `"'=HYPERLINK(""http://x"")"`);
+    assert.equal(escapeCsvField("+1"), "'+1");
+    assert.equal(escapeCsvField("-2"), "'-2");
+    assert.equal(escapeCsvField("@SUM(A1)"), "'@SUM(A1)");
+    assert.equal(escapeCsvField("\tcmd"), "'\tcmd");
+  });
+  test("ordinary values are unchanged, commas still quoted", () => {
+    assert.equal(escapeCsvField("web-1"), "web-1");
+    assert.equal(escapeCsvField("a,b"), '"a,b"');
   });
 });
