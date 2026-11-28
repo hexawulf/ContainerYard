@@ -10,7 +10,6 @@ import { AuthProvider, AuthGate } from "@/components/AuthGate";
 import Layout from "@/components/Layout";
 import { checkApiHealthSafe, bootstrapRuntimeConfig } from "@/lib/authBootstrap";
 import { Skeleton } from "@/components/ui/skeleton";
-import { HelmetProvider } from "react-helmet-async";
 
 const Dashboard = lazy(() => import("@/pages/Dashboard"));
 const Login = lazy(() => import("@/pages/Login"));
@@ -105,8 +104,7 @@ function App() {
 
   return (
     <ThemeProvider>
-      <HelmetProvider>
-        <QueryClientProvider client={queryClient}>
+      <QueryClientProvider client={queryClient}>
           <TooltipProvider>
             <Toaster />
             {bootError ? (
@@ -141,7 +139,6 @@ function App() {
             )}
           </TooltipProvider>
         </QueryClientProvider>
-      </HelmetProvider>
     </ThemeProvider>
   );
 }

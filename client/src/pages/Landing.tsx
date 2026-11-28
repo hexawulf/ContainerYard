@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Ship, Terminal, GitFork, Activity, Search, ShieldCheck } from "lucide-react";
-import { Helmet } from "react-helmet-async";
 
 const SAMPLE_LOGS = [
   { ts: "07:14:02.104", level: "INFO", cls: "log-info", msg: "container=api-gateway status=healthy latency_ms=4.2" },
@@ -17,9 +16,7 @@ const SAMPLE_LOGS = [
 const LandingPage: React.FC = () => {
   return (
     <>
-      <Helmet>
-        <title>ContainerYard - Self-Hosted Docker Management</title>
-      </Helmet>
+      <title>ContainerYard - Self-Hosted Docker Management</title>
 
       {/* Hero Section */}
       <section className="relative isolate overflow-hidden border-b border-border/70 bg-background">

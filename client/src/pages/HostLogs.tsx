@@ -16,7 +16,6 @@ import {
 } from "lucide-react";
 import { LogsViewer } from "@/components/LogsViewer";
 import { Link, useLocation } from "wouter";
-import { Helmet } from "react-helmet-async";
 import {
   Dialog,
   DialogContent,
@@ -320,9 +319,7 @@ export default function HostLogs({ hostId }: { hostId: string }) {
 
   return (
     <>
-      <Helmet>
-        <title>Host Logs - ContainerYard</title>
-      </Helmet>
+      <title>Host Logs - ContainerYard</title>
       <div className="mx-auto max-w-container px-4 sm:px-6 py-6 space-y-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
