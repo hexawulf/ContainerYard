@@ -69,6 +69,22 @@ jobs:
           echo "tag=$TAG" >>"$GITHUB_OUTPUT"
           echo "ref=refs/tags/$TAG" >>"$GITHUB_OUTPUT"
 
+      - name: Tagged commit is on main
+        # Only reviewed code may be published: the tag must point at a commit
+        # that main contains (compare status "behind" or "identical").
+        env:
+          TAG: ${{ steps.check.outputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          sha=$(gh api "repos/$REPO/commits/$TAG" --jq .sha)
+          status=$(gh api "repos/$REPO/compare/main...$sha" --jq .status)
+          if [ "$status" != behind ] && [ "$status" != identical ]; then
+            echo "::error::$TAG ($sha) is not on main (compare status: $status)"
+            exit 1
+          fi
+          echo "$TAG ($sha) is on main"
+
       - name: Check out the tag
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
