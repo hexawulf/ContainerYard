@@ -22,7 +22,8 @@ const patchAlertRuleSchema = insertAlertRuleSchema.partial();
  */
 export function alertAuditAction(method: string, path: string): string | null {
   if (method === "GET" || method === "HEAD" || method === "OPTIONS") return null;
-  const p = path.replace(/\/+$/, "") || "/";
+  // Express matches routes case-insensitively, so match the same way here.
+  const p = path.toLowerCase().replace(/\/+$/, "") || "/";
   if (method === "POST" && p === "/channels") return "alert.channel.create";
   if (method === "POST" && /^\/channels\/[^/]+\/test$/.test(p)) return "alert.channel.test";
   if (method === "PATCH" && /^\/channels\/[^/]+$/.test(p)) return "alert.channel.update";

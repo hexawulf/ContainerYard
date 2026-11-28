@@ -167,6 +167,17 @@ describe("CY-23 (review): the alert audit log cannot be flooded", () => {
     assert.equal(alertAuditAction("DELETE", "/channels"), null);
   });
 
+  test("mixed-case paths (which Express still routes) are audited", async () => {
+    const { alertAuditAction } = await import("../../src/routes/alerts");
+    assert.equal(alertAuditAction("DELETE", "/HISTORY"), "alert.history.delete");
+    assert.equal(alertAuditAction("PATCH", "/Rules/3"), "alert.rule.update");
+    assert.equal(alertAuditAction("POST", "/Channels/4/TEST"), "alert.channel.test");
+    const before = audits.length;
+    await call("/HISTORY", "DELETE", "VIEWER");
+    await new Promise((r) => setTimeout(r, 20));
+    assert.ok(audits.slice(before).some((a) => a.action === "alert.history.delete"));
+  });
+
   test("denied attempts are capped per user, admin changes are not", async () => {
     const { DENIED_AUDIT_MAX, resetDeniedAuditCountsForTests } = await import("../../src/routes/alerts");
     resetDeniedAuditCountsForTests();
