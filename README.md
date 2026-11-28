@@ -31,7 +31,7 @@ ContainerYard bridges the gap between bare log viewers and heavyweight monitorin
 | **Supply-Chain Hardening** | Digest-pinned `node:22-bookworm-slim` (no `npm`/`yarn`/`corepack` in runtime), non-root `uid 1000` under `tini`, `read_only` rootfs + `cap_drop: [ALL]`, Trivy CRITICAL gate + SARIF, SBOM & SLSA provenance, weekly security rebuilds |
 | **UX & Accessibility** | Light/dark themes (WCAG AA, zero flash on load), responsive desktop & mobile layouts, keyboard shortcuts (`Cmd/Ctrl+K`, `L`, `F`, `Esc`), About diagnostics modal |
 
-> Full version history (v3.0–v5.5) lives in [CHANGELOG.md](./CHANGELOG.md).
+> Full version history (v3.0–v6.0) lives in [CHANGELOG.md](./CHANGELOG.md).
 
 ---
 
@@ -39,8 +39,8 @@ ContainerYard bridges the gap between bare log viewers and heavyweight monitorin
 
 ```mermaid
 flowchart LR
-    Browser["Browser (React SPA)"] -->|HTTPS| Proxy["Reverse Proxy (Nginx / Caddy)"]
-    Proxy -->|"HTTP + SSE (127.0.0.1:5008)"| App["ContainerYard Server (Express · non-root)"]
+    Browser["Browser (React 19 SPA)"] -->|HTTPS| Proxy["Reverse Proxy (Nginx / Caddy)"]
+    Proxy -->|"HTTP + SSE (127.0.0.1:5008)"| App["ContainerYard Server (Express 5 · non-root)"]
 
     App --> Redis[("Redis 7 (Sessions)")]
     App --> SQLite[("SQLite via Prisma (/data/app.db)")]
@@ -86,6 +86,7 @@ npm run check            # TypeScript (app)
 npm run check:tests      # TypeScript (tests)
 npm run lint             # ESLint
 npm test                 # Unit tests (no Docker or DB required)
+npm run test:e2e:ci      # Playwright E2E suite (against live stack)
 npm run build            # Production build + dist verification
 ```
 
