@@ -8,9 +8,9 @@ container, and Express 5 routing that kept every guard. The real issues were dat
 (VIEWER) role: notification channel secrets, and container command lines including the bundled Redis password.
 Next were an unclamped log tail, the public `.env.example` placeholders passing startup checks, an auth-bypass
 flag with no production guard, and gaps in auditing and retention. 21 of the 27 medium/low findings are fixed
-(9 of them partially); 4 need a decision and 2 need a manual action.
+(9 of them partially); 4 need a decision, and the 2 manual actions were completed on 2026-11-28.
 
-| Severity | Confirmed | Fixed | Deferred (decision) | Manual action | Open (info, recommendation) |
+| Severity | Confirmed | Fixed | Deferred (decision) | Manual action (done) | Open (info, recommendation) |
 |---|---|---|---|---|---|
 | Critical | 0 | 0 | 0 | 0 | 0 |
 | High | 0 | 0 | 0 | 0 | 0 |
