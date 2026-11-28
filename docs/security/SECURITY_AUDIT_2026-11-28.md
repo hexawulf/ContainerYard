@@ -190,7 +190,7 @@ routes/hosts.ts: // Env values are credentials more often than not: admins only.
 
 **Fix.** In hosts.ts apply a role filter to command (null or argv with values after the first token masked) and mount sources for non-ADMIN, mirroring envForRole.
 
-**Status:** Fixed in 1f7c880, 1a93b8d
+**Status:** Fixed in 1f7c880, 1a93b8d, 3f20330
 
 ### [MEDIUM] CY-04 — .env.example placeholder secrets pass all startup validation (bootstrap ADMIN password, SESSION_SECRET, REDIS_PASSWORD)
 
@@ -1374,7 +1374,8 @@ built route by route and re-checked by the verifier. The Express 5 upgrade was p
 | Method | Path | Before (snapshot) | After this PR |
 |---|---|---|---|
 | GET | /api/alerts/channels, /api/alerts/channels/:id | any signed-in user gets the raw config (webhook URL, headers) | non-admins get every config value hidden, url reduced to its origin (CY-02) |
-| GET | /api/hosts/:hostId/containers/:containerId | non-admins get command line and host mount sources (env hidden) | non-admins get command hidden and mount sources hidden (CY-03) |
+| GET | /api/hosts/:hostId/containers/:containerId | non-admins get command line and host mount sources (env hidden) | non-admins get command, mount sources and non-compose label values hidden (CY-03) |
+| GET | container lists, stacks, /api/containers, cAdvisor inspect | raw container labels to any signed-in user | label values hidden for non-admins except com.docker.compose.* and org.opencontainers.image.* (CY-03) |
 | GET | /api/hosts/:hostId/containers/:containerId/logs | `tail` not clamped below (negative = whole log) | `tail` clamped to 1..5000 (CY-01) |
 | GET | metrics history / summary / top / CSV export | window up to 365 days | window up to 90 days (CY-06) |
 | POST | /api/alerts/history/:id/acknowledge | `acknowledgedBy` from the body, re-ack overwrites | `acknowledgedBy` = session user, re-ack → 409, audited (CY-25, CY-23) |
@@ -1525,4 +1526,4 @@ none of its patterns shadows a stacks/actions/metrics/summary/hostLogs/inspect p
 | actionlint 1.7.12 | `.github/workflows` | clean (before and after this PR) |
 | zizmor 1.33.1 | `.github/workflows` | cache-poisoning (rejected, CY-54), template-injection (fixed, CY-34), self-repository help |
 | gitleaks 8.30.1 | this branch (`origin/main..HEAD`) | 2 hits, both the throwaway test `SESSION_SECRET` fixture in the CY-07/CY-08 tests (82b8c23, f018583); replaced with the test-env value in 17a8efb, tree scans clean |
-| node:test | unit suite | baseline 208/208 → 250/250 after this PR (42 new regression tests) |
+| node:test | unit suite | baseline 208/208 → 253/253 after this PR (45 new regression tests) |
