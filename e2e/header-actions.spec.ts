@@ -13,6 +13,7 @@ const pkg = JSON.parse(fs.readFileSync(path.resolve(__dirname, "../package.json"
 };
 const EXPECTED_VERSION_TEXT = `v${pkg.version}`;
 const SCREENSHOT_DIR = path.resolve(__dirname, "../docs/screenshots/header-actions");
+const UPDATE_SCREENSHOTS = process.env.UPDATE_SCREENSHOTS === "1";
 const TEST_ADMIN_EMAIL = "cy-test-admin@example.invalid";
 const TEST_VIEWER_EMAIL = "cy-test-viewer@example.invalid";
 const TEST_ADMIN_PASS = `CyAdm_${randomBytes(9).toString("base64url")}!1`;
@@ -71,9 +72,28 @@ class ApiClient {
 }
 
 let bootstrapAdmin: ApiClient;
-let adminCookies: Array<{ name: string; value: string; url: string }> = [];
-let viewerCookies: Array<{ name: string; value: string; url: string }> = [];
+let adminCookies: Parameters<BrowserContext["addCookies"]>[0] = [];
+let viewerCookies: Parameters<BrowserContext["addCookies"]>[0] = [];
 let createdUserIds: string[] = [];
+
+function toContextCookies(
+  cookies: Map<string, string>,
+  baseUrl: string,
+): Parameters<BrowserContext["addCookies"]>[0] {
+  const parsed = new URL(baseUrl);
+  return Array.from(cookies.entries()).map(([name, value]) => ({
+    name,
+    value,
+    domain: parsed.hostname,
+    path: "/",
+    httpOnly: true,
+    secure:
+      name.startsWith("__Secure-") ||
+      name.startsWith("__Host-") ||
+      parsed.protocol === "https:",
+    sameSite: "Lax" as const,
+  }));
+}
 
 async function assertNoHorizontalOverflow(page: Page, width: number) {
   await page.mouse.move(0, 0);
@@ -107,7 +127,9 @@ async function applyTheme(page: Page, theme: "light" | "dark") {
 test.describe.serial("Header actions, modals, responsive layout, and RBAC", () => {
   test.beforeAll(async ({ baseURL }) => {
     const base = (baseURL ?? "http://127.0.0.1:5098").replace(/\/+$/, "");
-    fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
+    if (UPDATE_SCREENSHOTS) {
+      fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
+    }
 
     const adminEmail = process.env.ADMIN_EMAIL;
     const adminPassword = process.env.ADMIN_PASSWORD;
@@ -164,11 +186,7 @@ test.describe.serial("Header actions, modals, responsive layout, and RBAC", () =
         })
       ).status,
     ).toBe(200);
-    adminCookies = Array.from(adminClient.cookies.entries()).map(([name, value]) => ({
-      name,
-      value,
-      url: base,
-    }));
+    adminCookies = toContextCookies(adminClient.cookies, base);
 
     const viewerClient = new ApiClient(base);
     await viewerClient.refreshCsrf();
@@ -180,11 +198,7 @@ test.describe.serial("Header actions, modals, responsive layout, and RBAC", () =
         })
       ).status,
     ).toBe(200);
-    viewerCookies = Array.from(viewerClient.cookies.entries()).map(([name, value]) => ({
-      name,
-      value,
-      url: base,
-    }));
+    viewerCookies = toContextCookies(viewerClient.cookies, base);
   });
 
   test.afterAll(async () => {
@@ -237,9 +251,11 @@ test.describe.serial("Header actions, modals, responsive layout, and RBAC", () =
       for (const theme of ["light", "dark"] as const) {
         await applyTheme(page, theme);
         await assertNoHorizontalOverflow(page, vp.width);
-        await page.screenshot({
-          path: path.join(SCREENSHOT_DIR, `header-logged-out-${theme}-${vp.label}.png`),
-        });
+        if (UPDATE_SCREENSHOTS) {
+          await page.screenshot({
+            path: path.join(SCREENSHOT_DIR, `header-logged-out-${theme}-${vp.label}.png`),
+          });
+        }
 
         // Open About modal and verify repo link, mailto, and version
         await page.getByTestId("button-about").click();
@@ -253,9 +269,11 @@ test.describe.serial("Header actions, modals, responsive layout, and RBAC", () =
         await assertNoHorizontalOverflow(page, vp.width);
         await page.waitForTimeout(250);
 
-        await page.screenshot({
-          path: path.join(SCREENSHOT_DIR, `modal-about-${theme}-${vp.label}.png`),
-        });
+        if (UPDATE_SCREENSHOTS) {
+          await page.screenshot({
+            path: path.join(SCREENSHOT_DIR, `modal-about-${theme}-${vp.label}.png`),
+          });
+        }
 
         await page.keyboard.press("Escape");
         await expect(dialog).toBeHidden();
@@ -318,9 +336,11 @@ test.describe.serial("Header actions, modals, responsive layout, and RBAC", () =
         await applyTheme(page, theme);
         await assertNoHorizontalOverflow(page, vp.width);
 
-        await page.screenshot({
-          path: path.join(SCREENSHOT_DIR, `header-admin-${theme}-${vp.label}.png`),
-        });
+        if (UPDATE_SCREENSHOTS) {
+          await page.screenshot({
+            path: path.join(SCREENSHOT_DIR, `header-admin-${theme}-${vp.label}.png`),
+          });
+        }
 
         // Open Change Password modal
         await page.getByTestId("button-change-password").click();
@@ -328,9 +348,11 @@ test.describe.serial("Header actions, modals, responsive layout, and RBAC", () =
         await expect(cpDialog).toBeVisible();
         await assertNoHorizontalOverflow(page, vp.width);
         await page.waitForTimeout(250);
-        await page.screenshot({
-          path: path.join(SCREENSHOT_DIR, `modal-change-password-${theme}-${vp.label}.png`),
-        });
+        if (UPDATE_SCREENSHOTS) {
+          await page.screenshot({
+            path: path.join(SCREENSHOT_DIR, `modal-change-password-${theme}-${vp.label}.png`),
+          });
+        }
         await page.keyboard.press("Escape");
         await expect(cpDialog).toBeHidden();
         await page.waitForTimeout(200);
@@ -346,9 +368,11 @@ test.describe.serial("Header actions, modals, responsive layout, and RBAC", () =
         await expect(page.getByTestId(`select-role-${TEST_ADMIN_EMAIL}`)).toBeDisabled();
         await assertNoHorizontalOverflow(page, vp.width);
         await page.waitForTimeout(250);
-        await page.screenshot({
-          path: path.join(SCREENSHOT_DIR, `modal-users-${theme}-${vp.label}.png`),
-        });
+        if (UPDATE_SCREENSHOTS) {
+          await page.screenshot({
+            path: path.join(SCREENSHOT_DIR, `modal-users-${theme}-${vp.label}.png`),
+          });
+        }
         await page.keyboard.press("Escape");
         await expect(usersDialog).toBeHidden();
         await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
@@ -394,9 +418,11 @@ test.describe.serial("Header actions, modals, responsive layout, and RBAC", () =
       for (const theme of ["light", "dark"] as const) {
         await applyTheme(page, theme);
         await assertNoHorizontalOverflow(page, vp.width);
-        await page.screenshot({
-          path: path.join(SCREENSHOT_DIR, `header-viewer-${theme}-${vp.label}.png`),
-        });
+        if (UPDATE_SCREENSHOTS) {
+          await page.screenshot({
+            path: path.join(SCREENSHOT_DIR, `header-viewer-${theme}-${vp.label}.png`),
+          });
+        }
       }
     }
 
