@@ -190,7 +190,7 @@ routes/hosts.ts: // Env values are credentials more often than not: admins only.
 
 **Fix.** In hosts.ts apply a role filter to command (null or argv with values after the first token masked) and mount sources for non-ADMIN, mirroring envForRole.
 
-**Status:** Fixed in 1f7c880, 1a93b8d, 3f20330
+**Status:** Fixed in 1f7c880, 1a93b8d, 3f20330, efcd4bc
 
 ### [MEDIUM] CY-04 — .env.example placeholder secrets pass all startup validation (bootstrap ADMIN password, SESSION_SECRET, REDIS_PASSWORD)
 
@@ -1375,7 +1375,7 @@ built route by route and re-checked by the verifier. The Express 5 upgrade was p
 |---|---|---|---|
 | GET | /api/alerts/channels, /api/alerts/channels/:id | any signed-in user gets the raw config (webhook URL, headers) | non-admins get every config value hidden, url reduced to its origin (CY-02) |
 | GET | /api/hosts/:hostId/containers/:containerId | non-admins get command line and host mount sources (env hidden) | non-admins get command, mount sources and non-compose label values hidden (CY-03) |
-| GET | container lists, stacks, /api/containers, cAdvisor inspect | raw container labels to any signed-in user | label values hidden for non-admins except com.docker.compose.* and org.opencontainers.image.* (CY-03) |
+| GET | container lists, stacks, /api/containers, cAdvisor inspect | raw container labels to any signed-in user | label values hidden for non-admins except the compose project, service, container-number, oneoff and version labels and org.opencontainers.image.* (CY-03) |
 | GET | /api/hosts/:hostId/containers/:containerId/logs | `tail` not clamped below (negative = whole log) | `tail` clamped to 1..5000 (CY-01) |
 | GET | metrics history / summary / top / CSV export | window up to 365 days | window up to 90 days (CY-06) |
 | POST | /api/alerts/history/:id/acknowledge | `acknowledgedBy` from the body, re-ack overwrites | `acknowledgedBy` = session user, re-ack → 409, audited (CY-25, CY-23) |
