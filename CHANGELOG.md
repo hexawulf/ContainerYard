@@ -3,6 +3,20 @@
 All notable changes to ContainerYard are documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [6.0.0] - 2026-11-28
+
+### Added
+- **Playwright E2E in CI:** Wired `e2e/theme.spec.ts`, `e2e/hostlogs-switcher.spec.ts`, and `e2e/header-actions.spec.ts` into the Docker CI job (`npm run test:e2e:ci`) against the live Compose stack on `http://127.0.0.1:5008`, with failure report artifact upload (`retention-days: 7`) and `UPDATE_SCREENSHOTS=1` gating so CI runs never modify tracked PNGs.
+
+### Changed
+- **Runtime Stack Modernization (React 19 / Express 5 / Vite 8):**
+  - Upgraded **Express 4 → Express 5** (`express@5`, `@types/express@5`), updated wildcard routes (`/{*splat}`, `/api/{*splat}`), and narrowed route `req.params` types across server route handlers.
+  - Upgraded **React 18 → React 19** (`react@19`, `react-dom@19`, `@types/react@19`, `@types/react-dom@19`), removed `react-helmet-async` and `<HelmetProvider>`, and migrated all pages to React 19 native `<title>` hoisting.
+  - Upgraded **Vite 6 → Vite 8** (`vite@8`, `@vitejs/plugin-react@6`, `@types/node@^22.12.0`) with Rolldown production bundling (~5x faster client builds) and updated `AboutModal` tech stack labels.
+
+### Fixed
+- **Playwright `__Secure-` Session Cookies on Loopback:** Updated `e2e/header-actions.spec.ts` cookie injection to set explicit `domain`, `path`, `httpOnly`, `secure`, and `sameSite` fields so Chromium accepts `__Secure-cy.sid` against `http://127.0.0.1:5008`.
+
 ## [5.6.0] - 2026-11-27
 
 ### Added
