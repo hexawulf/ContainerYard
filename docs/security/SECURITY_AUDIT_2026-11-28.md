@@ -704,7 +704,7 @@ await prisma.alertHistory.update({ where: { id }, data: { acknowledgedAt: new Da
 
 **Fix.** Call recordAudit for channel/rule create/update/delete/test, acknowledge and history delete (target = id/name, detail without config secrets).
 
-**Status:** Fixed in 3795829, cc9c7ab
+**Status:** Fixed in 3795829, cc9c7ab, e975c06
 
 ### [LOW] CY-24 — cAdvisor base URLs logged verbatim (credentials leak if URL carries userinfo)
 
@@ -1525,4 +1525,4 @@ none of its patterns shadows a stacks/actions/metrics/summary/hostLogs/inspect p
 | actionlint 1.7.12 | `.github/workflows` | clean (before and after this PR) |
 | zizmor 1.33.1 | `.github/workflows` | cache-poisoning (rejected, CY-54), template-injection (fixed, CY-34), self-repository help |
 | gitleaks 8.30.1 | this branch (`origin/main..HEAD`) | 2 hits, both the throwaway test `SESSION_SECRET` fixture in the CY-07/CY-08 tests (82b8c23, f018583); replaced with the test-env value in 17a8efb, tree scans clean |
-| node:test | unit suite | baseline 208/208 → 249/249 after this PR (41 new regression tests) |
+| node:test | unit suite | baseline 208/208 → 250/250 after this PR (42 new regression tests) |
