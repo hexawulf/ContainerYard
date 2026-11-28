@@ -179,6 +179,7 @@ jobs:
       - name: Trivy report
         id: trivy
         env:
+          TAG: ${{ needs.tag.outputs.tag }}
           TRIVY_IMAGE: aquasec/trivy:0.76.1@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c
         run: |
           out="$RUNNER_TEMP/trivy"   # outside the build context
@@ -196,7 +197,7 @@ jobs:
           high=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="HIGH")] | length' "$out/fixable.json")
           echo "critical=$crit" >>"$GITHUB_OUTPUT"
           {
-            echo "### Trivy: ${{ needs.tag.outputs.tag }} (linux/amd64)"
+            echo "### Trivy: ${TAG} (linux/amd64)"
             echo
             echo "Fixable: **$crit CRITICAL**, **$high HIGH**. All severities, fixed or not, are in the Security tab."
             if [ "$((crit + high))" -gt 0 ]; then
