@@ -13,6 +13,9 @@ const rawEnv = {
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().default(5008),
+  // Interface to listen on. The container image needs 0.0.0.0 (publish the port
+  // on 127.0.0.1 instead, see docker-compose.yml); bare-metal/PM2 uses 127.0.0.1.
+  BIND_HOST: z.string().min(1).default("0.0.0.0"),
   LOG_LEVEL: z.string().default("info"),
   SESSION_SECRET: z.string().min(32).refine((v) => !isPlaceholderSecret(v), PLACEHOLDER_MESSAGE),
   COOKIE_NAME: z.string().default("__Secure-cy.sid"),

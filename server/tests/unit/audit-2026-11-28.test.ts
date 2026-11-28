@@ -336,3 +336,18 @@ describe("CY-16: rate limits bucket IPv6 clients by /64", () => {
     assert.equal(rateLimitKeyForIp(undefined), "unknown");
   });
 });
+
+describe("CY-18: listen address is configurable and loopback for PM2", () => {
+  test("ecosystem.config.cjs binds the bare-metal process to loopback", async () => {
+    const { createRequire } = await import("node:module");
+    const req = createRequire(import.meta.url);
+    const eco = req(path.resolve(process.cwd(), "ecosystem.config.cjs")) as { apps: Array<{ env: Record<string, string> }> };
+    assert.equal(eco.apps[0].env.BIND_HOST, "127.0.0.1");
+  });
+
+  test("index.ts listens on env.BIND_HOST, not a hard-coded 0.0.0.0", () => {
+    const src = fs.readFileSync(path.resolve(process.cwd(), "server/src/index.ts"), "utf8");
+    assert.match(src, /host: env\.BIND_HOST/);
+    assert.ok(!src.includes('host: "0.0.0.0"'));
+  });
+});

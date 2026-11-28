@@ -215,6 +215,7 @@ Remote hosts configured in `CY_REMOTE_HOSTS` (parsed by `server/src/config/env.t
 | `CY_LOCAL_HOST_NAME` | No | `Local Docker` | Display name for the local Docker host |
 | `CY_REMOTE_HOSTS` | No | `[]` | JSON array of `{id, name, cadvisorUrl, dozzleUrl?}` for remote cAdvisor hosts |
 | `PORT` | No | `5008` | HTTP server listen port inside the container |
+| `BIND_HOST` | No | `0.0.0.0` | Interface the server listens on. Keep `0.0.0.0` in the container (publish the port on `127.0.0.1`); bare-metal/PM2 sets `127.0.0.1` in `ecosystem.config.cjs` |
 | `NODE_ENV` | No | `production` | Runtime environment (`development`, `test`, `production`) |
 | `LOG_LEVEL` | No | `info` | Server log verbosity |
 | `DOCKER_HOST` | No | `unix:///var/run/docker.sock` | Local Docker socket path |

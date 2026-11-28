@@ -254,11 +254,11 @@ export async function createApp() {
   httpServer.listen(
     {
       port,
-      host: "0.0.0.0",
+      host: env.BIND_HOST,
       reusePort: true,
     },
     () => {
-      log(`API listening on port ${port}`);
+      log(`API listening on ${env.BIND_HOST}:${port}`);
       initFirebaseAtStartup(process.env, {
         info: (m) => log(m, "info"),
         warn: (m) => log(m, "warn"),
