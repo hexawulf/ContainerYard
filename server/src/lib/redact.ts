@@ -14,3 +14,44 @@ export function envForRole(env: ContainerEnvVar[] | undefined, role: string | un
   if (role === "ADMIN") return env;
   return env.map((entry) => ({ key: entry.key, value: HIDDEN_VALUE }));
 }
+
+function hideValues(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(hideValues);
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, hideValues(v)]));
+  }
+  return HIDDEN_VALUE;
+}
+
+function urlOrigin(value: unknown): string {
+  if (typeof value !== "string") return HIDDEN_VALUE;
+  try {
+    return `${new URL(value).origin}/${HIDDEN_VALUE}`;
+  } catch {
+    return HIDDEN_VALUE;
+  }
+}
+
+/**
+ * Notification channel configs hold credentials: a webhook URL's path is often
+ * the secret itself, and custom headers carry bearer tokens. Admins get the
+ * stored JSON unchanged. Everyone else gets the same keys with every value
+ * hidden, except `url`, which is reduced to its origin so the target is still
+ * recognisable.
+ */
+export function channelConfigForRole(config: string, role: string | undefined): string {
+  if (role === "ADMIN") return config;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(config);
+  } catch {
+    return JSON.stringify(HIDDEN_VALUE);
+  }
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return JSON.stringify(HIDDEN_VALUE);
+  }
+  const redacted = Object.fromEntries(
+    Object.entries(parsed).map(([k, v]) => [k, k === "url" ? urlOrigin(v) : hideValues(v)]),
+  );
+  return JSON.stringify(redacted);
+}

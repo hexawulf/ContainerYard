@@ -6,6 +6,7 @@ import {
   insertNotificationChannelSchema,
 } from "@shared/schema";
 import { requireRole } from "../middleware/auth";
+import { channelConfigForRole } from "../lib/redact";
 import { sendNotification } from "../services/notifications";
 import { validateWebhookUrl } from "../lib/safeWebhook";
 
@@ -44,13 +45,14 @@ function isNotFoundError(error: unknown): boolean {
 
 // ==================== Notification Channels ====================
 
-router.get("/channels", async (_req, res, next) => {
+router.get("/channels", async (req, res, next) => {
   if (!prisma) return res.json([]);
   try {
     const channels = await prisma.notificationChannel.findMany({
       orderBy: { createdAt: "desc" },
     });
-    res.json(channels);
+    const role = req.session.user?.role;
+    res.json(channels.map((c) => ({ ...c, config: channelConfigForRole(c.config, role) })));
   } catch (error) {
     next(error);
   }
@@ -66,7 +68,7 @@ router.get("/channels/:id", async (req, res, next) => {
     if (!channel) {
       return res.status(404).json({ error: "Channel not found" });
     }
-    res.json(channel);
+    res.json({ ...channel, config: channelConfigForRole(channel.config, req.session.user?.role) });
   } catch (error) {
     next(error);
   }
