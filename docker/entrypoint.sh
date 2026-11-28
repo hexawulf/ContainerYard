@@ -41,6 +41,22 @@ if [ "${#ADMIN_PASSWORD}" -lt 12 ]; then
   fail "ADMIN_PASSWORD must be at least 12 characters long."
 fi
 
+# The .env.example values are public; refuse to boot with any of them.
+# Keep in step with server/src/lib/placeholderSecrets.ts.
+is_placeholder() {
+  local value
+  value="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"
+  [[ "${value}" == change-me* ]]
+}
+for var in SESSION_SECRET ADMIN_PASSWORD REDIS_PASSWORD; do
+  if is_placeholder "${!var:-}"; then
+    fail "${var} is still set to the .env.example placeholder. Generate a real value."
+  fi
+done
+if [[ "${REDIS_URL}" == *"://:change-me"* || "${REDIS_URL}" == *"://:CHANGE-ME"* ]]; then
+  fail "REDIS_URL still contains the .env.example placeholder password."
+fi
+
 # Ensure parent directory exists when using SQLite (DATABASE_URL=file:/path/to/app.db)
 if [[ "${DATABASE_URL}" == file:* ]]; then
   db_path="${DATABASE_URL#file:}"

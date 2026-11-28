@@ -5,9 +5,13 @@
 import "./_testEnv";
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { spawnSync } from "node:child_process";
 import { clampLogTail, MAX_LOG_TAIL } from "../../src/services/docker";
 import { channelConfigForRole, containerDetailForRole, HIDDEN_VALUE } from "../../src/lib/redact";
 import type { ContainerDetail } from "../../src/models/containers";
+import { isPlaceholderSecret, redisUrlHasPlaceholderPassword } from "../../src/lib/placeholderSecrets";
 
 describe("CY-01: container log tail is clamped to 1..MAX_LOG_TAIL", () => {
   test("negative and zero tails become 1 (Docker reads a negative tail as 'all lines')", () => {
@@ -82,5 +86,44 @@ describe("CY-03: container command arguments and host mount paths are admin-only
     assert.equal(out.command, detail.command);
     assert.deepEqual(out.mounts, detail.mounts);
     assert.deepEqual(out.env, detail.env);
+  });
+});
+
+describe("CY-04: .env.example placeholder secrets are refused at startup", () => {
+  test("every placeholder shipped in .env.example is detected", () => {
+    const example = fs.readFileSync(path.resolve(process.cwd(), ".env.example"), "utf8");
+    for (const key of ["SESSION_SECRET", "ADMIN_PASSWORD", "REDIS_PASSWORD"]) {
+      const line = example.split("\n").find((l) => l.startsWith(`${key}=`));
+      assert.ok(line, `${key} missing from .env.example`);
+      assert.equal(isPlaceholderSecret(line.slice(key.length + 1)), true, `${key} placeholder not detected`);
+    }
+  });
+
+  test("real values pass, and REDIS_URL passwords are checked", () => {
+    assert.equal(isPlaceholderSecret("0123456789abcdef0123456789abcdef"), false);
+    assert.equal(isPlaceholderSecret(undefined), false);
+    assert.equal(redisUrlHasPlaceholderPassword("redis://:change-me-redis-password@redis:6379/0"), true);
+    assert.equal(redisUrlHasPlaceholderPassword("redis://:Zx81-real-pass@redis:6379/0"), false);
+    assert.equal(redisUrlHasPlaceholderPassword("redis://127.0.0.1:6379"), false);
+  });
+
+  test("docker/entrypoint.sh refuses the placeholders before seeding", () => {
+    const script = path.resolve(process.cwd(), "docker/entrypoint.sh");
+    const r = spawnSync("bash", [script], {
+      env: {
+        PATH: process.env.PATH ?? "",
+        SESSION_SECRET: "x".repeat(40),
+        DATABASE_URL: "file:/nonexistent/app.db",
+        REDIS_URL: "redis://:real-pass@redis:6379/0",
+        ALLOWED_ORIGINS: "https://example.com",
+        ADMIN_EMAIL: "admin@example.com",
+        ADMIN_PASSWORD: "change-me-please",
+        REDIS_PASSWORD: "real-pass",
+      },
+      encoding: "utf8",
+      timeout: 10_000,
+    });
+    assert.notEqual(r.status, 0);
+    assert.match(r.stderr, /ADMIN_PASSWORD is still set to the \.env\.example placeholder/);
   });
 });
