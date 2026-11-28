@@ -192,7 +192,7 @@ Remote hosts configured in `CY_REMOTE_HOSTS` (parsed by `server/src/config/env.t
 | `ALLOWED_ORIGINS` | **Yes** | — | Comma-separated CORS origins (e.g. `https://containeryard.org`) |
 | `DATABASE_URL` | **Yes** | `file:/data/app.db` | Prisma database URL (`file:/data/app.db` in Compose, or `postgresql://...`) |
 | `ADMIN_EMAIL` | **Yes** | — | Bootstrap ADMIN email (used when `User` table is empty) |
-| `ADMIN_PASSWORD` | **Yes** | — | Bootstrap ADMIN password (`>= 12` chars) |
+| `ADMIN_PASSWORD` | First boot | — | Bootstrap ADMIN password (`>= 12` chars). Only read while the `User` table is empty; remove it from `.env` after the first sign-in and change the password in the UI |
 | `CY_LOCAL_HOST_ID` | No | `local` | Local Docker host ID (`/^[a-z0-9-]{1,32}$/`) |
 | `CY_LOCAL_HOST_NAME` | No | `Local Docker` | Display name for the local Docker host |
 | `CY_REMOTE_HOSTS` | No | `[]` | JSON array of `{id, name, cadvisorUrl, dozzleUrl?}` for remote cAdvisor hosts |

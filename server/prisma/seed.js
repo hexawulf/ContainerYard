@@ -16,14 +16,16 @@ async function main() {
     const adminEmail = process.env.ADMIN_EMAIL;
     const adminPassword = process.env.ADMIN_PASSWORD;
 
-    if (!adminEmail || !adminPassword) {
-      throw new Error("ADMIN_EMAIL and ADMIN_PASSWORD must be set in environment");
-    }
-
+    // ADMIN_PASSWORD is only needed until the first account exists, so it can
+    // be removed from the environment after the first boot.
     const userCount = await prisma.user.count();
     if (userCount > 0) {
       console.log("Users already exist, skipping bootstrap admin creation");
       return;
+    }
+
+    if (!adminEmail || !adminPassword) {
+      throw new Error("ADMIN_EMAIL and ADMIN_PASSWORD must be set to create the bootstrap admin (User table is empty)");
     }
 
     const hashedPassword = await bcrypt.hash(adminPassword, 12);

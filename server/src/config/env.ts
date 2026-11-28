@@ -25,7 +25,9 @@ const envSchema = z.object({
   CY_LOCAL_HOST_NAME: z.string().min(1).default("Local Docker"),
   CY_REMOTE_HOSTS: z.string().optional().default(""),
   ADMIN_EMAIL: z.string().email(),
-  ADMIN_PASSWORD: z.string().min(12).refine((v) => !isPlaceholderSecret(v), PLACEHOLDER_MESSAGE),
+  // Only needed for the first boot (seed.js creates the bootstrap ADMIN when the
+  // User table is empty); remove it from the environment afterwards.
+  ADMIN_PASSWORD: z.string().min(12).refine((v) => !isPlaceholderSecret(v), PLACEHOLDER_MESSAGE).optional(),
   METRICS_TOKEN: z.string().optional(),
   HOSTLOGS_LOCAL_HOST: z.string().optional(),
   HOSTLOG_NGINX_DIR: z.string().default("/var/log/nginx"),

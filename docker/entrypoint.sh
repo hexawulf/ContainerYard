@@ -19,7 +19,6 @@ required_vars=(
   REDIS_URL
   ALLOWED_ORIGINS
   ADMIN_EMAIL
-  ADMIN_PASSWORD
 )
 
 missing=()
@@ -37,7 +36,9 @@ if [ "${#SESSION_SECRET}" -lt 32 ]; then
   fail "SESSION_SECRET must be at least 32 characters long."
 fi
 
-if [ "${#ADMIN_PASSWORD}" -lt 12 ]; then
+# ADMIN_PASSWORD is only required for the first boot (empty User table, see
+# server/prisma/seed.js). When it is set, it must still be a real password.
+if [ -n "${ADMIN_PASSWORD:-}" ] && [ "${#ADMIN_PASSWORD}" -lt 12 ]; then
   fail "ADMIN_PASSWORD must be at least 12 characters long."
 fi
 

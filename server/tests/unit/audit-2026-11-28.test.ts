@@ -273,3 +273,37 @@ describe("CY-07: AUTH_DISABLED is development-only and server-side only", () => 
     assert.equal(await isSseSessionValid(req), false);
   });
 });
+
+describe("CY-08: ADMIN_PASSWORD is only required for the first boot", () => {
+  const envModule = pathToFileURL(path.resolve(process.cwd(), "server/src/config/env.ts")).href;
+  const baseEnv = {
+    PATH: process.env.PATH ?? "",
+    NODE_ENV: "production",
+    SESSION_SECRET: "0123456789abcdef0123456789abcdef",
+    ALLOWED_ORIGINS: "https://example.com",
+    REDIS_URL: "redis://127.0.0.1:6379",
+    ADMIN_EMAIL: "admin@example.com",
+  };
+  const load = (extra: Record<string, string>) =>
+    spawnSync(
+      process.execPath,
+      ["--import", "tsx", "--input-type=module", "-e", `await import(${JSON.stringify(envModule)}); console.log("ENV_OK");`],
+      { env: { ...baseEnv, ...extra }, encoding: "utf8", timeout: 30_000 },
+    );
+
+  test("the server starts without ADMIN_PASSWORD", () => {
+    const r = load({});
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /ENV_OK/);
+  });
+
+  test("a set ADMIN_PASSWORD is still validated", () => {
+    assert.notEqual(load({ ADMIN_PASSWORD: "short" }).status, 0);
+  });
+
+  test("the entrypoint no longer requires ADMIN_PASSWORD", () => {
+    const script = fs.readFileSync(path.resolve(process.cwd(), "docker/entrypoint.sh"), "utf8");
+    const required = script.slice(script.indexOf("required_vars=("), script.indexOf(")", script.indexOf("required_vars=(")));
+    assert.ok(!required.includes("ADMIN_PASSWORD"));
+  });
+});
