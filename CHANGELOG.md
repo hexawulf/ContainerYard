@@ -3,6 +3,38 @@
 All notable changes to ContainerYard are documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/).
 
+## [6.1.0] - 2026-11-28
+
+Security release from the 2026-11-28 swarm audit (`docs/security/SECURITY_AUDIT_2026-11-28.md`):
+0 critical, 0 high; all 4 medium and 17 of 23 low findings fixed.
+
+### Security
+- **VIEWER redaction:** non-admins no longer see notification channel secrets (webhook URLs, auth headers), container
+  commands, host mount sources, or container label values (except the compose project/service/number labels and
+  `org.opencontainers.image.*`). ADMIN responses are unchanged.
+- **Startup refuses unsafe config:** `.env.example` placeholder values for `SESSION_SECRET`, `ADMIN_PASSWORD` and
+  `REDIS_PASSWORD` (also inside `REDIS_URL`) are rejected; `AUTH_DISABLED=true` is refused with `NODE_ENV=production`;
+  `VITE_AUTH_DISABLED` no longer disables server auth.
+- **Input and path hardening:** container log `tail` clamped to 1..5000; cAdvisor container paths anchored at both ends;
+  CSV exports neutralise spreadsheet formulas; metrics windows capped at 90 days.
+- **Sessions and rate limits:** live log streams end when the session is gone from the store (logout, expiry); IPv6
+  clients are rate-limited per /64.
+- **Audit and logging:** every alert channel/rule/history change and denied attempt is audited (denials capped per
+  user); `acknowledgedBy` comes from the session and re-acknowledging returns 409; cAdvisor URLs and errors are logged
+  without credentials.
+- **Runtime and release:** `Permissions-Policy` header; compose memory/PID/CPU limits (overridable); owner-only deploy
+  backups; releases only for tags on `main`; key and service-account files ignored by git and the build context.
+
+### Added
+- `BIND_HOST` (listen address; `127.0.0.1` in `ecosystem.config.cjs`), `METRICS_RETENTION_DAYS` (default 90),
+  `ALERT_HISTORY_RETENTION_DAYS` (opt-in), `CY_HOSTLOG_ALLOW_HTTP` (silences the plain-http agent warning),
+  `CY_MEM_LIMIT` / `CY_PIDS_LIMIT` / `CY_CPUS` / `CY_REDIS_*` compose overrides.
+
+### Changed
+- `ADMIN_PASSWORD` is only required on first boot (empty `User` table); remove it from `.env` afterwards.
+- Hourly metrics older than 90 days are pruned daily.
+- DEPLOYMENT.md: "Behind a CDN" real-IP section, HSTS at the proxy, new variables.
+
 ## [6.0.0] - 2026-11-28
 
 ### Added

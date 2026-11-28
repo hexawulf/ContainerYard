@@ -31,7 +31,7 @@ ContainerYard bridges the gap between bare log viewers and heavyweight monitorin
 | **Supply-Chain Hardening** | Digest-pinned `node:22-bookworm-slim` (no `npm`/`yarn`/`corepack` in runtime), non-root `uid 1000` under `tini`, `read_only` rootfs + `cap_drop: [ALL]`, Trivy CRITICAL gate + SARIF, SBOM & SLSA provenance, weekly security rebuilds |
 | **UX & Accessibility** | Light/dark themes (WCAG AA, zero flash on load), responsive desktop & mobile layouts, keyboard shortcuts (`Cmd/Ctrl+K`, `L`, `F`, `Esc`), About diagnostics modal |
 
-> Full version history (v3.0–v6.0) lives in [CHANGELOG.md](./CHANGELOG.md).
+> Full version history (v3.0–v6.1) lives in [CHANGELOG.md](./CHANGELOG.md).
 
 ---
 
