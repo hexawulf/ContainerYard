@@ -1,12 +1,10 @@
 import { test, expect, type Page } from "@playwright/test";
 
 /**
- * Host Logs host switcher — fully mocked, no server required.
+ * Host Logs host switcher — fully mocked via page.route.
  *
- * CI does not run Playwright (see .github/workflows/ci.yml), so this spec is a
- * local/manual gate. It stubs every API the app bootstrap touches with
- * page.route and uses fake hosts (host-a / host-b) so no real topology leaks
- * into the public repo.
+ * Stubs every API the app bootstrap touches and uses fake hosts
+ * (host-a / host-b) so no real topology leaks into the public repo.
  */
 
 interface FakeHost {
