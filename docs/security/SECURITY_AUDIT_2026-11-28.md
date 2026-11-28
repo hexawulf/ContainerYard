@@ -190,7 +190,7 @@ routes/hosts.ts: // Env values are credentials more often than not: admins only.
 
 **Fix.** In hosts.ts apply a role filter to command (null or argv with values after the first token masked) and mount sources for non-ADMIN, mirroring envForRole.
 
-**Status:** Fixed in 1f7c880
+**Status:** Fixed in 1f7c880, 1a93b8d
 
 ### [MEDIUM] CY-04 — .env.example placeholder secrets pass all startup validation (bootstrap ADMIN password, SESSION_SECRET, REDIS_PASSWORD)
 
@@ -704,7 +704,7 @@ await prisma.alertHistory.update({ where: { id }, data: { acknowledgedAt: new Da
 
 **Fix.** Call recordAudit for channel/rule create/update/delete/test, acknowledge and history delete (target = id/name, detail without config secrets).
 
-**Status:** Fixed in 3795829
+**Status:** Fixed in 3795829, cc9c7ab
 
 ### [LOW] CY-24 — cAdvisor base URLs logged verbatim (credentials leak if URL carries userinfo)
 
@@ -725,7 +725,7 @@ console.warn(`Host ${host.id} has invalid cAdvisor URL: ${cadvisorBase}`);
 
 **Fix.** Log new URL(base).origin with username/password stripped (or reject userinfo in cadvisorUrl like logs.url already does).
 
-**Status:** Fixed in 7bd5e84
+**Status:** Fixed in 7bd5e84, a875a73
 
 ### [LOW] CY-25 — Alert acknowledgement trusts client-supplied, unbounded `acknowledgedBy` and can be overwritten
 
@@ -1367,10 +1367,22 @@ function normalizeIp(ip) { const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(
 
 ## 5. Route / endpoint access matrix
 
-Verified route by route at the audited commit; the matrix was re-checked by the verifier. After this PR, VIEWER
-responses for `GET /api/alerts/channels*` and `GET /api/hosts/:hostId/containers/:containerId` are redacted (CY-02, CY-03),
-`VITE_AUTH_DISABLED` no longer affects the server, and `AUTH_DISABLED` is refused in production (CY-07). The Express 5
-upgrade was probed with 50 path variants (trailing slash, case, double slash, encoded slash): every guard still matched.
+**The full matrix below is a snapshot of the audited commit `41e5e8b`, before the fixes in this PR.** It was
+built route by route and re-checked by the verifier. The Express 5 upgrade was probed with 50 path variants
+(trailing slash, case, double slash, encoded slash), and every guard still matched. Rows that change with this PR:
+
+| Method | Path | Before (snapshot) | After this PR |
+|---|---|---|---|
+| GET | /api/alerts/channels, /api/alerts/channels/:id | any signed-in user gets the raw config (webhook URL, headers) | non-admins get every config value hidden, url reduced to its origin (CY-02) |
+| GET | /api/hosts/:hostId/containers/:containerId | non-admins get command line and host mount sources (env hidden) | non-admins get command hidden and mount sources hidden (CY-03) |
+| GET | /api/hosts/:hostId/containers/:containerId/logs | `tail` not clamped below (negative = whole log) | `tail` clamped to 1..5000 (CY-01) |
+| GET | metrics history / summary / top / CSV export | window up to 365 days | window up to 90 days (CY-06) |
+| POST | /api/alerts/history/:id/acknowledge | `acknowledgedBy` from the body, re-ack overwrites | `acknowledgedBy` = session user, re-ack → 409, audited (CY-25, CY-23) |
+| POST/PATCH/DELETE | /api/alerts/** (channels, rules, history) | not audited | audited with outcome; denied attempts capped per user (CY-23) |
+| GET | SSE log streams | kept running after logout or session expiry | ended at the next heartbeat when the session is gone (CY-10) |
+| * | every auth/ADMIN row | `AUTH_DISABLED` or `VITE_AUTH_DISABLED` made them public ADMIN, also in production | only `AUTH_DISABLED`, and the server refuses to start with it in production (CY-07) |
+
+Snapshot at `41e5e8b` (before fixes):
 
 Legend: **public** = no session needed; **auth** = any signed-in user (ADMIN or VIEWER); **ADMIN** = role check.
 All mutating `/api/*` requests also pass `verifyCsrf` (token + Origin), mounted at `app.use("/api")` (case-insensitive, so `/API/...` is covered too).
@@ -1513,4 +1525,4 @@ none of its patterns shadows a stacks/actions/metrics/summary/hostLogs/inspect p
 | actionlint 1.7.12 | `.github/workflows` | clean (before and after this PR) |
 | zizmor 1.33.1 | `.github/workflows` | cache-poisoning (rejected, CY-54), template-injection (fixed, CY-34), self-repository help |
 | gitleaks 8.30.1 | this branch (`origin/main..HEAD`) | 2 hits, both the throwaway test `SESSION_SECRET` fixture in the CY-07/CY-08 tests (82b8c23, f018583); replaced with the test-env value in 17a8efb, tree scans clean |
-| node:test | unit suite | baseline 208/208 → 245/245 after this PR (37 new regression tests) |
+| node:test | unit suite | baseline 208/208 → 249/249 after this PR (41 new regression tests) |
