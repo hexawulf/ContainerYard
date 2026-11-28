@@ -2,7 +2,7 @@
 # that tag, then build linux/amd64 + linux/arm64 and push
 # 0xwulf/containeryard:X.Y.Z, :X.Y and :latest with SBOM and provenance
 # attestations. Only runs in hexawulf/ContainerYard; Docker Hub credentials are
-# used in the publish job alone, after the tests passed.
+# release-environment secrets used in the publish job alone, after the tests passed.
 # Weekly refresh: every Monday the latest GitHub Release is rebuilt without the
 # build cache, so the runtime stage's apt-get upgrade picks up Debian security
 # fixes. Same version tags are re-pushed; running hosts update on next deploy.
@@ -116,6 +116,9 @@ jobs:
     needs: [tag, test]
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    # Docker Hub credentials live only in the protected `release` environment,
+    # which accepts v*.*.* tags and main (weekly refresh, manual republish).
+    environment: release
     permissions:
       contents: read
       security-events: write   # Trivy SARIF -> Security tab
