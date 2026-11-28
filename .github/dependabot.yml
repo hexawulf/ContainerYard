@@ -10,6 +10,11 @@ updates:
       time: "04:00"
       timezone: Asia/Taipei
     open-pull-requests-limit: 5
+    # Let fresh releases age a few days first (compromised versions are usually
+    # pulled within hours). Security updates are not delayed by this.
+    cooldown:
+      default-days: 3
+      semver-major-days: 7
     groups:
       npm-minor-patch:
         update-types: [minor, patch]
