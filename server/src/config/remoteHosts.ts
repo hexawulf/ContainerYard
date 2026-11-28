@@ -125,3 +125,25 @@ export function parseRemoteHostsEnv(
 
   return entries;
 }
+
+const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
+
+/**
+ * Ids of remote hosts whose PiDeck agent URL is plain http on a non-loopback
+ * address: the agent bearer token travels in clear there unless the link is a
+ * private tunnel. Logged as a startup warning (silence with
+ * CY_HOSTLOG_ALLOW_HTTP=true once the link is known to be private).
+ */
+export function plainHttpAgentHosts(entries: RemoteHostEnvEntry[]): string[] {
+  return entries
+    .filter((entry) => {
+      if (!entry.logs) return false;
+      try {
+        const u = new URL(entry.logs.url);
+        return u.protocol === "http:" && !LOOPBACK_HOSTS.has(u.hostname.toLowerCase());
+      } catch {
+        return false;
+      }
+    })
+    .map((entry) => entry.id);
+}

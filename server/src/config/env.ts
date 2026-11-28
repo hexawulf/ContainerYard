@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { HOST_ID_REGEX, parseRemoteHostsEnv } from "./remoteHosts";
+import { HOST_ID_REGEX, parseRemoteHostsEnv, plainHttpAgentHosts } from "./remoteHosts";
 import { isPlaceholderSecret, redisUrlHasPlaceholderPassword } from "../lib/placeholderSecrets";
 import { checkAuthDisabledPolicy } from "../lib/authDisabled";
 
@@ -55,6 +55,14 @@ export const remoteHostsConfig = parseRemoteHostsEnv(
   parsedEnv.CY_REMOTE_HOSTS,
   parsedEnv.CY_LOCAL_HOST_ID,
 );
+
+const plainHttpAgents = plainHttpAgentHosts(remoteHostsConfig);
+if (plainHttpAgents.length > 0 && process.env.CY_HOSTLOG_ALLOW_HTTP !== "true") {
+  console.warn(
+    `[env] WARNING: PiDeck agent logs.url uses plain http for host(s) ${plainHttpAgents.join(", ")}; ` +
+      "the agent bearer token is sent unencrypted. Use https:// or a private tunnel, then set CY_HOSTLOG_ALLOW_HTTP=true.",
+  );
+}
 
 export const env = {
   ...parsedEnv,

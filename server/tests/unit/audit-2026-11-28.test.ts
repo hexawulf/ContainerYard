@@ -307,3 +307,17 @@ describe("CY-08: ADMIN_PASSWORD is only required for the first boot", () => {
     assert.ok(!required.includes("ADMIN_PASSWORD"));
   });
 });
+
+describe("CY-15: plain-http PiDeck agent URLs are flagged", () => {
+  test("non-loopback http agents are listed, https and loopback are not", async () => {
+    const { plainHttpAgentHosts } = await import("../../src/config/remoteHosts");
+    const logs = (url: string) => ({ type: "pideck-agent" as const, url, tokenEnv: "CY_HOSTLOG_TOKEN_A", timeoutMs: 5000 });
+    const hosts = [
+      { id: "a", name: "A", cadvisorUrl: "http://192.0.2.1:8080", logs: logs("http://192.0.2.1:5016") },
+      { id: "b", name: "B", cadvisorUrl: "http://192.0.2.2:8080", logs: logs("https://agent.example:5016") },
+      { id: "c", name: "C", cadvisorUrl: "http://127.0.0.1:8080", logs: logs("http://127.0.0.1:5016") },
+      { id: "d", name: "D", cadvisorUrl: "http://192.0.2.4:8080" },
+    ];
+    assert.deepEqual(plainHttpAgentHosts(hosts as never), ["a"]);
+  });
+});
