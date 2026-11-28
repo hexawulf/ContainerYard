@@ -75,13 +75,18 @@ describe("CY-03: container command arguments and host mount paths are admin-only
     mounts: [{ source: "/srv/data/redis", destination: "/data", mode: "rw", rw: true }],
   } as unknown as ContainerDetail;
 
-  test("VIEWER sees the executable, container paths and env names only", () => {
+  test("VIEWER sees container paths and env names only, no command", () => {
     const out = containerDetailForRole(detail, "VIEWER");
-    assert.equal(out.command, `redis-server ${HIDDEN_VALUE}`);
+    assert.equal(out.command, HIDDEN_VALUE);
     assert.ok(!JSON.stringify(out).includes("s3cr3t-pass"));
     assert.equal(out.mounts[0].source, HIDDEN_VALUE);
     assert.equal(out.mounts[0].destination, "/data");
     assert.deepEqual(out.env, [{ key: "REDISCLI_AUTH", value: HIDDEN_VALUE }]);
+  });
+
+  test("an args-only Cmd (image with an entrypoint) is hidden too", () => {
+    const argsOnly = { ...detail, command: "--password=s3cr3t-pass" } as ContainerDetail;
+    assert.equal(containerDetailForRole(argsOnly, "VIEWER").command, HIDDEN_VALUE);
   });
 
   test("ADMIN sees the full detail", () => {

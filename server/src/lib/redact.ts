@@ -17,15 +17,14 @@ export function envForRole(env: ContainerEnvVar[] | undefined, role: string | un
 
 /**
  * Command-line arguments carry secrets as often as env does (for example
- * `redis-server --requirepass <password>`). Non-admins see the executable only.
+ * `redis-server --requirepass <password>`). Config.Cmd may hold only arguments
+ * when the image sets an entrypoint, so no token is safe to keep: non-admins
+ * get the whole command hidden.
  */
 export function commandForRole(command: string | null | undefined, role: string | undefined): string | null {
   if (command === undefined || command === null) return null;
   if (role === "ADMIN") return command;
-  const trimmed = command.trim();
-  if (!trimmed) return command;
-  const [executable, ...args] = trimmed.split(/\s+/);
-  return args.length > 0 ? `${executable} ${HIDDEN_VALUE}` : executable;
+  return command.trim() ? HIDDEN_VALUE : command;
 }
 
 /** Host-side mount paths reveal host layout; non-admins see the container side only. */
