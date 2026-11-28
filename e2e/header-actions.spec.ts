@@ -72,9 +72,28 @@ class ApiClient {
 }
 
 let bootstrapAdmin: ApiClient;
-let adminCookies: Array<{ name: string; value: string; url: string }> = [];
-let viewerCookies: Array<{ name: string; value: string; url: string }> = [];
+let adminCookies: Parameters<BrowserContext["addCookies"]>[0] = [];
+let viewerCookies: Parameters<BrowserContext["addCookies"]>[0] = [];
 let createdUserIds: string[] = [];
+
+function toContextCookies(
+  cookies: Map<string, string>,
+  baseUrl: string,
+): Parameters<BrowserContext["addCookies"]>[0] {
+  const parsed = new URL(baseUrl);
+  return Array.from(cookies.entries()).map(([name, value]) => ({
+    name,
+    value,
+    domain: parsed.hostname,
+    path: "/",
+    httpOnly: true,
+    secure:
+      name.startsWith("__Secure-") ||
+      name.startsWith("__Host-") ||
+      parsed.protocol === "https:",
+    sameSite: "Lax" as const,
+  }));
+}
 
 async function assertNoHorizontalOverflow(page: Page, width: number) {
   await page.mouse.move(0, 0);
@@ -167,11 +186,7 @@ test.describe.serial("Header actions, modals, responsive layout, and RBAC", () =
         })
       ).status,
     ).toBe(200);
-    adminCookies = Array.from(adminClient.cookies.entries()).map(([name, value]) => ({
-      name,
-      value,
-      url: base,
-    }));
+    adminCookies = toContextCookies(adminClient.cookies, base);
 
     const viewerClient = new ApiClient(base);
     await viewerClient.refreshCsrf();
@@ -183,11 +198,7 @@ test.describe.serial("Header actions, modals, responsive layout, and RBAC", () =
         })
       ).status,
     ).toBe(200);
-    viewerCookies = Array.from(viewerClient.cookies.entries()).map(([name, value]) => ({
-      name,
-      value,
-      url: base,
-    }));
+    viewerCookies = toContextCookies(viewerClient.cookies, base);
   });
 
   test.afterAll(async () => {
