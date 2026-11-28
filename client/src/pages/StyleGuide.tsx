@@ -5,7 +5,6 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import Logo from "@/components/Logo";
 import { useTheme } from "@/components/theme-provider";
-import { Helmet } from "react-helmet-async";
 
 const TOKEN_SWATCHES = [
   { name: "background", className: "bg-background text-foreground border" },
@@ -21,9 +20,7 @@ const StyleGuidePage: React.FC = () => {
 
   return (
     <Layout>
-      <Helmet>
-        <title>Style Guide - ContainerYard</title>
-      </Helmet>
+      <title>Style Guide - ContainerYard</title>
       <div className="mx-auto max-w-container px-4 py-10 sm:px-6 space-y-12">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b pb-6">
           <div>

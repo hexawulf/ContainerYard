@@ -1,15 +1,12 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { AlertCircle } from "lucide-react";
 import { Link } from "wouter";
-import { Helmet } from "react-helmet-async";
 import { Button } from "@/components/ui/button";
 
 export default function NotFound() {
   return (
     <div className="flex min-h-[calc(100vh-8rem)] w-full items-center justify-center bg-background px-4 py-12">
-      <Helmet>
-        <title>404 - Page Not Found - ContainerYard</title>
-      </Helmet>
+      <title>404 - Page Not Found - ContainerYard</title>
       <Card className="w-full max-w-md border-border/80 shadow-sm">
         <CardContent className="pt-6 text-center space-y-4">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">

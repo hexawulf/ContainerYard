@@ -31,7 +31,7 @@ const TECH_SPECS = [
   {
     group: "Frontend",
     items: [
-      "React 18, Vite, TypeScript",
+      "React 19, Vite 8, TypeScript",
       "TailwindCSS 3, shadcn/ui + Radix UI",
       "TanStack Query & Virtual, wouter",
       "Recharts, lucide-react",
@@ -40,7 +40,7 @@ const TECH_SPECS = [
   {
     group: "Backend",
     items: [
-      "Node.js, Express, TypeScript",
+      "Node.js, Express 5, TypeScript",
       "dockerode (local UNIX socket) & cAdvisor",
       "helmet, express-rate-limit, zod",
       "prom-client (Prometheus metrics)",

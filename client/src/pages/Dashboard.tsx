@@ -6,7 +6,6 @@ import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/components/AuthGate";
 import { getQueryFn, queryClient } from "@/lib/queryClient";
 import { Link } from "wouter";
-import { Helmet } from "react-helmet-async";
 import type {
   ContainerDetail,
   ContainerStats,
@@ -423,9 +422,7 @@ export default function Dashboard() {
 
   return (
     <DashboardErrorBoundary>
-    <Helmet>
-      <title>Dashboard - ContainerYard</title>
-    </Helmet>
+    <title>Dashboard - ContainerYard</title>
     <div className="mx-auto max-w-container px-4 sm:px-6 py-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
         <h1 className="text-2xl sm:text-display font-semibold tracking-tight">Dashboard</h1>

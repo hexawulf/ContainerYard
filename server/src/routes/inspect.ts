@@ -46,7 +46,8 @@ export function cadvisorInspectSpec(data: CadvisorInspectRaw | null | undefined,
  */
 r.get("/api/hosts/:hostId/containers/:id/inspect", requireAuth, async (req, res) => {
   try {
-    const { hostId, id } = req.params;
+    const hostId = String(req.params.hostId);
+    const id = String(req.params.id);
     const host = getHost(hostId); // throws with status 404 for an unknown host
 
     if (host.provider === "DOCKER") {

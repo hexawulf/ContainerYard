@@ -4,7 +4,6 @@ import type { FirebaseClientConfig } from "@/lib/firebase";
 import { FormEvent, useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { Helmet } from "react-helmet-async";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -168,9 +167,7 @@ export default function Login() {
   if (AUTH_DISABLED) {
     return (
       <div className="flex min-h-[calc(100vh-8rem)] items-center justify-center px-4 py-12">
-        <Helmet>
-          <title>Login - ContainerYard</title>
-        </Helmet>
+        <title>Login - ContainerYard</title>
         <Card className="w-full max-w-md border-border/80 shadow-sm">
           <CardHeader className="space-y-2 text-center">
             <Logo size="lg" className="mx-auto mb-2" />
@@ -194,9 +191,7 @@ export default function Login() {
 
   return (
     <div className="flex min-h-[calc(100vh-8rem)] items-center justify-center px-4 py-12">
-      <Helmet>
-        <title>Login - ContainerYard</title>
-      </Helmet>
+      <title>Login - ContainerYard</title>
       <Card className="w-full max-w-md border-border/80 shadow-sm">
         <CardHeader className="space-y-2 text-center">
           <Logo size="lg" className="mx-auto mb-2" />

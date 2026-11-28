@@ -36,8 +36,8 @@ function requireAdminAudited(req: Request, res: Response, next: NextFunction) {
     void recordAudit(req, {
       action: `container.${String(req.body?.action ?? "unknown")}`,
       outcome: "denied",
-      hostId: req.params.hostId,
-      target: req.params.containerId,
+      hostId: String(req.params.hostId ?? ""),
+      target: String(req.params.containerId ?? ""),
       detail: `role ${user.role} is not allowed to run container actions`,
     });
     return res.status(403).json({ error: "Container actions require the ADMIN role" });
@@ -50,7 +50,8 @@ router.post(
   actionRateLimiter,
   requireAdminAudited,
   async (req, res, next) => {
-    const { hostId, containerId } = req.params;
+    const hostId = String(req.params.hostId);
+    const containerId = String(req.params.containerId);
     const parsed = containerActionSchema.safeParse(req.body?.action);
     if (!parsed.success) {
       return res.status(400).json({

@@ -10,7 +10,7 @@ r.get("/:hostId/summary", requireAuth, async (req, res) => {
   try {
     // Inside the try: getHost throws for an unknown id, and Express 4 does not
     // catch a rejected async handler, so the request used to hang.
-    const host = getHost(req.params.hostId);
+    const host = getHost(String(req.params.hostId));
     if (host.provider === "DOCKER") {
       if (!host.docker?.socketPath) {
         return res.status(500).json({ error: "Docker socket path not configured" });

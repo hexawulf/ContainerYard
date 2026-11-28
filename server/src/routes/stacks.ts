@@ -23,8 +23,8 @@ const requireAdminStackAudited: RequestHandler = async (req, res, next) => {
       await recordAudit(req, {
         action: `stack.${String(req.body?.action ?? "unknown").slice(0, 32)}`,
         outcome: "denied",
-        hostId: req.params.hostId,
-        target: req.params.name,
+        hostId: String(req.params.hostId ?? ""),
+        target: String(req.params.name ?? ""),
         detail: "insufficient permissions",
       });
       res.status(403).json({ message: "Insufficient permissions" });
@@ -84,21 +84,23 @@ router.get("/:hostId/stacks/:name", async (req, res, next) => {
 // Bulk action on all containers in a stack
 router.post("/:hostId/stacks/:name/action", actionRateLimiter, requireAdminStackAudited, async (req, res, next) => {
   const { action } = req.body ?? {};
+  const hostId = String(req.params.hostId);
+  const stackName = String(req.params.name);
   try {
-    if (!STACK_NAME_REGEX.test(req.params.name)) {
+    if (!STACK_NAME_REGEX.test(stackName)) {
       return res.status(400).json({ error: "Invalid stack name" });
     }
     if (!action || !["start", "stop", "restart", "remove"].includes(action)) {
       return res.status(400).json({ error: "Invalid action" });
     }
 
-    const host = getHost(req.params.hostId);
+    const host = getHost(hostId);
     if (host.provider !== "DOCKER") {
       return res.status(501).json({ error: "Bulk actions are only supported for Docker provider" });
     }
 
-    const containers = await getAllContainersForHost(req.params.hostId);
-    const stack = getStackByName(containers, req.params.name);
+    const containers = await getAllContainersForHost(hostId);
+    const stack = getStackByName(containers, stackName);
     
     if (!stack) {
       return res.status(404).json({ error: "Stack not found" });
@@ -116,8 +118,8 @@ router.post("/:hostId/stacks/:name/action", actionRateLimiter, requireAdminStack
     await recordAudit(req, {
       action: `stack.${action}`,
       outcome: "success",
-      hostId: req.params.hostId,
-      target: req.params.name,
+      hostId,
+      target: stackName,
       detail: `${containerIds.length} containers`,
     });
 
@@ -130,8 +132,8 @@ router.post("/:hostId/stacks/:name/action", actionRateLimiter, requireAdminStack
     await recordAudit(req, {
       action: `stack.${action}`,
       outcome: "failure",
-      hostId: req.params.hostId,
-      target: req.params.name,
+      hostId,
+      target: stackName,
       detail: errorMessage(error),
     });
     next(error);
