@@ -414,15 +414,20 @@ describe("CY-03 (review): container label values are admin-only", () => {
     "com.docker.compose.project": "web",
     "com.docker.compose.service": "proxy",
     "org.opencontainers.image.version": "3.1",
+    "com.docker.compose.project.working_dir": "/srv/stacks/web",
+    "com.docker.compose.project.config_files": "/srv/stacks/web/docker-compose.yml",
     "traefik.http.middlewares.auth.basicauth.users": "admin:$apr1$hash",
   };
 
-  test("non-admins keep every key, compose/OCI values, and nothing else", () => {
+  test("non-admins keep every key, grouping compose keys and OCI values, nothing else", () => {
     const out = labelsForRole(labels, "VIEWER");
     assert.deepEqual(Object.keys(out), Object.keys(labels));
     assert.equal(out["com.docker.compose.project"], "web");
     assert.equal(out["org.opencontainers.image.version"], "3.1");
     assert.equal(out["traefik.http.middlewares.auth.basicauth.users"], HIDDEN_VALUE);
+    assert.equal(out["com.docker.compose.service"], "proxy");
+    assert.equal(out["com.docker.compose.project.working_dir"], HIDDEN_VALUE);
+    assert.equal(out["com.docker.compose.project.config_files"], HIDDEN_VALUE);
     assert.deepEqual(labelsForRole(labels, "ADMIN"), labels);
   });
 

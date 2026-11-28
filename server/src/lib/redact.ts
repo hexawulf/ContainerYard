@@ -34,12 +34,27 @@ export function mountsForRole(mounts: ContainerMount[] | undefined, role: string
   return mounts.map((m) => ({ ...m, source: m.source ? HIDDEN_VALUE : m.source }));
 }
 
-/** Label namespaces that describe the container, never credentials; stack grouping needs them. */
-export const SAFE_LABEL_PREFIXES = ["com.docker.compose.", "org.opencontainers.image."];
+/**
+ * Label values a non-admin may see: the compose keys stack grouping and the UI
+ * need (not working_dir / config_files / environment_file, which hold host
+ * paths) and the OCI image metadata.
+ */
+export const SAFE_LABEL_KEYS = new Set([
+  "com.docker.compose.project",
+  "com.docker.compose.service",
+  "com.docker.compose.container-number",
+  "com.docker.compose.oneoff",
+  "com.docker.compose.version",
+]);
+export const SAFE_LABEL_PREFIXES = ["org.opencontainers.image."];
+
+function isSafeLabel(key: string): boolean {
+  return SAFE_LABEL_KEYS.has(key) || SAFE_LABEL_PREFIXES.some((p) => key.startsWith(p));
+}
 
 /**
- * Labels carry credentials too (e.g. Traefik basic-auth hashes). Non-admins
- * keep every key, but only values in SAFE_LABEL_PREFIXES; the rest are hidden.
+ * Labels carry credentials and host paths too (e.g. Traefik basic-auth hashes,
+ * compose working_dir). Non-admins keep every key, but only safe values.
  */
 export function labelsForRole(
   labels: Record<string, string> | undefined | null,
@@ -47,9 +62,7 @@ export function labelsForRole(
 ): Record<string, string> {
   if (!labels) return {};
   if (role === "ADMIN") return labels;
-  return Object.fromEntries(
-    Object.entries(labels).map(([k, v]) => [k, SAFE_LABEL_PREFIXES.some((p) => k.startsWith(p)) ? v : HIDDEN_VALUE]),
-  );
+  return Object.fromEntries(Object.entries(labels).map(([k, v]) => [k, isSafeLabel(k) ? v : HIDDEN_VALUE]));
 }
 
 /** Per-role redaction for a container summary (lists, stacks). */
