@@ -44,6 +44,10 @@ services:
       - ALL
     security_opt:
       - no-new-privileges:true
+    # Resource ceilings (typical use is ~200 MiB and <20 PIDs); override in .env.
+    mem_limit: ${CY_MEM_LIMIT:-1g}
+    pids_limit: ${CY_PIDS_LIMIT:-256}
+    cpus: ${CY_CPUS:-2}
     restart: unless-stopped
     depends_on:
       redis:
@@ -69,6 +73,11 @@ services:
       - --save
       - "60"
       - "100"
+      # Stay under mem_limit: evict expiring keys (sessions) before the kernel kills redis.
+      - --maxmemory
+      - ${CY_REDIS_MAXMEMORY:-200mb}
+      - --maxmemory-policy
+      - volatile-lru
     volumes:
       - cy-redis:/data
     environment:
@@ -90,6 +99,8 @@ services:
       - DAC_OVERRIDE
     security_opt:
       - no-new-privileges:true
+    mem_limit: ${CY_REDIS_MEM_LIMIT:-256m}
+    pids_limit: ${CY_REDIS_PIDS_LIMIT:-64}
     restart: unless-stopped
     networks:
       - cy-internal
