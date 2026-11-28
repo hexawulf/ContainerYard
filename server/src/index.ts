@@ -1,5 +1,5 @@
 import { errorInfo } from "./lib/httpError";
-import { buildHelmetOptions } from "./lib/csp";
+import { buildHelmetOptions, permissionsPolicyMiddleware } from "./lib/csp";
 import { initFirebaseAtStartup } from "./services/firebaseAuth";
 import express from "express";
 import fs from "fs";
@@ -46,6 +46,7 @@ export async function createApp() {
   app.disable("x-powered-by");
 
   app.use(helmet(buildHelmetOptions(process.env)));
+  app.use(permissionsPolicyMiddleware);
 
   app.use((req, res, next) => {
     const origin = typeof req.headers.origin === "string" ? req.headers.origin : undefined;

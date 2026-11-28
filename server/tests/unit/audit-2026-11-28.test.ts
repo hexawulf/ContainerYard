@@ -351,3 +351,15 @@ describe("CY-18: listen address is configurable and loopback for PM2", () => {
     assert.ok(!src.includes('host: "0.0.0.0"'));
   });
 });
+
+describe("CY-27: Permissions-Policy header", () => {
+  test("denies unused powerful features", async () => {
+    const { permissionsPolicyMiddleware, PERMISSIONS_POLICY } = await import("../../src/lib/csp");
+    const headers: Record<string, string> = {};
+    let called = false;
+    permissionsPolicyMiddleware({}, { setHeader: (n: string, v: string) => (headers[n] = v) }, () => (called = true));
+    assert.ok(called);
+    assert.equal(headers["Permissions-Policy"], PERMISSIONS_POLICY);
+    for (const f of ["camera=()", "microphone=()", "geolocation=()", "usb=()"]) assert.ok(PERMISSIONS_POLICY.includes(f));
+  });
+});

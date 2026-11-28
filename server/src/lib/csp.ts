@@ -76,3 +76,33 @@ export function buildHelmetOptions(env: NodeJS.ProcessEnv = process.env): Helmet
     contentSecurityPolicy: buildCsp(env),
   };
 }
+
+/**
+ * Permissions-Policy: the dashboard uses none of these browser features, so
+ * deny them for the page and any frame (helmet does not set this header).
+ */
+export const PERMISSIONS_POLICY = [
+  "camera=()",
+  "microphone=()",
+  "geolocation=()",
+  "payment=()",
+  "usb=()",
+  "serial=()",
+  "bluetooth=()",
+  "hid=()",
+  "midi=()",
+  "accelerometer=()",
+  "gyroscope=()",
+  "magnetometer=()",
+  "display-capture=()",
+  "interest-cohort=()",
+].join(", ");
+
+export function permissionsPolicyMiddleware(
+  _req: unknown,
+  res: { setHeader(name: string, value: string): unknown },
+  next: () => void,
+): void {
+  res.setHeader("Permissions-Policy", PERMISSIONS_POLICY);
+  next();
+}

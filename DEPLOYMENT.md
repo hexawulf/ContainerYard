@@ -144,6 +144,10 @@ server {
     ssl_certificate     /etc/letsencrypt/live/containeryard.example.com/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/containeryard.example.com/privkey.pem;
 
+    # HSTS belongs at the TLS terminator. The app sends it itself only when
+    # CY_ENABLE_APP_HSTS=1 (use one or the other, not both).
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
     location / {
         proxy_pass http://127.0.0.1:5008;
         proxy_http_version 1.1;
@@ -216,6 +220,7 @@ Remote hosts configured in `CY_REMOTE_HOSTS` (parsed by `server/src/config/env.t
 | `CY_REMOTE_HOSTS` | No | `[]` | JSON array of `{id, name, cadvisorUrl, dozzleUrl?}` for remote cAdvisor hosts |
 | `PORT` | No | `5008` | HTTP server listen port inside the container |
 | `BIND_HOST` | No | `0.0.0.0` | Interface the server listens on. Keep `0.0.0.0` in the container (publish the port on `127.0.0.1`); bare-metal/PM2 sets `127.0.0.1` in `ecosystem.config.cjs` |
+| `CY_ENABLE_APP_HSTS` | No | unset | `1` makes the app send `Strict-Transport-Security` itself. Leave unset when the reverse proxy sets HSTS (recommended) |
 | `NODE_ENV` | No | `production` | Runtime environment (`development`, `test`, `production`) |
 | `LOG_LEVEL` | No | `info` | Server log verbosity |
 | `DOCKER_HOST` | No | `unix:///var/run/docker.sock` | Local Docker socket path |
