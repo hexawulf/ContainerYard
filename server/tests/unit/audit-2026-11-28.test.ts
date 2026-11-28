@@ -363,3 +363,13 @@ describe("CY-27: Permissions-Policy header", () => {
     for (const f of ["camera=()", "microphone=()", "geolocation=()", "usb=()"]) assert.ok(PERMISSIONS_POLICY.includes(f));
   });
 });
+
+describe("CY-19: deploy backups are owner-only", () => {
+  test("docker-deploy.sh restricts the backup dir and each backup file", () => {
+    const script = fs.readFileSync(path.resolve(process.cwd(), "scripts/docker-deploy.sh"), "utf8");
+    assert.match(script, /run chmod 700 "\$BACKUP_DIR"/);
+    assert.match(script, /chmod 600 '\/backup\/app\.db\.bak-\$\{TS\}'/);
+    const r = spawnSync("bash", ["-n", path.resolve(process.cwd(), "scripts/docker-deploy.sh")], { encoding: "utf8" });
+    assert.equal(r.status, 0, r.stderr);
+  });
+});
