@@ -159,3 +159,23 @@ describe("CY-23: alert changes are audited", () => {
     assert.ok(!JSON.stringify(audits.slice(before)).includes("secret-xyz"));
   });
 });
+
+describe("CY-23 (review): the alert audit log cannot be flooded", () => {
+  test("unknown paths are not audited", async () => {
+    const { alertAuditAction } = await import("../../src/routes/alerts");
+    assert.equal(alertAuditAction("POST", "/anything"), null);
+    assert.equal(alertAuditAction("DELETE", "/channels"), null);
+  });
+
+  test("denied attempts are capped per user, admin changes are not", async () => {
+    const { DENIED_AUDIT_MAX, resetDeniedAuditCountsForTests } = await import("../../src/routes/alerts");
+    resetDeniedAuditCountsForTests();
+    const before = audits.length;
+    for (let i = 0; i < DENIED_AUDIT_MAX + 10; i++) await call("/history", "DELETE", "VIEWER");
+    await call("/history/1/acknowledge", "POST", "ADMIN");
+    await new Promise((r) => setTimeout(r, 50));
+    const rows = audits.slice(before);
+    assert.equal(rows.filter((a) => a.outcome === "denied").length, DENIED_AUDIT_MAX);
+    assert.equal(rows.filter((a) => a.action === "alert.acknowledge" && a.outcome === "success").length, 1);
+  });
+});

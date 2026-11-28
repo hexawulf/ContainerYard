@@ -32,7 +32,35 @@ export function alertAuditAction(method: string, path: string): string | null {
   if (method === "DELETE" && /^\/rules\/[^/]+$/.test(p)) return "alert.rule.delete";
   if (method === "POST" && /^\/history\/[^/]+\/acknowledge$/.test(p)) return "alert.acknowledge";
   if (method === "DELETE" && p === "/history") return "alert.history.delete";
-  return `alert.${method.toLowerCase()}`;
+  // Unknown paths are not audited: they change nothing, and auditing them
+  // would let any signed-in user write arbitrary rows.
+  return null;
+}
+
+/**
+ * Denied attempts (VIEWERs; unauthenticated requests stop at requireAuth) are
+ * audited, but at most DENIED_AUDIT_MAX rows per user per window, so a VIEWER
+ * cannot bury real admin changes under junk rows. ADMIN changes are always
+ * recorded.
+ */
+export const DENIED_AUDIT_MAX = 20;
+const DENIED_AUDIT_WINDOW_MS = 15 * 60 * 1000;
+const deniedAuditCounts = new Map<string, { windowStart: number; count: number }>();
+
+export function allowDeniedAudit(userKey: string, now = Date.now()): boolean {
+  const entry = deniedAuditCounts.get(userKey);
+  if (!entry || now - entry.windowStart >= DENIED_AUDIT_WINDOW_MS) {
+    if (deniedAuditCounts.size > 10_000) deniedAuditCounts.clear();
+    deniedAuditCounts.set(userKey, { windowStart: now, count: 1 });
+    return true;
+  }
+  if (entry.count >= DENIED_AUDIT_MAX) return false;
+  entry.count += 1;
+  return true;
+}
+
+export function resetDeniedAuditCountsForTests(): void {
+  deniedAuditCounts.clear();
 }
 
 function auditOutcome(status: number): AuditOutcome {
@@ -46,10 +74,12 @@ router.use((req, res, next) => {
   const action = alertAuditAction(req.method, req.path);
   if (action) {
     res.on("finish", () => {
+      const outcome = auditOutcome(res.statusCode);
+      if (outcome === "denied" && !allowDeniedAudit(req.session?.user?.id ?? req.ip ?? "unknown")) return;
       const query = req.path === "/history" && req.query.days ? `days=${String(req.query.days)}` : "";
       void recordAudit(req, {
         action,
-        outcome: auditOutcome(res.statusCode),
+        outcome,
         target: req.path.slice(0, 200),
         detail: `status ${res.statusCode}${query ? `; ${query.slice(0, 50)}` : ""}`,
       });
