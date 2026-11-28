@@ -6,7 +6,9 @@ import {
   assertDockerContainerRef,
   listContainers as listDockerContainers, 
   getContainerDetail as getDockerContainerDetail, 
-  getContainerLogs, 
+  clampLogTail,
+  getContainerLogs,
+  MAX_LOG_TAIL,
   getContainerStats as getDockerContainerStats,
   streamContainerLogs,
   type LogOptions 
@@ -136,14 +138,13 @@ router.get("/:hostId/containers/:containerId/logs", requireAuth, async (req, res
     const containerId = String(req.params.containerId);
 
     if (host.provider === "DOCKER") {
-      const tail = req.query.tail ? parseInt(String(req.query.tail), 10) : 500;
       const since = req.query.since ? String(req.query.since) : undefined;
       const grep = req.query.grep ? String(req.query.grep) : undefined;
       const stdout = req.query.stdout !== 'false';
       const stderr = req.query.stderr !== 'false';
 
       const options: LogOptions = {
-        tail: Number.isNaN(tail) ? 500 : Math.min(tail, 5000),
+        tail: clampLogTail(req.query.tail),
         since: since && !isNaN(Number(since)) ? Number(since) : since,
         grep,
         stdout,
@@ -154,7 +155,7 @@ router.get("/:hostId/containers/:containerId/logs", requireAuth, async (req, res
       return res.json({ 
         mode: "docker",
         content: logs,
-        truncated: options.tail === 5000,
+        truncated: options.tail === MAX_LOG_TAIL,
       });
     }
 
