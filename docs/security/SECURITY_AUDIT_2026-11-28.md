@@ -27,12 +27,12 @@ Raw swarm findings: 70 → 55 after deduplication (2 rejected as false positives
    `VITE_AUTH_DISABLED` turned every request into ADMIN even in production. ADMIN controls the host's Docker.
 3. **CY-01:** `?tail=-1` made Docker return a container's entire log, which the server buffered in memory.
 
-**Manual actions required:**
-- **CY-11:** GitHub settings: create a `release` environment limited to v* tags, move DOCKERHUB_USERNAME/DOCKERHUB_TOKEN into it, add `environment: release` to the publish job, and use a Docker Hub token scoped to this one repository.
-- **CY-26:** ROTATE REQUIRED: the historic PostgreSQL password is in public git history. Retire or rotate it wherever it may still be set, and check it is not reused anywhere.
-- **Operators:** set `METRICS_TOKEN` in production (CY-05). After upgrading, the server warns at startup about plain-http
-  PiDeck agent URLs; once the link is a private tunnel, set `CY_HOSTLOG_ALLOW_HTTP=true` (CY-15). `ADMIN_PASSWORD` can be removed
-  from `.env` after first boot (CY-08). If the reverse proxy sits behind a CDN, confirm it restores the client IP (CY-16, DEPLOYMENT.md).
+**Manual actions (both completed 2026-11-28):**
+- **CY-11:** (done 2026-11-28) Docker Hub credentials moved to a `release` environment (deployment policy: v*.*.* tags and main), the publish job is bound to it (#68), the repository-level secrets are deleted, and a `protect-release-tags` ruleset limits v* tag creation/update/deletion to the admin role. Residual: personal Docker Hub tokens cannot be scoped to one repository; keep the token at Read & Write (no Delete).
+- **CY-26:** (done 2026-11-28) The role was still live on one internal PostgreSQL server (localhost-only, empty database, unused). Its password was rotated to a random value and the role set to NOLOGIN; the old password is rejected, and it is not reused in any config or secrets file checked.
+- **Operators:** set `METRICS_TOKEN` (CY-05), set `CY_HOSTLOG_ALLOW_HTTP=true` once plain-http PiDeck agents are known
+  to run over a private tunnel (CY-15), remove `ADMIN_PASSWORD` after first boot (CY-08), and behind a CDN confirm that the
+  proxy restores the client IP (CY-16, DEPLOYMENT.md). The reference deployment did all of this on 2026-11-28.
 
 ## 2. Scope & method
 
@@ -408,7 +408,7 @@ GitHub API (read-only): /actions/secrets -> DOCKERHUB_TOKEN, DOCKERHUB_USERNAME 
 
 **Fix.** Move both secrets into a `release` environment restricted to v* tags (required reviewer optional) and add `environment: release` to the publish job.
 
-**Status:** Manual action: GitHub settings: create a `release` environment limited to v* tags, move DOCKERHUB_USERNAME/DOCKERHUB_TOKEN into it, add `environment: release` to the publish job, and use a Docker Hub token scoped to this one repository.
+**Status:** Manual action: (done 2026-11-28) Docker Hub credentials moved to a `release` environment (deployment policy: v*.*.* tags and main), the publish job is bound to it (#68), the repository-level secrets are deleted, and a `protect-release-tags` ruleset limits v* tag creation/update/deletion to the admin role. Residual: personal Docker Hub tokens cannot be scoped to one repository; keep the token at Read & Write (no Delete).
 
 ### [LOW] CY-12 — Release can publish any v* tag, including one on a commit that never passed main's PR rules
 
@@ -777,7 +777,7 @@ await prisma.alertHistory.update({ where: { id }, data: { acknowledgedAt: new Da
 
 **Fix.** Rotate/retire that PostgreSQL password wherever it still exists; history rewrite is optional and does not remove existing clones.
 
-**Status:** Manual action: ROTATE REQUIRED: the historic PostgreSQL password is in public git history. Retire or rotate it wherever it may still be set, and check it is not reused anywhere.
+**Status:** Manual action: (done 2026-11-28) The role was still live on one internal PostgreSQL server (localhost-only, empty database, unused). Its password was rotated to a random value and the role set to NOLOGIN; the old password is rejected, and it is not reused in any config or secrets file checked.
 
 ### [LOW] CY-27 — App-level HSTS off by default and no Permissions-Policy header
 
