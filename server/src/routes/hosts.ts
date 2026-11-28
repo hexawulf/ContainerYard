@@ -27,7 +27,7 @@ router.get("/", requireAuth, (_req, res) => {
 
 router.get("/:hostId/stats", requireAuth, async (req, res, next) => {
   try {
-    const host = getHost(req.params.hostId);
+    const host = getHost(String(req.params.hostId));
 
     if (host.provider !== "DOCKER") {
       return res.json({
@@ -55,7 +55,7 @@ router.get("/:hostId/stats", requireAuth, async (req, res, next) => {
 
 router.get("/:hostId/containers", requireAuth, async (req, res, next) => {
   try {
-    const host = getHost(req.params.hostId);
+    const host = getHost(String(req.params.hostId));
 
     if (host.provider === "DOCKER") {
       const containers = await listDockerContainers(host);
@@ -75,8 +75,8 @@ router.get("/:hostId/containers", requireAuth, async (req, res, next) => {
 
 router.get("/:hostId/containers/:containerId", requireAuth, async (req, res, next) => {
   try {
-    const host = getHost(req.params.hostId);
-    const containerId = req.params.containerId;
+    const host = getHost(String(req.params.hostId));
+    const containerId = String(req.params.containerId);
 
     if (host.provider === "DOCKER") {
       const container = await getDockerContainerDetail(host, containerId);
@@ -97,8 +97,8 @@ router.get("/:hostId/containers/:containerId", requireAuth, async (req, res, nex
 
 router.get("/:hostId/containers/:containerId/stats", requireAuth, async (req, res, next) => {
   try {
-    const host = getHost(req.params.hostId);
-    const containerId = req.params.containerId;
+    const host = getHost(String(req.params.hostId));
+    const containerId = String(req.params.containerId);
 
     let stats;
     if (host.provider === "DOCKER") {
@@ -132,8 +132,8 @@ router.get("/:hostId/containers/:containerId/stats", requireAuth, async (req, re
 
 router.get("/:hostId/containers/:containerId/logs", requireAuth, async (req, res, next) => {
   try {
-    const host = getHost(req.params.hostId);
-    const containerId = req.params.containerId;
+    const host = getHost(String(req.params.hostId));
+    const containerId = String(req.params.containerId);
 
     if (host.provider === "DOCKER") {
       const tail = req.query.tail ? parseInt(String(req.query.tail), 10) : 500;
@@ -182,8 +182,8 @@ router.get("/:hostId/containers/:containerId/logs", requireAuth, async (req, res
 
 router.get("/:hostId/containers/:containerId/logs/stream", requireAuth, async (req, res, next) => {
   try {
-    const host = getHost(req.params.hostId);
-    const containerId = req.params.containerId;
+    const host = getHost(String(req.params.hostId));
+    const containerId = String(req.params.containerId);
 
     if (host.provider !== "DOCKER") {
       return res.status(501).json({ message: "SSE streaming only supported for Docker hosts" });

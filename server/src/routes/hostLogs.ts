@@ -135,7 +135,7 @@ export function createHostLogsRouter(opts: HostLogsRouterOptions = {}): Router {
 
   router.get("/:hostId/logs", adminOnly, async (req, res, next) => {
     try {
-      const { hostId } = req.params;
+      const hostId = String(req.params.hostId);
       const provider = resolveProvider(hostId);
       if (!provider) {
         return res.json({
@@ -177,7 +177,8 @@ export function createHostLogsRouter(opts: HostLogsRouterOptions = {}): Router {
   });
 
   router.get("/:hostId/logs/:name", adminOnly, async (req, res, next) => {
-    const { hostId, name } = req.params;
+    const hostId = String(req.params.hostId);
+    const name = String(req.params.name);
     const provider = resolveProvider(hostId);
     if (!provider) {
       return res.status(404).json({

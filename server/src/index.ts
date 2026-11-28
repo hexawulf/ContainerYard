@@ -176,7 +176,7 @@ export async function createApp() {
   });
 
   // Hard 404 for any unmatched /api/* routes
-  app.all("/api/*", (req, res) => {
+  app.all("/api/{*splat}", (req, res) => {
     res.status(404).json({ error: "API route not found", path: req.path });
   });
 
