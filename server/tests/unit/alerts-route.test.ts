@@ -117,3 +117,45 @@ describe("CY-25: alert acknowledgement", () => {
     assert.equal(alerts.get(1)!.acknowledgedAt, null);
   });
 });
+
+describe("CY-23: alert changes are audited", () => {
+  test("each mutating path maps to a named action; reads are not audited", async () => {
+    const { alertAuditAction } = await import("../../src/routes/alerts");
+    assert.equal(alertAuditAction("GET", "/channels"), null);
+    assert.equal(alertAuditAction("POST", "/channels"), "alert.channel.create");
+    assert.equal(alertAuditAction("PATCH", "/channels/4"), "alert.channel.update");
+    assert.equal(alertAuditAction("DELETE", "/channels/4/"), "alert.channel.delete");
+    assert.equal(alertAuditAction("POST", "/channels/4/test"), "alert.channel.test");
+    assert.equal(alertAuditAction("POST", "/rules"), "alert.rule.create");
+    assert.equal(alertAuditAction("PATCH", "/rules/2"), "alert.rule.update");
+    assert.equal(alertAuditAction("DELETE", "/rules/2"), "alert.rule.delete");
+    assert.equal(alertAuditAction("POST", "/history/1/acknowledge"), "alert.acknowledge");
+    assert.equal(alertAuditAction("DELETE", "/history"), "alert.history.delete");
+  });
+
+  test("an acknowledgement is recorded with the session user and outcome", async () => {
+    const before = audits.length;
+    await call("/history/1/acknowledge", "POST", "ADMIN");
+    await new Promise((r) => setTimeout(r, 20));
+    const row = audits.slice(before).find((a) => a.action === "alert.acknowledge");
+    assert.ok(row, "acknowledge audited");
+    assert.equal(row.outcome, "success");
+    assert.equal(row.userEmail, USERS.ADMIN.email);
+  });
+
+  test("a VIEWER attempt is recorded as denied", async () => {
+    const before = audits.length;
+    await call("/history", "DELETE", "VIEWER");
+    await new Promise((r) => setTimeout(r, 20));
+    const row = audits.slice(before).find((a) => a.action === "alert.history.delete");
+    assert.ok(row, "denied attempt audited");
+    assert.equal(row.outcome, "denied");
+  });
+
+  test("channel config secrets never reach the audit log", async () => {
+    const before = audits.length;
+    await call("/channels", "POST", "VIEWER", { name: "x", type: "webhook", config: '{"url":"https://h.example/secret-xyz"}' });
+    await new Promise((r) => setTimeout(r, 20));
+    assert.ok(!JSON.stringify(audits.slice(before)).includes("secret-xyz"));
+  });
+});

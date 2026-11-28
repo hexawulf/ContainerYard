@@ -8,11 +8,55 @@ import {
 import { requireRole } from "../middleware/auth";
 import { channelConfigForRole } from "../lib/redact";
 import { sendNotification } from "../services/notifications";
+import { recordAudit, type AuditOutcome } from "../services/audit";
 import { validateWebhookUrl } from "../lib/safeWebhook";
 
 const router = Router();
 const patchChannelSchema = insertNotificationChannelSchema.partial();
 const patchAlertRuleSchema = insertAlertRuleSchema.partial();
+
+/**
+ * Audit action for a mutating alerts request, or null for reads. Paths are
+ * relative to /api/alerts. The request body is never recorded because channel
+ * configs hold credentials.
+ */
+export function alertAuditAction(method: string, path: string): string | null {
+  if (method === "GET" || method === "HEAD" || method === "OPTIONS") return null;
+  const p = path.replace(/\/+$/, "") || "/";
+  if (method === "POST" && p === "/channels") return "alert.channel.create";
+  if (method === "POST" && /^\/channels\/[^/]+\/test$/.test(p)) return "alert.channel.test";
+  if (method === "PATCH" && /^\/channels\/[^/]+$/.test(p)) return "alert.channel.update";
+  if (method === "DELETE" && /^\/channels\/[^/]+$/.test(p)) return "alert.channel.delete";
+  if (method === "POST" && p === "/rules") return "alert.rule.create";
+  if (method === "PATCH" && /^\/rules\/[^/]+$/.test(p)) return "alert.rule.update";
+  if (method === "DELETE" && /^\/rules\/[^/]+$/.test(p)) return "alert.rule.delete";
+  if (method === "POST" && /^\/history\/[^/]+\/acknowledge$/.test(p)) return "alert.acknowledge";
+  if (method === "DELETE" && p === "/history") return "alert.history.delete";
+  return `alert.${method.toLowerCase()}`;
+}
+
+function auditOutcome(status: number): AuditOutcome {
+  if (status === 401 || status === 403) return "denied";
+  return status < 400 ? "success" : "failure";
+}
+
+// Every alert change (and every refused attempt) goes to the audit log once
+// the response is sent. Registered before the role gate so denials count too.
+router.use((req, res, next) => {
+  const action = alertAuditAction(req.method, req.path);
+  if (action) {
+    res.on("finish", () => {
+      const query = req.path === "/history" && req.query.days ? `days=${String(req.query.days)}` : "";
+      void recordAudit(req, {
+        action,
+        outcome: auditOutcome(res.statusCode),
+        target: req.path.slice(0, 200),
+        detail: `status ${res.statusCode}${query ? `; ${query.slice(0, 50)}` : ""}`,
+      });
+    });
+  }
+  next();
+});
 
 // Reading alerts is open to any signed-in user; changing them needs ADMIN.
 router.use((req, res, next) => {
