@@ -1,4 +1,4 @@
-import type { ContainerEnvVar } from "../models/containers";
+import type { ContainerDetail, ContainerEnvVar, ContainerMount } from "../models/containers";
 
 export const HIDDEN_VALUE = "[hidden]";
 
@@ -13,6 +13,36 @@ export function envForRole(env: ContainerEnvVar[] | undefined, role: string | un
   if (!env) return [];
   if (role === "ADMIN") return env;
   return env.map((entry) => ({ key: entry.key, value: HIDDEN_VALUE }));
+}
+
+/**
+ * Command-line arguments carry secrets as often as env does (for example
+ * `redis-server --requirepass <password>`). Non-admins see the executable only.
+ */
+export function commandForRole(command: string | null | undefined, role: string | undefined): string | null {
+  if (command === undefined || command === null) return null;
+  if (role === "ADMIN") return command;
+  const trimmed = command.trim();
+  if (!trimmed) return command;
+  const [executable, ...args] = trimmed.split(/\s+/);
+  return args.length > 0 ? `${executable} ${HIDDEN_VALUE}` : executable;
+}
+
+/** Host-side mount paths reveal host layout; non-admins see the container side only. */
+export function mountsForRole(mounts: ContainerMount[] | undefined, role: string | undefined): ContainerMount[] {
+  if (!mounts) return [];
+  if (role === "ADMIN") return mounts;
+  return mounts.map((m) => ({ ...m, source: m.source ? HIDDEN_VALUE : m.source }));
+}
+
+/** Applies every per-role redaction to a container detail response. */
+export function containerDetailForRole(detail: ContainerDetail, role: string | undefined): ContainerDetail {
+  return {
+    ...detail,
+    command: commandForRole(detail.command, role),
+    env: envForRole(detail.env, role),
+    mounts: mountsForRole(detail.mounts, role),
+  };
 }
 
 function hideValues(value: unknown): unknown {
