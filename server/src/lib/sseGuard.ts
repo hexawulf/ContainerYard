@@ -41,6 +41,24 @@ export function resetSseStreamCountsForTests(): void {
 }
 
 /**
+ * True while the request's session still exists in the session store. Logout
+ * destroys it there, and the store expires it at maxAge, but a long-lived SSE
+ * request keeps its own copy of req.session, so the store must be asked.
+ */
+export function sessionStillStored(req: Request): Promise<boolean> {
+  const store = req.sessionStore;
+  const sid = req.sessionID;
+  if (!store || !sid) return Promise.resolve(false);
+  return new Promise((resolve) => {
+    try {
+      store.get(sid, (err, data) => resolve(!err && Boolean(data)));
+    } catch {
+      resolve(false);
+    }
+  });
+}
+
+/**
  * Verifies during long-lived SSE heartbeats that the session user still exists,
  * has the same sessionVersion, and retains required role privileges.
  */
@@ -53,6 +71,8 @@ export async function isSseSessionValid(
   if (sessionUser.id === "auth-disabled") return true;
   if (!prisma) return false;
   try {
+    // The in-memory req.session outlives logout and expiry; the store does not.
+    if (!(await sessionStillStored(req))) return false;
     const dbUser = await prisma.user.findUnique({
       where: { id: sessionUser.id },
       select: { email: true, role: true, sessionVersion: true },

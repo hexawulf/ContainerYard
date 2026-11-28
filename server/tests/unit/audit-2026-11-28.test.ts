@@ -214,3 +214,19 @@ describe("CY-24: cAdvisor URLs are logged without credentials", () => {
     assert.equal(urlForLog("not a url with secret"), "<invalid URL>");
   });
 });
+
+describe("CY-10: SSE heartbeats end streams whose session is gone from the store", () => {
+  test("sessionStillStored follows the store, not the request's own copy", async () => {
+    const { sessionStillStored } = await import("../../src/lib/sseGuard");
+    const store = new Map<string, unknown>([["sid-1", { user: { id: "u1" } }]]);
+    const req = {
+      session: { user: { id: "u1" } },
+      sessionID: "sid-1",
+      sessionStore: { get: (id: string, cb: (e: unknown, d: unknown) => void) => cb(null, store.get(id) ?? null) },
+    } as unknown as import("express").Request;
+    assert.equal(await sessionStillStored(req), true);
+    store.delete("sid-1"); // logout / expiry
+    assert.equal(await sessionStillStored(req), false);
+    assert.equal(await sessionStillStored({ session: {} } as unknown as import("express").Request), false);
+  });
+});
