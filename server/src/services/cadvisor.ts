@@ -94,6 +94,15 @@ export function urlForLog(raw: string): string {
   }
 }
 
+/**
+ * Removes URL userinfo (scheme://user:pass@) from free text such as error
+ * messages: Node's fetch rejects credentialed URLs with a message that repeats
+ * the whole URL.
+ */
+export function scrubUrlCredentials(text: string): string {
+  return text.replace(/([a-z][a-z0-9+.-]*:\/\/)[^\s/@]*@/gi, "$1");
+}
+
 export function isDockerContainerPath(name: string): boolean {
   // Anchored at both ends: every parent segment must be a plain cgroup name
   // (no "." or ".." segments, no "?", "#" or "%"), because the value is also
@@ -295,7 +304,7 @@ class CadvisorService {
             return endpoint;
           }
         } catch (err: unknown) {
-          errors.push(`${endpoint}: ${errorMessage(err)}`);
+          errors.push(`${endpoint}: ${scrubUrlCredentials(errorMessage(err))}`);
         }
       }
 
@@ -319,7 +328,7 @@ class CadvisorService {
     } catch (error: unknown) {
       const { message, status } = errorInfo(error);
       if (shouldLogError(host.id)) {
-        console.error(`[cAdvisor] Failed to list containers for host ${host.id}:`, message);
+        console.error(`[cAdvisor] Failed to list containers for host ${host.id}:`, scrubUrlCredentials(message));
       }
       
       // Create appropriate error based on the failure (never echo internal baseUrl to clients)
@@ -366,7 +375,7 @@ class CadvisorService {
       };
     } catch (error: unknown) {
       if (shouldLogError(host.id)) {
-        console.error(`[cAdvisor] Failed to get container details for host ${host.id}, container ${containerId}:`, errorMessage(error));
+        console.error(`[cAdvisor] Failed to get container details for host ${host.id}, container ${containerId}:`, scrubUrlCredentials(errorMessage(error)));
       }
       throw error;
     }
@@ -383,7 +392,7 @@ class CadvisorService {
         return computeStats(host, containerId, container);
       } catch (error: unknown) {
         if (shouldLogError(host.id)) {
-          console.error(`[cAdvisor] Failed to get container stats for host ${host.id}, container ${containerId}:`, errorMessage(error));
+          console.error(`[cAdvisor] Failed to get container stats for host ${host.id}, container ${containerId}:`, scrubUrlCredentials(errorMessage(error)));
         }
         throw error;
       }

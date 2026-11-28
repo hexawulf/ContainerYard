@@ -378,3 +378,33 @@ describe("CY-19: deploy backups are owner-only", () => {
     assert.equal(r.status, 0, r.stderr);
   });
 });
+
+describe("CY-24 (review): cAdvisor failure logs never contain URL credentials", () => {
+  test("a credentialed cAdvisor URL that fails leaves no password in any log line", async () => {
+    const { getCadvisorService, scrubUrlCredentials } = await import("../../src/services/cadvisor");
+    assert.equal(scrubUrlCredentials("bad URL: http://usr:pa55w0rd@h:1/x and https://t0k3n@h2/"), "bad URL: http://h:1/x and https://h2/");
+
+    const lines: string[] = [];
+    const orig = { log: console.log, warn: console.warn, error: console.error };
+    const capture = (...args: unknown[]) => lines.push(args.map(String).join(" "));
+    console.log = capture;
+    console.warn = capture;
+    console.error = capture;
+    try {
+      const host = {
+        id: "cy24-review",
+        name: "probe",
+        provider: "CADVISOR_ONLY",
+        nodeLabel: "cy24-review",
+        cadvisorUrl: "http://usr:pa55w0rd@127.0.0.1:1",
+      } as unknown as import("../../src/config/hosts").HostConfig;
+      const service = getCadvisorService(host);
+      assert.ok(service);
+      await assert.rejects(service.listContainers(host));
+    } finally {
+      Object.assign(console, orig);
+    }
+    assert.ok(lines.length > 0, "the failure was logged");
+    assert.ok(!lines.join("\n").includes("pa55w0rd"), lines.join("\n"));
+  });
+});
