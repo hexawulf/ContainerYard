@@ -28,6 +28,7 @@ import { savedSearchesRouter } from "./routes/savedSearches";
 import { auditRouter } from "./routes/audit";
 import { usersRouter } from "./routes/users";
 import { pruneAudit } from "./services/audit";
+import { pruneMonitoring } from "./services/retention";
 import { log, setupVite } from "../vite";
 import { registerMetrics } from "./metrics";
 import { alertWorker } from "./services/alertWorker";
@@ -275,8 +276,11 @@ export async function createApp() {
       restartPruneTimer.unref();
 
       // Audit log retention (AUDIT_RETENTION_DAYS, default 180)
-      const runAuditPrune = () =>
+      // Also prunes monitoring tables (METRICS_RETENTION_DAYS, ALERT_HISTORY_RETENTION_DAYS).
+      const runAuditPrune = () => {
         pruneAudit().catch((error) => log(`Failed to prune audit log: ${error}`, "error"));
+        pruneMonitoring().catch((error) => log(`Failed to prune monitoring tables: ${error}`, "error"));
+      };
       auditPruneTimer = setInterval(runAuditPrune, 24 * 60 * 60 * 1000);
       auditPruneTimer.unref();
       runAuditPrune();

@@ -173,3 +173,36 @@ describe("CY-06: metrics windows are capped at the documented 90 days", () => {
     for (const d of ["7", "30", "90"]) assert.equal(safeParseInt(d, 7, MAX_METRICS_DAYS), Number(d));
   });
 });
+
+describe("CY-22: monitoring tables are pruned", () => {
+  test("metrics default to 90 days; alert history only when opted in", async () => {
+    const { prisma } = await import("../../src/db/client");
+    assert.ok(prisma);
+    const calls: Array<{ table: string; cutoff: Date }> = [];
+    Object.assign(prisma.containerMetricsHourly, {
+      deleteMany: async ({ where }: { where: { aggregatedAt: { lt: Date } } }) => {
+        calls.push({ table: "metrics", cutoff: where.aggregatedAt.lt });
+        return { count: 3 };
+      },
+    });
+    Object.assign(prisma.alertHistory, {
+      deleteMany: async ({ where }: { where: { createdAt: { lt: Date } } }) => {
+        calls.push({ table: "history", cutoff: where.createdAt.lt });
+        return { count: 2 };
+      },
+    });
+    const { pruneMonitoring } = await import("../../src/services/retention");
+    const now = Date.UTC(2026, 10, 28);
+    const day = 24 * 60 * 60 * 1000;
+
+    assert.deepEqual(await pruneMonitoring({}, now), { metrics: 3, alertHistory: 0 });
+    assert.deepEqual(calls, [{ table: "metrics", cutoff: new Date(now - 90 * day) }]);
+
+    calls.length = 0;
+    assert.deepEqual(
+      await pruneMonitoring({ METRICS_RETENTION_DAYS: "0", ALERT_HISTORY_RETENTION_DAYS: "30" }, now),
+      { metrics: 0, alertHistory: 2 },
+    );
+    assert.deepEqual(calls, [{ table: "history", cutoff: new Date(now - 30 * day) }]);
+  });
+});
