@@ -8,6 +8,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { pathToFileURL } from "node:url";
 import { clampLogTail, MAX_LOG_TAIL } from "../../src/services/docker";
 import { isDockerContainerPath, urlForLog } from "../../src/services/cadvisor";
 import { escapeCsvField, MAX_METRICS_DAYS, safeParseInt } from "../../src/routes/metrics";
@@ -228,5 +229,47 @@ describe("CY-10: SSE heartbeats end streams whose session is gone from the store
     store.delete("sid-1"); // logout / expiry
     assert.equal(await sessionStillStored(req), false);
     assert.equal(await sessionStillStored({ session: {} } as unknown as import("express").Request), false);
+  });
+});
+
+describe("CY-07: AUTH_DISABLED is development-only and server-side only", () => {
+  test("refused in production, warned otherwise, VITE_ alias ignored", async () => {
+    const { checkAuthDisabledPolicy, isAuthDisabled } = await import("../../src/lib/authDisabled");
+    assert.throws(() => checkAuthDisabledPolicy({ AUTH_DISABLED: "true", NODE_ENV: "production" }), /not allowed/);
+    assert.equal(checkAuthDisabledPolicy({ AUTH_DISABLED: "true", NODE_ENV: "development" }).length, 1);
+    assert.equal(isAuthDisabled({ VITE_AUTH_DISABLED: "true" }), false);
+    assert.match(checkAuthDisabledPolicy({ VITE_AUTH_DISABLED: "true", NODE_ENV: "production" })[0], /client build flag/);
+    assert.deepEqual(checkAuthDisabledPolicy({ NODE_ENV: "production" }), []);
+  });
+
+  test("the env module refuses to load with AUTH_DISABLED in production", () => {
+    const envModule = pathToFileURL(path.resolve(process.cwd(), "server/src/config/env.ts")).href;
+    const r = spawnSync(
+      process.execPath,
+      ["--import", "tsx", "--input-type=module", "-e", `await import(${JSON.stringify(envModule)}); console.log("ENV_OK");`],
+      {
+        env: {
+          PATH: process.env.PATH ?? "",
+          NODE_ENV: "production",
+          AUTH_DISABLED: "true",
+          SESSION_SECRET: "0123456789abcdef0123456789abcdef",
+          ALLOWED_ORIGINS: "https://example.com",
+          REDIS_URL: "redis://127.0.0.1:6379",
+          ADMIN_EMAIL: "admin@example.com",
+          ADMIN_PASSWORD: "TestAdminPassword123!",
+        },
+        encoding: "utf8",
+        timeout: 30_000,
+      },
+    );
+    assert.notEqual(r.status, 0);
+    assert.ok(!r.stdout.includes("ENV_OK"));
+    assert.match(r.stderr, /AUTH_DISABLED=true is not allowed/);
+  });
+
+  test("the SSE guard no longer trusts the magic user id when auth is on", async () => {
+    const { isSseSessionValid } = await import("../../src/lib/sseGuard");
+    const req = { session: { user: { id: "auth-disabled" } } } as unknown as import("express").Request;
+    assert.equal(await isSseSessionValid(req), false);
   });
 });

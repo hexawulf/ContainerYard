@@ -1,5 +1,6 @@
 import type { Request } from "express";
 import { prisma } from "../db/client";
+import { isAuthDisabled } from "./authDisabled";
 import { getFirebaseAllowedEmails, isFirebaseEnabled } from "../services/firebaseAuth";
 
 export const MAX_SSE_STREAMS_PER_USER = 6;
@@ -68,7 +69,7 @@ export async function isSseSessionValid(
 ): Promise<boolean> {
   const sessionUser = req.session?.user;
   if (!sessionUser?.id) return false;
-  if (sessionUser.id === "auth-disabled") return true;
+  if (sessionUser.id === "auth-disabled") return isAuthDisabled();
   if (!prisma) return false;
   try {
     // The in-memory req.session outlives logout and expiry; the store does not.

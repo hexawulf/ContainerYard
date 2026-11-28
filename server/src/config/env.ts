@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { HOST_ID_REGEX, parseRemoteHostsEnv } from "./remoteHosts";
 import { isPlaceholderSecret, redisUrlHasPlaceholderPassword } from "../lib/placeholderSecrets";
+import { checkAuthDisabledPolicy } from "../lib/authDisabled";
 
 const PLACEHOLDER_MESSAGE = "still set to the .env.example placeholder; generate a real value";
 
@@ -45,6 +46,9 @@ const envSchema = z.object({
 });
 
 const parsedEnv = envSchema.parse(rawEnv);
+for (const warning of checkAuthDisabledPolicy({ ...process.env, NODE_ENV: parsedEnv.NODE_ENV })) {
+  console.warn(`[env] WARNING: ${warning}`);
+}
 export const remoteHostsConfig = parseRemoteHostsEnv(
   parsedEnv.CY_REMOTE_HOSTS,
   parsedEnv.CY_LOCAL_HOST_ID,

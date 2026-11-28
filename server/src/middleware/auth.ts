@@ -6,6 +6,7 @@ import { prisma } from "../db/client";
 import { env } from "../config/env";
 import { TtlCache } from "../lib/ttlCache";
 import { getFirebaseAllowedEmails, isFirebaseEnabled } from "../services/firebaseAuth";
+import { isAuthDisabled } from "../lib/authDisabled";
 
 const USER_SESSION_CACHE_TTL_MS = 2_000;
 const userSessionCache = new TtlCache({
@@ -18,8 +19,9 @@ export function invalidateUserSessionCache(userId?: string): void {
   userSessionCache.invalidate(userId ? `user:${userId}` : "user:");
 }
 
-const AUTH_DISABLED =
-  process.env.AUTH_DISABLED === "true" || process.env.VITE_AUTH_DISABLED === "true";
+// Server auth is only ever disabled by AUTH_DISABLED, never in production
+// (see lib/authDisabled.ts; env.ts enforces the production refusal at startup).
+const AUTH_DISABLED = isAuthDisabled();
 
 // Requests per client IP per 15 minutes. A logged-in dashboard polls stats and
 // summaries for every host (~80 requests/minute with four hosts), so signed-in
