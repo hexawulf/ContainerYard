@@ -80,6 +80,20 @@ function shouldLogError(hostId: string): boolean {
  * cgroup and daemon units such as `/system.slice/pkg-ContainerManager-dockerd.service`,
  * which the old "path contains docker" test let through on NAS hosts.
  */
+/**
+ * A cAdvisor base URL for log lines: userinfo (user:password@) and the query
+ * string are dropped so credentials in the configured URL never reach logs.
+ * Unparseable values are not echoed at all.
+ */
+export function urlForLog(raw: string): string {
+  try {
+    const u = new URL(raw);
+    return `${u.protocol}//${u.host}${u.pathname === "/" ? "" : u.pathname}`;
+  } catch {
+    return "<invalid URL>";
+  }
+}
+
 export function isDockerContainerPath(name: string): boolean {
   // Anchored at both ends: every parent segment must be a plain cgroup name
   // (no "." or ".." segments, no "?", "#" or "%"), because the value is also
@@ -277,7 +291,7 @@ class CadvisorService {
           
           if (response.ok) {
             this.workingEndpoint = endpoint;
-            console.log(`[cAdvisor] Found working endpoint: ${endpoint} for ${this.baseUrl}`);
+            console.log(`[cAdvisor] Found working endpoint: ${endpoint} for ${urlForLog(this.baseUrl)}`);
             return endpoint;
           }
         } catch (err: unknown) {
@@ -286,7 +300,7 @@ class CadvisorService {
       }
 
       // If none worked, default to the first one and let it fail with proper error
-      console.warn(`[cAdvisor] No working endpoint found for ${this.baseUrl}. Tried: ${errors.join(', ')}`);
+      console.warn(`[cAdvisor] No working endpoint found for ${urlForLog(this.baseUrl)}. Tried: ${errors.join(', ')}`);
       this.workingEndpoint = CADVISOR_ENDPOINTS[0];
       return this.workingEndpoint;
     })();
@@ -389,7 +403,7 @@ export function getCadvisorService(host: HostConfig): CadvisorService | null {
   try {
     new URL(cadvisorBase);
   } catch {
-    console.warn(`Host ${host.id} has invalid cAdvisor URL: ${cadvisorBase}`);
+    console.warn(`Host ${host.id} has invalid cAdvisor URL: ${urlForLog(cadvisorBase)}`);
     return null;
   }
 

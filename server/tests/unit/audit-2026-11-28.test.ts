@@ -9,7 +9,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { clampLogTail, MAX_LOG_TAIL } from "../../src/services/docker";
-import { isDockerContainerPath } from "../../src/services/cadvisor";
+import { isDockerContainerPath, urlForLog } from "../../src/services/cadvisor";
 import { escapeCsvField, MAX_METRICS_DAYS, safeParseInt } from "../../src/routes/metrics";
 import { channelConfigForRole, containerDetailForRole, HIDDEN_VALUE } from "../../src/lib/redact";
 import type { ContainerDetail } from "../../src/models/containers";
@@ -204,5 +204,13 @@ describe("CY-22: monitoring tables are pruned", () => {
       { metrics: 0, alertHistory: 2 },
     );
     assert.deepEqual(calls, [{ table: "history", cutoff: new Date(now - 30 * day) }]);
+  });
+});
+
+describe("CY-24: cAdvisor URLs are logged without credentials", () => {
+  test("userinfo and query string are stripped", () => {
+    assert.equal(urlForLog("http://user:pa55w0rd@cadvisor.example:8080/base/?token=abc"), "http://cadvisor.example:8080/base/");
+    assert.equal(urlForLog("https://cadvisor.example"), "https://cadvisor.example");
+    assert.equal(urlForLog("not a url with secret"), "<invalid URL>");
   });
 });
