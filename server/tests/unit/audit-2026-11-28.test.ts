@@ -9,6 +9,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { clampLogTail, MAX_LOG_TAIL } from "../../src/services/docker";
+import { isDockerContainerPath } from "../../src/services/cadvisor";
 import { channelConfigForRole, containerDetailForRole, HIDDEN_VALUE } from "../../src/lib/redact";
 import type { ContainerDetail } from "../../src/models/containers";
 import { isPlaceholderSecret, redisUrlHasPlaceholderPassword } from "../../src/lib/placeholderSecrets";
@@ -125,5 +126,27 @@ describe("CY-04: .env.example placeholder secrets are refused at startup", () =>
     });
     assert.notEqual(r.status, 0);
     assert.match(r.stderr, /ADMIN_PASSWORD is still set to the \.env\.example placeholder/);
+  });
+});
+
+describe("CY-21: cAdvisor container path check is anchored at both ends", () => {
+  const ID = "0123456789abcdef".repeat(4);
+  test("real cgroup v1/v2 names, including nested parents, still match", () => {
+    assert.equal(isDockerContainerPath(`/docker/${ID}`), true);
+    assert.equal(isDockerContainerPath(`/system.slice/docker-${ID}.scope`), true);
+    assert.equal(isDockerContainerPath(`/kubepods.slice/pod_1/docker-${ID}.scope`), true);
+  });
+  test("traversal, query and fragment tricks are rejected", () => {
+    for (const bad of [
+      `/../../x?y=/docker/${ID}`,
+      `/../metrics/docker/${ID}`,
+      `/a/./docker/${ID}`,
+      `/a?b/docker/${ID}`,
+      `/a#b/docker/${ID}`,
+      `/a%2Fb/docker/${ID}`,
+      `docker/${ID}`,
+    ]) {
+      assert.equal(isDockerContainerPath(bad), false, bad);
+    }
   });
 });

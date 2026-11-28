@@ -81,7 +81,10 @@ function shouldLogError(hostId: string): boolean {
  * which the old "path contains docker" test let through on NAS hosts.
  */
 export function isDockerContainerPath(name: string): boolean {
-  return /\/docker[-/][0-9a-f]{64}(?:\.scope)?$/i.test(name);
+  // Anchored at both ends: every parent segment must be a plain cgroup name
+  // (no "." or ".." segments, no "?", "#" or "%"), because the value is also
+  // used to build cAdvisor request paths.
+  return /^(?:\/[A-Za-z0-9_][A-Za-z0-9._-]*)*\/docker[-/][0-9a-f]{64}(?:\.scope)?$/i.test(name);
 }
 
 function extractContainerId(name: string): string {
