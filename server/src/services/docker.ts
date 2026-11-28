@@ -313,6 +313,18 @@ export interface LogOptions {
   grep?: string;
 }
 
+export const MAX_LOG_TAIL = 5000;
+
+/**
+ * Bounds a requested log tail to 1..MAX_LOG_TAIL. Docker treats a negative
+ * tail as "all lines", so an unclamped value would buffer the whole log.
+ */
+export function clampLogTail(value: unknown, fallback = 500): number {
+  const n = typeof value === "number" ? value : parseInt(String(value ?? ""), 10);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(Math.max(Math.trunc(n), 1), MAX_LOG_TAIL);
+}
+
 export async function getContainerLogs(host: HostConfig, containerId: string, options: LogOptions = {}): Promise<string> {
   assertDockerContainerRef(containerId);
   try {
@@ -322,7 +334,7 @@ export async function getContainerLogs(host: HostConfig, containerId: string, op
     const logOpts: Docker.ContainerLogsOptions & { follow: false } = {
       stdout,
       stderr,
-      tail: Math.min(tail, 5000),
+      tail: clampLogTail(tail),
       timestamps: true,
       follow: false,
     };

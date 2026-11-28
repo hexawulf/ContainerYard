@@ -28,6 +28,9 @@ module.exports = {
       env: {
         NODE_ENV: "production",
         PORT: "5008",
+        // Bare metal: listen on loopback only, so the reverse proxy is the only
+        // way in (a directly reachable port could spoof X-Forwarded-For).
+        BIND_HOST: "127.0.0.1",
       },
     },
   ],

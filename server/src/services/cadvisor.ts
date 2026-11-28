@@ -80,8 +80,34 @@ function shouldLogError(hostId: string): boolean {
  * cgroup and daemon units such as `/system.slice/pkg-ContainerManager-dockerd.service`,
  * which the old "path contains docker" test let through on NAS hosts.
  */
+/**
+ * A cAdvisor base URL for log lines: userinfo (user:password@) and the query
+ * string are dropped so credentials in the configured URL never reach logs.
+ * Unparseable values are not echoed at all.
+ */
+export function urlForLog(raw: string): string {
+  try {
+    const u = new URL(raw);
+    return `${u.protocol}//${u.host}${u.pathname === "/" ? "" : u.pathname}`;
+  } catch {
+    return "<invalid URL>";
+  }
+}
+
+/**
+ * Removes URL userinfo (scheme://user:pass@) from free text such as error
+ * messages: Node's fetch rejects credentialed URLs with a message that repeats
+ * the whole URL.
+ */
+export function scrubUrlCredentials(text: string): string {
+  return text.replace(/([a-z][a-z0-9+.-]*:\/\/)[^\s/@]*@/gi, "$1");
+}
+
 export function isDockerContainerPath(name: string): boolean {
-  return /\/docker[-/][0-9a-f]{64}(?:\.scope)?$/i.test(name);
+  // Anchored at both ends: every parent segment must be a plain cgroup name
+  // (no "." or ".." segments, no "?", "#" or "%"), because the value is also
+  // used to build cAdvisor request paths.
+  return /^(?:\/[A-Za-z0-9_][A-Za-z0-9._-]*)*\/docker[-/][0-9a-f]{64}(?:\.scope)?$/i.test(name);
 }
 
 function extractContainerId(name: string): string {
@@ -274,16 +300,16 @@ class CadvisorService {
           
           if (response.ok) {
             this.workingEndpoint = endpoint;
-            console.log(`[cAdvisor] Found working endpoint: ${endpoint} for ${this.baseUrl}`);
+            console.log(`[cAdvisor] Found working endpoint: ${endpoint} for ${urlForLog(this.baseUrl)}`);
             return endpoint;
           }
         } catch (err: unknown) {
-          errors.push(`${endpoint}: ${errorMessage(err)}`);
+          errors.push(`${endpoint}: ${scrubUrlCredentials(errorMessage(err))}`);
         }
       }
 
       // If none worked, default to the first one and let it fail with proper error
-      console.warn(`[cAdvisor] No working endpoint found for ${this.baseUrl}. Tried: ${errors.join(', ')}`);
+      console.warn(`[cAdvisor] No working endpoint found for ${urlForLog(this.baseUrl)}. Tried: ${errors.join(', ')}`);
       this.workingEndpoint = CADVISOR_ENDPOINTS[0];
       return this.workingEndpoint;
     })();
@@ -302,7 +328,7 @@ class CadvisorService {
     } catch (error: unknown) {
       const { message, status } = errorInfo(error);
       if (shouldLogError(host.id)) {
-        console.error(`[cAdvisor] Failed to list containers for host ${host.id}:`, message);
+        console.error(`[cAdvisor] Failed to list containers for host ${host.id}:`, scrubUrlCredentials(message));
       }
       
       // Create appropriate error based on the failure (never echo internal baseUrl to clients)
@@ -349,7 +375,7 @@ class CadvisorService {
       };
     } catch (error: unknown) {
       if (shouldLogError(host.id)) {
-        console.error(`[cAdvisor] Failed to get container details for host ${host.id}, container ${containerId}:`, errorMessage(error));
+        console.error(`[cAdvisor] Failed to get container details for host ${host.id}, container ${containerId}:`, scrubUrlCredentials(errorMessage(error)));
       }
       throw error;
     }
@@ -366,7 +392,7 @@ class CadvisorService {
         return computeStats(host, containerId, container);
       } catch (error: unknown) {
         if (shouldLogError(host.id)) {
-          console.error(`[cAdvisor] Failed to get container stats for host ${host.id}, container ${containerId}:`, errorMessage(error));
+          console.error(`[cAdvisor] Failed to get container stats for host ${host.id}, container ${containerId}:`, scrubUrlCredentials(errorMessage(error)));
         }
         throw error;
       }
@@ -386,7 +412,7 @@ export function getCadvisorService(host: HostConfig): CadvisorService | null {
   try {
     new URL(cadvisorBase);
   } catch {
-    console.warn(`Host ${host.id} has invalid cAdvisor URL: ${cadvisorBase}`);
+    console.warn(`Host ${host.id} has invalid cAdvisor URL: ${urlForLog(cadvisorBase)}`);
     return null;
   }
 

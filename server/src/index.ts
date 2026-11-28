@@ -1,5 +1,5 @@
 import { errorInfo } from "./lib/httpError";
-import { buildHelmetOptions } from "./lib/csp";
+import { buildHelmetOptions, permissionsPolicyMiddleware } from "./lib/csp";
 import { initFirebaseAtStartup } from "./services/firebaseAuth";
 import express from "express";
 import fs from "fs";
@@ -28,6 +28,7 @@ import { savedSearchesRouter } from "./routes/savedSearches";
 import { auditRouter } from "./routes/audit";
 import { usersRouter } from "./routes/users";
 import { pruneAudit } from "./services/audit";
+import { pruneMonitoring } from "./services/retention";
 import { log, setupVite } from "../vite";
 import { registerMetrics } from "./metrics";
 import { alertWorker } from "./services/alertWorker";
@@ -35,6 +36,7 @@ import { metricsAggregator } from "./services/metricsAggregator";
 import { restartTracker } from "./services/restartTracker";
 import { getHost, listHosts } from "./config/hosts";
 import { listContainers as listDockerContainers } from "./services/docker";
+import { summaryForRole } from "./lib/redact";
 import { getCadvisorService } from "./services/cadvisor";
 
 export async function createApp() {
@@ -45,6 +47,7 @@ export async function createApp() {
   app.disable("x-powered-by");
 
   app.use(helmet(buildHelmetOptions(process.env)));
+  app.use(permissionsPolicyMiddleware);
 
   app.use((req, res, next) => {
     const origin = typeof req.headers.origin === "string" ? req.headers.origin : undefined;
@@ -129,7 +132,7 @@ export async function createApp() {
 
         if (host.provider === "DOCKER") {
           const containers = await listDockerContainers(host);
-          return res.json(containers);
+          return res.json(containers.map((c) => summaryForRole(c, req.session.user?.role)));
         }
 
         // CADVISOR_ONLY provider
@@ -138,7 +141,7 @@ export async function createApp() {
           return res.status(503).json({ error: "cAdvisor service unavailable for this host" });
         }
         const containers = await service.listContainers(host);
-        return res.json(containers);
+        return res.json(containers.map((c) => summaryForRole(c, req.session.user?.role)));
       }
 
       // No host parameter - return containers from all hosts in parallel (legacy behavior)
@@ -163,7 +166,7 @@ export async function createApp() {
         }
       }
 
-      res.json(allContainers);
+      res.json(allContainers.map((c) => summaryForRole(c, req.session.user?.role)));
     } catch (error: unknown) {
       const { message, status } = errorInfo(error);
       if (status === 404) {
@@ -253,11 +256,11 @@ export async function createApp() {
   httpServer.listen(
     {
       port,
-      host: "0.0.0.0",
+      host: env.BIND_HOST,
       reusePort: true,
     },
     () => {
-      log(`API listening on port ${port}`);
+      log(`API listening on ${env.BIND_HOST}:${port}`);
       initFirebaseAtStartup(process.env, {
         info: (m) => log(m, "info"),
         warn: (m) => log(m, "warn"),
@@ -275,8 +278,11 @@ export async function createApp() {
       restartPruneTimer.unref();
 
       // Audit log retention (AUDIT_RETENTION_DAYS, default 180)
-      const runAuditPrune = () =>
+      // Also prunes monitoring tables (METRICS_RETENTION_DAYS, ALERT_HISTORY_RETENTION_DAYS).
+      const runAuditPrune = () => {
         pruneAudit().catch((error) => log(`Failed to prune audit log: ${error}`, "error"));
+        pruneMonitoring().catch((error) => log(`Failed to prune monitoring tables: ${error}`, "error"));
+      };
       auditPruneTimer = setInterval(runAuditPrune, 24 * 60 * 60 * 1000);
       auditPruneTimer.unref();
       runAuditPrune();

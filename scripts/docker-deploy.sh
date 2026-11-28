@@ -4,7 +4,7 @@
 #              backing up the SQLite database in cy-data beforehand.
 #              Usage: scripts/docker-deploy.sh <X.Y.Z> [--dry-run]
 # Created: 2026-11-09
-# Modified: 2026-11-09
+# Modified: 2026-11-28
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -137,7 +137,9 @@ fi
 # 2. Back up the cy-data SQLite database volume if it exists
 DATA_VOL="${PROJECT}_cy-data"
 BACKUP_DIR="$HOME/backups/containeryard"
+# Backups hold password hashes: owner-only directory and files.
 run mkdir -p "$BACKUP_DIR"
+run chmod 700 "$BACKUP_DIR"
 
 if docker volume inspect "$DATA_VOL" >/dev/null 2>&1; then
   BACKUP_FILE="${BACKUP_DIR}/app.db.bak-${TS}"
@@ -145,8 +147,8 @@ if docker volume inspect "$DATA_VOL" >/dev/null 2>&1; then
   run docker run --rm \
     -v "${DATA_VOL}:/data:ro" \
     -v "${BACKUP_DIR}:/backup" \
-    --entrypoint /bin/cp \
-    "$IMAGE" -a /data/app.db "/backup/app.db.bak-${TS}"
+    --entrypoint /bin/sh \
+    "$IMAGE" -c "cp -a /data/app.db '/backup/app.db.bak-${TS}' && chmod 600 '/backup/app.db.bak-${TS}'"
 else
   warn "Volume ${DATA_VOL} does not exist yet; skipping volume DB backup."
 fi

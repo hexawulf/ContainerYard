@@ -6,12 +6,88 @@ import {
   insertNotificationChannelSchema,
 } from "@shared/schema";
 import { requireRole } from "../middleware/auth";
+import { channelConfigForRole } from "../lib/redact";
 import { sendNotification } from "../services/notifications";
+import { recordAudit, type AuditOutcome } from "../services/audit";
 import { validateWebhookUrl } from "../lib/safeWebhook";
 
 const router = Router();
 const patchChannelSchema = insertNotificationChannelSchema.partial();
 const patchAlertRuleSchema = insertAlertRuleSchema.partial();
+
+/**
+ * Audit action for a mutating alerts request, or null for reads. Paths are
+ * relative to /api/alerts. The request body is never recorded because channel
+ * configs hold credentials.
+ */
+export function alertAuditAction(method: string, path: string): string | null {
+  if (method === "GET" || method === "HEAD" || method === "OPTIONS") return null;
+  // Express matches routes case-insensitively, so match the same way here.
+  const p = path.toLowerCase().replace(/\/+$/, "") || "/";
+  if (method === "POST" && p === "/channels") return "alert.channel.create";
+  if (method === "POST" && /^\/channels\/[^/]+\/test$/.test(p)) return "alert.channel.test";
+  if (method === "PATCH" && /^\/channels\/[^/]+$/.test(p)) return "alert.channel.update";
+  if (method === "DELETE" && /^\/channels\/[^/]+$/.test(p)) return "alert.channel.delete";
+  if (method === "POST" && p === "/rules") return "alert.rule.create";
+  if (method === "PATCH" && /^\/rules\/[^/]+$/.test(p)) return "alert.rule.update";
+  if (method === "DELETE" && /^\/rules\/[^/]+$/.test(p)) return "alert.rule.delete";
+  if (method === "POST" && /^\/history\/[^/]+\/acknowledge$/.test(p)) return "alert.acknowledge";
+  if (method === "DELETE" && p === "/history") return "alert.history.delete";
+  // Unknown paths are not audited: they change nothing, and auditing them
+  // would let any signed-in user write arbitrary rows.
+  return null;
+}
+
+/**
+ * Denied attempts (VIEWERs; unauthenticated requests stop at requireAuth) are
+ * audited, but at most DENIED_AUDIT_MAX rows per user per window, so a VIEWER
+ * cannot bury real admin changes under junk rows. ADMIN changes are always
+ * recorded.
+ */
+export const DENIED_AUDIT_MAX = 20;
+const DENIED_AUDIT_WINDOW_MS = 15 * 60 * 1000;
+const deniedAuditCounts = new Map<string, { windowStart: number; count: number }>();
+
+export function allowDeniedAudit(userKey: string, now = Date.now()): boolean {
+  const entry = deniedAuditCounts.get(userKey);
+  if (!entry || now - entry.windowStart >= DENIED_AUDIT_WINDOW_MS) {
+    if (deniedAuditCounts.size > 10_000) deniedAuditCounts.clear();
+    deniedAuditCounts.set(userKey, { windowStart: now, count: 1 });
+    return true;
+  }
+  if (entry.count >= DENIED_AUDIT_MAX) return false;
+  entry.count += 1;
+  return true;
+}
+
+export function resetDeniedAuditCountsForTests(): void {
+  deniedAuditCounts.clear();
+}
+
+function auditOutcome(status: number): AuditOutcome {
+  if (status === 401 || status === 403) return "denied";
+  return status < 400 ? "success" : "failure";
+}
+
+// Every alert change (and every refused attempt) goes to the audit log once
+// the response is sent. Registered before the role gate so denials count too.
+router.use((req, res, next) => {
+  const action = alertAuditAction(req.method, req.path);
+  if (action) {
+    res.on("finish", () => {
+      const outcome = auditOutcome(res.statusCode);
+      if (outcome === "denied" && !allowDeniedAudit(req.session?.user?.id ?? req.ip ?? "unknown")) return;
+      const query = req.path === "/history" && req.query.days ? `days=${String(req.query.days)}` : "";
+      void recordAudit(req, {
+        action,
+        outcome,
+        target: req.path.slice(0, 200),
+        detail: `status ${res.statusCode}${query ? `; ${query.slice(0, 50)}` : ""}`,
+      });
+    });
+  }
+  next();
+});
 
 // Reading alerts is open to any signed-in user; changing them needs ADMIN.
 router.use((req, res, next) => {
@@ -44,13 +120,14 @@ function isNotFoundError(error: unknown): boolean {
 
 // ==================== Notification Channels ====================
 
-router.get("/channels", async (_req, res, next) => {
+router.get("/channels", async (req, res, next) => {
   if (!prisma) return res.json([]);
   try {
     const channels = await prisma.notificationChannel.findMany({
       orderBy: { createdAt: "desc" },
     });
-    res.json(channels);
+    const role = req.session.user?.role;
+    res.json(channels.map((c) => ({ ...c, config: channelConfigForRole(c.config, role) })));
   } catch (error) {
     next(error);
   }
@@ -66,7 +143,7 @@ router.get("/channels/:id", async (req, res, next) => {
     if (!channel) {
       return res.status(404).json({ error: "Channel not found" });
     }
-    res.json(channel);
+    res.json({ ...channel, config: channelConfigForRole(channel.config, req.session.user?.role) });
   } catch (error) {
     next(error);
   }
@@ -350,23 +427,27 @@ router.post("/history/:id/acknowledge", async (req, res, next) => {
     const id = parseIntParam(req.params.id);
     if (id === null) return res.status(400).json({ error: "Invalid alert ID" });
 
-    const acknowledgedBy =
-      typeof req.body?.acknowledgedBy === "string" && req.body.acknowledgedBy.trim()
-        ? req.body.acknowledgedBy.trim()
-        : "system";
+    // Who acknowledged comes from the session, never from the request body.
+    const acknowledgedBy = req.session.user?.email ?? "unknown";
 
-    const alert = await prisma.alertHistory.update({
-      where: { id },
+    // Only an unacknowledged alert can be acknowledged, so the first record
+    // is never overwritten (the where clause makes this atomic).
+    const { count } = await prisma.alertHistory.updateMany({
+      where: { id, acknowledgedAt: null },
       data: {
         acknowledgedAt: new Date(),
         acknowledgedBy,
       },
     });
-    res.json(alert);
-  } catch (error) {
-    if (isNotFoundError(error)) {
+    const alert = await prisma.alertHistory.findUnique({ where: { id } });
+    if (!alert) {
       return res.status(404).json({ error: "Alert not found" });
     }
+    if (count === 0) {
+      return res.status(409).json({ error: "Alert already acknowledged", alert });
+    }
+    res.json(alert);
+  } catch (error) {
     next(error);
   }
 });

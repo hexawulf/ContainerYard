@@ -144,6 +144,10 @@ server {
     ssl_certificate     /etc/letsencrypt/live/containeryard.example.com/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/containeryard.example.com/privkey.pem;
 
+    # HSTS belongs at the TLS terminator. The app sends it itself only when
+    # CY_ENABLE_APP_HSTS=1 (use one or the other, not both).
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
     location / {
         proxy_pass http://127.0.0.1:5008;
         proxy_http_version 1.1;
@@ -160,6 +164,24 @@ server {
     }
 }
 ```
+
+### Behind a CDN (Cloudflare or similar)
+
+Login and global rate limits, and the audit log, key on the client IP that
+`trust proxy 1` takes from the right-most `X-Forwarded-For` entry, which nginx
+fills from `$remote_addr`. With a CDN in front of nginx, `$remote_addr` is the CDN
+edge, so every visitor behind one edge would share a bucket (an attacker could lock
+everyone out of login) unless nginx restores the real client address first:
+
+```nginx
+# http {} context, e.g. /etc/nginx/conf.d/real_ip.conf
+# One set_real_ip_from line per published CDN range (keep the list current).
+set_real_ip_from 203.0.113.0/24;   # example range, replace with your CDN's list
+real_ip_header CF-Connecting-IP;   # or X-Forwarded-For with real_ip_recursive on
+```
+
+Only trust that header from the CDN ranges, and do not expose the origin directly.
+IPv6 clients are bucketed by their /64 prefix.
 
 ---
 
@@ -192,11 +214,13 @@ Remote hosts configured in `CY_REMOTE_HOSTS` (parsed by `server/src/config/env.t
 | `ALLOWED_ORIGINS` | **Yes** | — | Comma-separated CORS origins (e.g. `https://containeryard.org`) |
 | `DATABASE_URL` | **Yes** | `file:/data/app.db` | Prisma database URL (`file:/data/app.db` in Compose, or `postgresql://...`) |
 | `ADMIN_EMAIL` | **Yes** | — | Bootstrap ADMIN email (used when `User` table is empty) |
-| `ADMIN_PASSWORD` | **Yes** | — | Bootstrap ADMIN password (`>= 12` chars) |
+| `ADMIN_PASSWORD` | First boot | — | Bootstrap ADMIN password (`>= 12` chars). Only read while the `User` table is empty; remove it from `.env` after the first sign-in and change the password in the UI |
 | `CY_LOCAL_HOST_ID` | No | `local` | Local Docker host ID (`/^[a-z0-9-]{1,32}$/`) |
 | `CY_LOCAL_HOST_NAME` | No | `Local Docker` | Display name for the local Docker host |
 | `CY_REMOTE_HOSTS` | No | `[]` | JSON array of `{id, name, cadvisorUrl, dozzleUrl?}` for remote cAdvisor hosts |
 | `PORT` | No | `5008` | HTTP server listen port inside the container |
+| `BIND_HOST` | No | `0.0.0.0` | Interface the server listens on. Keep `0.0.0.0` in the container (publish the port on `127.0.0.1`); bare-metal/PM2 sets `127.0.0.1` in `ecosystem.config.cjs` |
+| `CY_ENABLE_APP_HSTS` | No | unset | `1` makes the app send `Strict-Transport-Security` itself. Leave unset when the reverse proxy sets HSTS (recommended) |
 | `NODE_ENV` | No | `production` | Runtime environment (`development`, `test`, `production`) |
 | `LOG_LEVEL` | No | `info` | Server log verbosity |
 | `DOCKER_HOST` | No | `unix:///var/run/docker.sock` | Local Docker socket path |

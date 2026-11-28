@@ -6,7 +6,9 @@ import {
   assertDockerContainerRef,
   listContainers as listDockerContainers, 
   getContainerDetail as getDockerContainerDetail, 
-  getContainerLogs, 
+  clampLogTail,
+  getContainerLogs,
+  MAX_LOG_TAIL,
   getContainerStats as getDockerContainerStats,
   streamContainerLogs,
   type LogOptions 
@@ -14,7 +16,7 @@ import {
 import { getDockerHostStats } from "../services/dockerHostStats";
 import { getCadvisorService } from "../services/cadvisor";
 import { requireAuth } from "../middleware/auth";
-import { envForRole } from "../lib/redact";
+import { containerDetailForRole, summaryForRole } from "../lib/redact";
 import { acquireSseStreamSlot, isSseSessionValid } from "../lib/sseGuard";
 import type { NormalizedStats, HostStats } from "@shared/monitoring";
 
@@ -57,9 +59,10 @@ router.get("/:hostId/containers", requireAuth, async (req, res, next) => {
   try {
     const host = getHost(String(req.params.hostId));
 
+    const role = req.session.user?.role;
     if (host.provider === "DOCKER") {
       const containers = await listDockerContainers(host);
-      return res.json(containers);
+      return res.json(containers.map((c) => summaryForRole(c, role)));
     }
 
     const service = getCadvisorService(host);
@@ -67,7 +70,7 @@ router.get("/:hostId/containers", requireAuth, async (req, res, next) => {
       return res.status(503).json({ error: "cAdvisor service unavailable for this host" });
     }
     const containers = await service.listContainers(host);
-    return res.json(containers);
+    return res.json(containers.map((c) => summaryForRole(c, role)));
   } catch (error) {
     next(error);
   }
@@ -80,8 +83,8 @@ router.get("/:hostId/containers/:containerId", requireAuth, async (req, res, nex
 
     if (host.provider === "DOCKER") {
       const container = await getDockerContainerDetail(host, containerId);
-      // Env values are credentials more often than not: admins only.
-      return res.json({ ...container, env: envForRole(container.env, req.session.user?.role) });
+      // Env values, command arguments and host mount paths are admin-only.
+      return res.json(containerDetailForRole(container, req.session.user?.role));
     }
 
     const service = getCadvisorService(host);
@@ -89,7 +92,7 @@ router.get("/:hostId/containers/:containerId", requireAuth, async (req, res, nex
       return res.status(503).json({ error: "cAdvisor service unavailable for this host" });
     }
     const container = await service.getContainer(host, containerId);
-    return res.json(container);
+    return res.json(summaryForRole(container, req.session.user?.role));
   } catch (error) {
     next(error);
   }
@@ -136,14 +139,13 @@ router.get("/:hostId/containers/:containerId/logs", requireAuth, async (req, res
     const containerId = String(req.params.containerId);
 
     if (host.provider === "DOCKER") {
-      const tail = req.query.tail ? parseInt(String(req.query.tail), 10) : 500;
       const since = req.query.since ? String(req.query.since) : undefined;
       const grep = req.query.grep ? String(req.query.grep) : undefined;
       const stdout = req.query.stdout !== 'false';
       const stderr = req.query.stderr !== 'false';
 
       const options: LogOptions = {
-        tail: Number.isNaN(tail) ? 500 : Math.min(tail, 5000),
+        tail: clampLogTail(req.query.tail),
         since: since && !isNaN(Number(since)) ? Number(since) : since,
         grep,
         stdout,
@@ -154,7 +156,7 @@ router.get("/:hostId/containers/:containerId/logs", requireAuth, async (req, res
       return res.json({ 
         mode: "docker",
         content: logs,
-        truncated: options.tail === 5000,
+        truncated: options.tail === MAX_LOG_TAIL,
       });
     }
 

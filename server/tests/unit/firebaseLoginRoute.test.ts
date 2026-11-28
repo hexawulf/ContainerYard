@@ -256,6 +256,15 @@ describe("POST /api/auth/firebase-login and session re-check", () => {
     assert.equal(me.user.role, "VIEWER");
   });
 
+  /** A long-lived SSE request: its own copy of the session plus the shared store. */
+  function sseRequest(sid: string): express.Request {
+    return {
+      session: { user: sessions.get(sid)?.user },
+      sessionID: sid,
+      sessionStore: { get: (id: string, cb: (err: unknown, data: unknown) => void) => cb(null, sessions.get(id) ?? null) },
+    } as unknown as express.Request;
+  }
+
   test("requireAuth and isSseSessionValid revoke Google session when removed from allowlist or disabled", async () => {
     Object.assign(process.env, FB_ENV);
     invalidateUserSessionCache();
@@ -271,7 +280,7 @@ describe("POST /api/auth/firebase-login and session re-check", () => {
     // Allowed right now
     const okRes = await fetch(`${base}/api/protected`, { headers: { "x-test-sid": sid } });
     assert.equal(okRes.status, 200);
-    const sseReq = { session: { user: sessions.get(sid)?.user } } as unknown as express.Request;
+    const sseReq = sseRequest(sid);
     assert.equal(await isSseSessionValid(sseReq, { requireRole: "ADMIN" }), true);
 
     // Remove admin@example.com from allowlist -> SSE heartbeat fails, requireAuth destroys session -> 401
@@ -293,7 +302,7 @@ describe("POST /api/auth/firebase-login and session re-check", () => {
     assert.equal(login2.status, 200);
 
     process.env.FIREBASE_ENABLED = "false";
-    const sseReq2 = { session: { user: sessions.get(sid2)?.user } } as unknown as express.Request;
+    const sseReq2 = sseRequest(sid2);
     assert.equal(await isSseSessionValid(sseReq2, { requireRole: "ADMIN" }), false);
     const disabledRes = await fetch(`${base}/api/protected`, { headers: { "x-test-sid": sid2 } });
     assert.equal(disabledRes.status, 401);

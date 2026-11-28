@@ -17,6 +17,15 @@ vite.config.ts.*
 !.env.example
 !deploy/**/.env.*.example
 
+# Keys and credentials (Firebase service accounts, TLS keys)
+*.pem
+*.key
+*.p12
+*.pfx
+*service-account*.json
+firebase-sa*.json
+credentials.json
+
 # Logs
 *.log
 npm-debug.log*

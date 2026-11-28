@@ -3,6 +3,7 @@ import { Router, type RequestHandler } from "express";
 import { log } from "../../vite";
 import { getHost } from "../config/hosts";
 import { listContainers as listDockerContainers, performBulkAction, getContainerLogs } from "../services/docker";
+import { summaryForRole } from "../lib/redact";
 import { getCadvisorService } from "../services/cadvisor";
 import { groupContainersByStack, getStackByName } from "../models/stacks";
 import type { ContainerSummary } from "../models/containers";
@@ -54,7 +55,9 @@ async function getAllContainersForHost(hostId: string): Promise<ContainerSummary
 // Get all stacks for a specific host
 router.get("/:hostId/stacks", async (req, res, next) => {
   try {
-    const containers = await getAllContainersForHost(req.params.hostId);
+    // Compose labels (used for grouping) are kept; other label values are admin-only.
+    const role = req.session.user?.role;
+    const containers = (await getAllContainersForHost(req.params.hostId)).map((c) => summaryForRole(c, role));
     const { stacks, standaloneContainers } = groupContainersByStack(containers);
     res.json({ stacks, standaloneContainers });
   } catch (error) {
@@ -68,7 +71,8 @@ router.get("/:hostId/stacks/:name", async (req, res, next) => {
     if (!STACK_NAME_REGEX.test(req.params.name)) {
       return res.status(400).json({ error: "Invalid stack name" });
     }
-    const containers = await getAllContainersForHost(req.params.hostId);
+    const role = req.session.user?.role;
+    const containers = (await getAllContainersForHost(req.params.hostId)).map((c) => summaryForRole(c, role));
     const stack = getStackByName(containers, req.params.name);
     
     if (!stack) {

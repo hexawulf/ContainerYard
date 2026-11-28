@@ -1,4 +1,4 @@
-import type { ContainerEnvVar } from "../models/containers";
+import type { ContainerDetail, ContainerEnvVar, ContainerMount } from "../models/containers";
 
 export const HIDDEN_VALUE = "[hidden]";
 
@@ -13,4 +13,112 @@ export function envForRole(env: ContainerEnvVar[] | undefined, role: string | un
   if (!env) return [];
   if (role === "ADMIN") return env;
   return env.map((entry) => ({ key: entry.key, value: HIDDEN_VALUE }));
+}
+
+/**
+ * Command-line arguments carry secrets as often as env does (for example
+ * `redis-server --requirepass <password>`). Config.Cmd may hold only arguments
+ * when the image sets an entrypoint, so no token is safe to keep: non-admins
+ * get the whole command hidden.
+ */
+export function commandForRole(command: string | null | undefined, role: string | undefined): string | null {
+  if (command === undefined || command === null) return null;
+  if (role === "ADMIN") return command;
+  return command.trim() ? HIDDEN_VALUE : command;
+}
+
+/** Host-side mount paths reveal host layout; non-admins see the container side only. */
+export function mountsForRole(mounts: ContainerMount[] | undefined, role: string | undefined): ContainerMount[] {
+  if (!mounts) return [];
+  if (role === "ADMIN") return mounts;
+  return mounts.map((m) => ({ ...m, source: m.source ? HIDDEN_VALUE : m.source }));
+}
+
+/**
+ * Label values a non-admin may see: the compose keys stack grouping and the UI
+ * need (not working_dir / config_files / environment_file, which hold host
+ * paths) and the OCI image metadata.
+ */
+export const SAFE_LABEL_KEYS = new Set([
+  "com.docker.compose.project",
+  "com.docker.compose.service",
+  "com.docker.compose.container-number",
+  "com.docker.compose.oneoff",
+  "com.docker.compose.version",
+]);
+export const SAFE_LABEL_PREFIXES = ["org.opencontainers.image."];
+
+function isSafeLabel(key: string): boolean {
+  return SAFE_LABEL_KEYS.has(key) || SAFE_LABEL_PREFIXES.some((p) => key.startsWith(p));
+}
+
+/**
+ * Labels carry credentials and host paths too (e.g. Traefik basic-auth hashes,
+ * compose working_dir). Non-admins keep every key, but only safe values.
+ */
+export function labelsForRole(
+  labels: Record<string, string> | undefined | null,
+  role: string | undefined,
+): Record<string, string> {
+  if (!labels) return {};
+  if (role === "ADMIN") return labels;
+  return Object.fromEntries(Object.entries(labels).map(([k, v]) => [k, isSafeLabel(k) ? v : HIDDEN_VALUE]));
+}
+
+/** Per-role redaction for a container summary (lists, stacks). */
+export function summaryForRole<T extends { labels?: Record<string, string> }>(container: T, role: string | undefined): T {
+  if (role === "ADMIN") return container;
+  return { ...container, labels: labelsForRole(container.labels, role) };
+}
+
+/** Applies every per-role redaction to a container detail response. */
+export function containerDetailForRole(detail: ContainerDetail, role: string | undefined): ContainerDetail {
+  return {
+    ...detail,
+    labels: labelsForRole(detail.labels, role),
+    command: commandForRole(detail.command, role),
+    env: envForRole(detail.env, role),
+    mounts: mountsForRole(detail.mounts, role),
+  };
+}
+
+function hideValues(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(hideValues);
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, hideValues(v)]));
+  }
+  return HIDDEN_VALUE;
+}
+
+function urlOrigin(value: unknown): string {
+  if (typeof value !== "string") return HIDDEN_VALUE;
+  try {
+    return `${new URL(value).origin}/${HIDDEN_VALUE}`;
+  } catch {
+    return HIDDEN_VALUE;
+  }
+}
+
+/**
+ * Notification channel configs hold credentials: a webhook URL's path is often
+ * the secret itself, and custom headers carry bearer tokens. Admins get the
+ * stored JSON unchanged. Everyone else gets the same keys with every value
+ * hidden, except `url`, which is reduced to its origin so the target is still
+ * recognisable.
+ */
+export function channelConfigForRole(config: string, role: string | undefined): string {
+  if (role === "ADMIN") return config;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(config);
+  } catch {
+    return JSON.stringify(HIDDEN_VALUE);
+  }
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return JSON.stringify(HIDDEN_VALUE);
+  }
+  const redacted = Object.fromEntries(
+    Object.entries(parsed).map(([k, v]) => [k, k === "url" ? urlOrigin(v) : hideValues(v)]),
+  );
+  return JSON.stringify(redacted);
 }

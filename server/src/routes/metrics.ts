@@ -3,17 +3,30 @@ import { prisma } from "../db/client";
 
 const router = Router();
 
-function safeParseInt(value: string | undefined, fallback: number, max = 10000): number {
+/**
+ * Largest metrics window a request may ask for. Matches the 90-day trend
+ * history the schema documents and the UI offers; each request loads every
+ * hourly row in the window, so a 365-day window was a memory/CPU sink.
+ */
+export const MAX_METRICS_DAYS = 90;
+
+export function safeParseInt(value: string | undefined, fallback: number, max = 10000): number {
   if (!value) return fallback;
   const n = parseInt(value, 10);
   return Number.isNaN(n) ? fallback : Math.min(Math.max(n, 1), max);
 }
 
-function escapeCsvField(value: string): string {
-  if (/[",\n\r]/.test(value)) {
-    return `"${value.replace(/"/g, '""')}"`;
+/**
+ * Quotes a CSV field and neutralises spreadsheet formulas: a field that starts
+ * with = + - @ TAB or CR is prefixed with a single quote (OWASP CSV injection
+ * guidance), because container names can come from a remote cAdvisor.
+ */
+export function escapeCsvField(value: string): string {
+  const safe = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+  if (/[",\n\r]/.test(safe)) {
+    return `"${safe.replace(/"/g, '""')}"`;
   }
-  return value;
+  return safe;
 }
 
 function safeFilenameToken(value: string): string {
@@ -25,7 +38,7 @@ router.get("/:hostId/containers/:containerId/metrics/history", async (req, res, 
   if (!prisma) return res.json([]);
   try {
     const { hostId, containerId } = req.params;
-    const days = safeParseInt(req.query.days as string, 7, 365);
+    const days = safeParseInt(req.query.days as string, 7, MAX_METRICS_DAYS);
 
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - days);
@@ -50,7 +63,7 @@ router.get("/:hostId/metrics/summary", async (req, res, next) => {
   if (!prisma) return res.json([]);
   try {
     const { hostId } = req.params;
-    const days = safeParseInt(req.query.days as string, 7, 365);
+    const days = safeParseInt(req.query.days as string, 7, MAX_METRICS_DAYS);
 
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - days);
@@ -117,7 +130,7 @@ router.get("/:hostId/metrics/top-cpu", async (req, res, next) => {
   try {
     const { hostId } = req.params;
     const limit = safeParseInt(req.query.limit as string, 5, 100);
-    const days = safeParseInt(req.query.days as string, 7, 365);
+    const days = safeParseInt(req.query.days as string, 7, MAX_METRICS_DAYS);
 
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - days);
@@ -162,7 +175,7 @@ router.get("/:hostId/metrics/top-memory", async (req, res, next) => {
   try {
     const { hostId } = req.params;
     const limit = safeParseInt(req.query.limit as string, 5, 100);
-    const days = safeParseInt(req.query.days as string, 7, 365);
+    const days = safeParseInt(req.query.days as string, 7, MAX_METRICS_DAYS);
 
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - days);
@@ -205,7 +218,7 @@ router.get("/:hostId/metrics/top-memory", async (req, res, next) => {
 router.get("/:hostId/metrics/export/csv", async (req, res, next) => {
   try {
     const { hostId } = req.params;
-    const days = safeParseInt(req.query.days as string, 7, 365);
+    const days = safeParseInt(req.query.days as string, 7, MAX_METRICS_DAYS);
     const format = req.query.format || 'csv';
 
     const cutoffDate = new Date();
@@ -276,7 +289,7 @@ router.get("/:hostId/metrics/export/csv", async (req, res, next) => {
 router.get("/:hostId/containers/:containerId/metrics/export/csv", async (req, res, next) => {
   try {
     const { hostId, containerId } = req.params;
-    const days = safeParseInt(req.query.days as string, 7, 365);
+    const days = safeParseInt(req.query.days as string, 7, MAX_METRICS_DAYS);
     const format = req.query.format || 'csv';
 
     const cutoffDate = new Date();

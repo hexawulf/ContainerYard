@@ -69,6 +69,22 @@ jobs:
           echo "tag=$TAG" >>"$GITHUB_OUTPUT"
           echo "ref=refs/tags/$TAG" >>"$GITHUB_OUTPUT"
 
+      - name: Tagged commit is on main
+        # Only reviewed code may be published: the tag must point at a commit
+        # that main contains (compare status "behind" or "identical").
+        env:
+          TAG: ${{ steps.check.outputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          sha=$(gh api "repos/$REPO/commits/$TAG" --jq .sha)
+          status=$(gh api "repos/$REPO/compare/main...$sha" --jq .status)
+          if [ "$status" != behind ] && [ "$status" != identical ]; then
+            echo "::error::$TAG ($sha) is not on main (compare status: $status)"
+            exit 1
+          fi
+          echo "$TAG ($sha) is on main"
+
       - name: Check out the tag
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -163,6 +179,7 @@ jobs:
       - name: Trivy report
         id: trivy
         env:
+          TAG: ${{ needs.tag.outputs.tag }}
           TRIVY_IMAGE: aquasec/trivy:0.76.1@sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c
         run: |
           out="$RUNNER_TEMP/trivy"   # outside the build context
@@ -180,7 +197,7 @@ jobs:
           high=$(jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="HIGH")] | length' "$out/fixable.json")
           echo "critical=$crit" >>"$GITHUB_OUTPUT"
           {
-            echo "### Trivy: ${{ needs.tag.outputs.tag }} (linux/amd64)"
+            echo "### Trivy: ${TAG} (linux/amd64)"
             echo
             echo "Fixable: **$crit CRITICAL**, **$high HIGH**. All severities, fixed or not, are in the Security tab."
             if [ "$((crit + high))" -gt 0 ]; then
